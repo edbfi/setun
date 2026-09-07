@@ -47,6 +47,9 @@ hooks = [
   # outside its configured paths, which is the normal case for a commit touching
   # only messages/ or project.inlang/.
   { id = "biome", name = "Format and lint with Biome", entry = "bunx biome check --write --no-errors-on-unmatched", language = "system", types_or = ["javascript", "ts", "svelte", "json", "css"] },
+  { id = "python-ruff", name = "Python lint", entry = "uv run --project scripts --frozen ruff check --config scripts/ruff.toml", language = "system", types = ["python"], files = '^(scripts/|\.github/scripts/check-python\.py)' },
+  { id = "python-format", name = "Python format", entry = "uv run --project scripts --frozen ruff format --check --config scripts/ruff.toml", language = "system", types = ["python"], files = '^(scripts/|\.github/scripts/check-python\.py)' },
+  { id = "python-types", name = "Python types", entry = "uv run --project scripts --frozen python .github/scripts/check-python.py", language = "system", pass_filenames = false, files = '^(scripts/|\.github/scripts/check-python\.py)' },
   { id = "svelte-check", name = "TypeScript and Svelte type check", entry = "bun run check", language = "system", pass_filenames = false, stages = ["pre-push"] },
   { id = "tests", name = "Run test suite", entry = "bun test", language = "system", pass_filenames = false, stages = ["pre-push"] },
 ]

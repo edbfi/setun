@@ -23,7 +23,7 @@ from pathlib import Path
 # .agents/rules/python-3_14-core.md: deferred annotations (PEP 649) and
 # parenthesis-free `except` (PEP 758) are both 3.14, and neither degrades — an
 # older interpreter cannot parse the files at all.
-if sys.version_info < (3, 14):
+if sys.version_info < (3, 14):  # noqa: UP036 — bootstrap gives older interpreters a clear error.
     raise SystemExit(
         f"the dev suite needs Python 3.14 or newer; this is {platform.python_version()}.\n"
         f"  {sys.executable}\n"
@@ -32,7 +32,7 @@ if sys.version_info < (3, 14):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
-from devsuite.cli import main  # noqa: E402 — the path above is what makes it importable
+from devsuite.cli import main
 
 if __name__ == "__main__":
     sys.exit(main())

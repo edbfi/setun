@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>engels74/automation:default#v1.0.0",
+    "github>engels74/automation:mixed#v1.0.0"
+  ],
+  "packageRules": [
+    {
+      "description": "Review TypeScript 7 after Svelte language tools support its API.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    }
+  ]
+}

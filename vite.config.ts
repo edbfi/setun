@@ -66,9 +66,8 @@ export default defineConfig({
   },
   test: {
     expect: { requireAssertions: true },
-    // The server project is reserved for suites needing Vite resolution; pure
-    // server logic lives in `bun test`, so it is legitimately empty for now.
-    passWithNoTests: true,
+    // Both projects have suites; an empty project must fail instead of passing silently.
+    passWithNoTests: false,
     projects: [
       {
         extends: "./vite.config.ts",

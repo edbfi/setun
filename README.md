@@ -89,7 +89,7 @@ reachable only from the app's internal network and has no published host port.
 | Localization | Paraglide JS |
 | Model gateway | [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) |
 | Production edge | Caddy and Docker Compose |
-| Quality gates | svelte-check, Biome, Bun test, Vitest, Playwright |
+| Quality gates | svelte-check, Biome, Bun test, Vitest, Playwright, Python, repository hygiene |
 
 ## Quick start
 
@@ -288,14 +288,16 @@ its own database, logs, and production build outputs.
 
 ### Quality gates
 
-CI runs five independent gates:
+CI preserves the five application checks and adds Python and repository hygiene checks.
+The required aggregate blocks missing, skipped, cancelled, and failed jobs. See [CI.md](CI.md).
 
 ```sh
 bun run check         # Svelte and TypeScript correctness
 bunx biome ci         # formatting and linting
 bun test              # server logic and rune modules
-bunx vitest run       # component behavior in Chromium
+bun run test:component # Chromium components and Vite server tests
 bunx playwright test  # end-to-end flows
+bun run check:python  # locked Ruff, format, strict types, syntax
 ```
 
 Install Chromium once with `bunx playwright install chromium` if it is not already available.

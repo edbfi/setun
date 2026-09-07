@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import type { AppDatabase } from "../db/client";
 import { createClassroom } from "../db/queries/classrooms";
 import { createStudent } from "../db/queries/students";
@@ -150,24 +150,35 @@ describe("attemptEducatorLogin", () => {
     expect(unknownUser).toEqual({ ok: false });
   });
 
-  /** Uniform in timing as well as content (§7, §21, §22). */
-  it("holds every attempt to the same duration floor", async () => {
-    const time = async (username: string, password: string) => {
-      const startedAt = Date.now();
-      await attemptEducatorLogin(db, { username, password });
-      return Date.now() - startedAt;
-    };
+  /** Check the floor and equal password work without timing unrelated CPU contention. */
+  it("applies the duration floor and Argon2id work on every login path", async () => {
+    const verify = spyOn(Bun.password, "verify");
+    try {
+      const time = async (username: string, password: string) => {
+        const startedAt = Date.now();
+        await attemptEducatorLogin(db, { username, password });
+        return Date.now() - startedAt;
+      };
 
-    const unknown = await time("nobody-at-all", PASSWORD);
-    const wrong = await time(USERNAME, "not-the-password");
-    const correct = await time(USERNAME, PASSWORD);
+      const unknown = await time("nobody-at-all", PASSWORD);
+      const wrong = await time(USERNAME, "not-the-password");
+      const correct = await time(USERNAME, PASSWORD);
+      for (const duration of [unknown, wrong, correct]) {
+        expect(duration).toBeGreaterThanOrEqual(EDUCATOR_LOGIN_MINIMUM_DURATION_MS - 5);
+      }
 
-    for (const duration of [unknown, wrong, correct]) {
-      expect(duration).toBeGreaterThanOrEqual(EDUCATOR_LOGIN_MINIMUM_DURATION_MS - 5);
+      // The spy calls through to the real verifier. Removing the decoy work
+      // must fail even when a quiet runner makes both paths meet the floor.
+      expect(verify).toHaveBeenCalledTimes(3);
+      const hashes = verify.mock.calls.map((call) => String(call[1]));
+      for (const hash of hashes) expect(hash).toStartWith("$argon2id$");
+      expect(hashes[0]).not.toBe(hashes[1]);
+      expect(hashes[1]).toBe(hashes[2]);
+      // Algorithm, format version and memory/time/parallelism costs must match.
+      expect(hashes[0]?.split("$").slice(1, 4)).toEqual(hashes[1]?.split("$").slice(1, 4));
+    } finally {
+      verify.mockRestore();
     }
-    // An unknown username must not be observably cheaper than a known one — the
-    // decoy hash is what keeps the argon2id work on both paths.
-    expect(Math.abs(unknown - wrong)).toBeLessThan(120);
   });
 });
 
