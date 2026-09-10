@@ -8,7 +8,7 @@ repair dispatches. Configure this status as required, with branches up to date,
 administrators included, and force pushes/deletion disabled.
 
 The shared Bun/Python workflows and gate come from immutable full version tags in
-`engels74/automation`. Other actions also use full version tags. Renovate proposes
+`edbfi/automation`. Other actions also use full version tags. Renovate proposes
 updates; source code and lockfiles must stay unchanged during validation. Jobs
 use read-only permissions, bounded timeouts, and cancel obsolete runs. Browser
 failure reports are retained for seven days. Dependency caches are keyed by the

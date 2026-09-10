@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/edbpede/setun/actions/workflows/ci.yml"><img src="https://github.com/edbpede/setun/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/edbpede/setun/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 license"></a>
+  <a href="https://github.com/edbfi/setun/actions/workflows/ci.yml"><img src="https://github.com/edbfi/setun/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/edbfi/setun/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 license"></a>
   <img src="https://img.shields.io/badge/Bun_1.4+-000000?logo=bun&logoColor=white" alt="Bun 1.4 or newer">
   <img src="https://img.shields.io/badge/SvelteKit_2-FF3E00?logo=svelte&logoColor=white" alt="SvelteKit 2">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
