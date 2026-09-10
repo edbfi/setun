@@ -15,13 +15,14 @@ about intent, not a pointer to something readable. Don't search for them; don't 
 
 ## Gates
 
-All five must pass. CI (`.github/workflows/ci.yml`) runs them as five separate jobs.
+All five must pass. CI (`.github/workflows/ci.yml`) preserves their separate jobs and adds
+Python and repository hygiene checks. The fail-closed `ci / required` check requires them all.
 
 ```sh
 bun run check         # svelte-check — the authority on template and type correctness
 bunx biome ci         # format + lint, writes nothing
 bun test              # server logic and rune modules
-bunx vitest run       # component behaviour, Vitest Browser Mode (needs chromium)
+bun run test:component # both Vitest projects; client needs Chromium
 bunx playwright test  # end-to-end (needs chromium)
 ```
 
@@ -116,11 +117,14 @@ use `bun run check` as the authority there.
 
 ## Python: the dev suite only
 
-`scripts/lib/devsuite/` is the only Python in the repository (stdlib only, 3.14). Ruff config is
+`scripts/lib/devsuite/` is the Python application tooling (stdlib only, 3.14);
+`.github/scripts/check-python.py` adapts its documented config for the type checker. Ruff config is
 `scripts/ruff.toml`; type checking is `scripts/lib/basedpyrightconfig.json`.
 
-Nothing automates the type check — no CI job, no prek hook. Before opening a PR touching the
-suite, run `uvx basedpyright@latest` from `scripts/lib` and expect **0 errors and 0 warnings**.
+CI and prek automate the type check using the versions in `scripts/uv.lock`. Run
+`bun run check:python` from the repository root and expect **0 errors and 0 warnings**.
+The wrapper validates the config shape and removes only its prose `//` key from a temporary
+tool input; it preserves the import root, scope, and strict diagnostics.
 That config file carries a hard rule against global diagnostic overrides: fix the code, or
 suppress a single line with `# pyright: ignore[ruleName]` plus a justification — never
 `# type: ignore`.

@@ -17,8 +17,9 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "biome ci",
     "format": "biome check --write",
-    "test:component": "vitest run",
-    "test:e2e": "playwright test"
+    "test:component": "vitest run --project client && vitest run --project server",
+    "test:e2e": "playwright test",
+    "check:python": "bash .github/scripts/check-python.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
@@ -78,5 +79,6 @@
     "jspdf": "^4.2.1",
     "qrcode": "^1.5.4",
     "svg2pdf.js": "^2.8.1"
-  }
+  },
+  "packageManager": "bun@1.4.2"
 }
