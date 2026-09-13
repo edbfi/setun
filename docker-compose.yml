@@ -72,7 +72,7 @@ services:
 
   cpa:
     # Pinned, unmodified upstream (§9). Source: https://github.com/router-for-me/CLIProxyAPI
-    image: eceasy/cli-proxy-api:v7.2.140
+    image: eceasy/cli-proxy-api:v7.3.1
     restart: unless-stopped
     # No `ports:` — CPA is deliberately unreachable from the host and the internet.
     # Provider enrolment happens on the host through CPA's own config and login
@@ -85,7 +85,7 @@ services:
 
   caddy:
     # Plain proxy — no custom builds, no plugins (§5).
-    image: caddy:2.10-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     ports:
       - "80:80"
