@@ -1,11 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>edbfi/automation:default#v1.0.0", "github>edbfi/automation:mixed#v1.0.0"],
-  "packageRules": [
-    {
-      "description": "Review TypeScript 7 after Svelte language tools support its API.",
-      "matchPackageNames": ["typescript"],
-      "allowedVersions": "<7"
-    }
+  "extends": [
+    "github>edbfi/automation//default.json#v1.1.0",
+    "github>edbfi/automation//mixed.json#v1.1.0",
+    "github>edbfi/automation//automerge.json#v1.1.0"
   ]
 }
