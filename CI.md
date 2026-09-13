@@ -4,8 +4,10 @@ Every pull request and default-branch push runs Svelte/TypeScript checking, read
 Biome checking, Bun unit tests, both nonempty Vitest projects, full Playwright E2E,
 Python quality, and prek hygiene. `ci / required` checks their exact job list and
 fails on every result other than success. It also verifies the exact PR head on
-repair dispatches. Configure this status as required, with branches up to date,
-administrators included, and force pushes/deletion disabled.
+repair dispatches. Renovate updates merge unattended only after all nine exact
+current-head checks in `.github/merge-policy.json` pass. Other changes retain
+manual review of the head/base, full diff, authors/DCO and CI through ghmerge.
+No branch protections or repository rulesets are configured.
 
 The shared Bun/Python workflows and gate come from immutable full version tags in
 `edbfi/automation`. Other actions also use full version tags. Renovate proposes
@@ -35,9 +37,11 @@ without comparing two noisy absolute wall-clock durations.
 ## Renovate
 
 The shared default and mixed-ecosystem presets discover Bun, Python/uv, actions,
-prek hooks and Biome's schema/package versions. TypeScript stays below 7 until
-Svelte language tools support its API. This adoption initially leaves automerge
-disabled pending validation of the shared policy and required repository settings.
+prek hooks and Biome's schema/package versions. The v1.1.0 default, mixed and
+automerge presets make all dependency update types eligible, including majors
+and shared-policy updates, without dashboard approval. Svelte checks remain
+required to test TypeScript compatibility. The checked merge preserves genuine
+sign-offs and dispatches full CI for the exact merged commit.
 
 Biome repair uses a read-only compute job and a separate publisher, limited to
 approved source/config paths. It runs safe formatting and the official migration,
