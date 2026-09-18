@@ -60,7 +60,7 @@ describe("MessageParts artifact cards", () => {
     await expect.element(page.getByText("Her er siden:")).toBeVisible();
     await expect.element(page.getByText("Prøv den.")).toBeVisible();
     // And the markup itself is not in the transcript.
-    await expect.element(page.getByText("<p>hi</p>")).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
   });
 
   it("opens the artifact when the card is used", async () => {
@@ -82,7 +82,7 @@ describe("MessageParts artifact cards", () => {
     render(MessageParts, { parts: text(PROSE) });
 
     // Never a card naming something the database does not have.
-    await expect.element(page.getByText("<p>hi</p>")).toBeVisible();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).toBeVisible();
     await expect.element(page.getByText("id=side · html · v3")).not.toBeInTheDocument();
   });
 
@@ -98,7 +98,7 @@ describe("MessageParts artifact cards", () => {
   it("falls back when a ref names a different language than the block", async () => {
     render(MessageParts, { parts: text(PROSE), artifacts: [ref({ language: "svg" })] });
 
-    await expect.element(page.getByText("<p>hi</p>")).toBeVisible();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).toBeVisible();
   });
 
   it("shows the build state on the card", async () => {
@@ -118,7 +118,7 @@ describe("MessageParts artifact cards", () => {
     expect(document.querySelector("strong")).toBeNull();
 
     // But the artifact is a stub rather than a screenful of markup (§13).
-    await expect.element(page.getByText("<p>hi</p>")).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
     await expect.element(page.getByText(m.artifact_untitled({ language: "html" }))).toBeVisible();
     await expect.element(page.getByText("id=side · html")).toBeVisible();
   });
@@ -128,9 +128,9 @@ describe("MessageParts artifact cards", () => {
     render(MessageParts, { parts: text(markdown), streaming: true });
 
     await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" })))
+      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
       .toBeVisible();
-    await expect.element(page.getByText("<p>hi</p>")).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
     // Nothing to open yet: the refs arrive with the settled message.
     await expect.element(page.getByRole("button")).not.toBeInTheDocument();
   });
@@ -156,12 +156,12 @@ describe("MessageParts artifact cards", () => {
     // Scanned per part, the second part had no opening fence and the rest of the
     // pupil's page arrived as prose (§13, §20).
     await expect.element(page.getByText("<p>og mere</p>")).not.toBeInTheDocument();
-    await expect.element(page.getByText("<p>hi</p>")).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
     // And the stub names what was built rather than still saying it is building:
     // the fence closed, two parts along from where it opened.
     await expect.element(page.getByText("Min side")).toBeVisible();
     await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" })))
+      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
       .not.toBeInTheDocument();
     await expect.element(page.getByText("Prøv den.")).toBeVisible();
   });
@@ -169,7 +169,7 @@ describe("MessageParts artifact cards", () => {
   it("never parses the pupil's own words", async () => {
     render(MessageParts, { parts: text(PROSE), artifacts: [ref()], plain: true });
 
-    await expect.element(page.getByText("<p>hi</p>")).toBeVisible();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).toBeVisible();
   });
 });
 

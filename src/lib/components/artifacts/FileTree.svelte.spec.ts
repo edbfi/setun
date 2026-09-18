@@ -38,18 +38,26 @@ describe("FileTree", () => {
     tree();
 
     const entry = page.getByRole("treeitem", { name: /App\.tsx/ });
-    await expect.element(entry).toHaveTextContent(m.artifact_file_entry());
+    await expect.element(entry.getByText(m.artifact_file_entry(), { exact: true })).toBeVisible();
   });
 
   it("marks the files the pupil has edited", async () => {
     tree({ changed: ["styles.css"] });
 
     await expect
-      .element(page.getByRole("treeitem", { name: /styles\.css/ }))
-      .toHaveTextContent(m.artifact_file_changed());
+      .element(
+        page
+          .getByRole("treeitem", { name: /styles\.css/ })
+          .getByText(m.artifact_file_changed(), { exact: true }),
+      )
+      .toBeVisible();
     await expect
-      .element(page.getByRole("treeitem", { name: /App\.tsx/ }))
-      .not.toHaveTextContent(m.artifact_file_changed());
+      .element(
+        page
+          .getByRole("treeitem", { name: /App\.tsx/ })
+          .getByText(m.artifact_file_changed(), { exact: true }),
+      )
+      .not.toBeInTheDocument();
   });
 
   it("hands the tapped file back", async () => {
