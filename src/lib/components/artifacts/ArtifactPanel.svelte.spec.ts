@@ -448,7 +448,7 @@ describe("ArtifactPanel", () => {
     const log = page.getByRole("log");
     await expect.element(log).toBeVisible();
     // Generated output, so it is text at every hop (§13, §21).
-    await expect.element(page.getByText("<b>ikke markup</b>")).toBeVisible();
+    await expect.element(page.getByText("<b>ikke markup</b>", { exact: false })).toBeVisible();
   });
 
   it("marks a version that did not run in the history list", async () => {

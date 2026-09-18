@@ -142,7 +142,7 @@ describe("StreamingMessage", () => {
     // Mid-fence: the pupil is told something is being built rather than shown
     // the markup arriving a word at a time (§13, §20).
     await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" })))
+      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
       .toBeVisible();
     await expect.element(page.getByText("Her er siden:")).toBeVisible();
 
@@ -154,7 +154,7 @@ describe("StreamingMessage", () => {
     turn.apply({ type: "text-delta", text: "</h1>\n```\nFærdig." }, 1);
 
     await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" })))
+      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
       .not.toBeInTheDocument();
     await expect.element(page.getByText("Min side")).toBeVisible();
     await expect.element(page.getByText("Færdig.")).toBeVisible();
