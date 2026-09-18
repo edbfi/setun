@@ -46,7 +46,7 @@
     "@types/react-dom": "^19.2.5",
     "@unocss/preset-wind4": "^66.8.1",
     "@unocss/runtime": "^66.8.1",
-    "@vitest/browser-playwright": "^4.1.11",
+    "@vitest/browser-playwright": "^5.0.0",
     "bits-ui": "^2.19.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
@@ -72,7 +72,7 @@
     "unocss-preset-shadcn": "^1.0.1",
     "valibot": "^1.4.2",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.0",
     "vitest-browser-svelte": "^3.0.0"
   },
   "dependencies": {
