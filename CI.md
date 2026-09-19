@@ -38,11 +38,13 @@ without comparing two noisy absolute wall-clock durations.
 ## Renovate
 
 The shared default and mixed-ecosystem presets discover Bun, Python/uv, actions,
-prek hooks and Biome's schema/package versions. The v3 presets keep native
-Renovate PR merging disabled during migration. The legacy Actions merger and
-maintainer merge command are retired. After a protected real canary proves
-Renovate operation, opt-in can be reviewed separately; all application and
-compatibility checks remain mandatory.
+prek hooks and Biome's schema/package versions. Renovate owns ongoing dependency
+merging after the protected native canary
+[automation#39](https://github.com/edbfi/automation/pull/39). It uses PR rebase merges
+with complete required CI and policy checks for the current head and base.
+Release ages, review requirements and hold labels remain enforced; the TypeScript 7
+hold remains in place. Shared automation configuration updates remain manual.
+The legacy Actions merger and maintainer merge command are retired.
 
 Biome repair uses a read-only compute job and a separate publisher, limited to
 approved source/config paths. It runs safe formatting and the official migration,
