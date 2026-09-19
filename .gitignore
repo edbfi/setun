@@ -58,3 +58,6 @@ __pycache__/
 # Dogfood run output (docs/e2e-dogfood-prompts). Screenshots, dev logs, database
 # copies, credential cards and access codes — raw local evidence, never committed.
 /dogfood-output
+
+# Generated native Svelte checker input
+.svelte-check/
