@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "ci_workflow": "ci.yml",
+  "repair_recovery": {
+    "enabled": false
+  }
+}
