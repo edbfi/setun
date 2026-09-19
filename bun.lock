@@ -10,7 +10,7 @@
         "svg2pdf.js": "^2.8.1",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.5.10",
+        "@biomejs/biome": "2.5.13",
         "@codemirror/commands": "^6.11.0",
         "@codemirror/lang-css": "^6.3.1",
         "@codemirror/lang-html": "^6.4.12",
