@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   guard:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
     - uses: edbfi/automation/actions/dispatch-guard@v3.0.1
@@ -58,7 +58,7 @@ jobs:
       command: bun test
   vitest:
     name: Vitest
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7.0.1
       with:
@@ -84,7 +84,7 @@ jobs:
       CI: 'true'
   playwright:
     name: Playwright
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7.0.1
       with:
@@ -123,7 +123,7 @@ jobs:
       command: bash .github/scripts/check-python.sh
   hygiene:
     needs: guard
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v7.0.1
@@ -149,7 +149,7 @@ jobs:
     - playwright
     - python
     - hygiene
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
     - uses: edbfi/automation/actions/dispatch-guard@v3.0.1
