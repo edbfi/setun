@@ -1,13 +1,14 @@
 # CI and dependency maintenance
 
-Every pull request and default-branch push runs Svelte/TypeScript checking, read-only
-Biome checking, Bun unit tests, both nonempty Vitest projects, full Playwright E2E,
-Python quality, and prek hygiene. `ci / required` checks their exact job list and
-fails on every result other than success. It also verifies the exact PR head on
-repair dispatches. Renovate updates merge unattended only after all nine exact
-current-head checks in `.github/merge-policy.json` pass. Other changes retain
-manual review of the head/base, full diff, authors/DCO and CI through ghmerge.
-No branch protections or repository rulesets are configured.
+Every pull request and default-branch push runs Svelte/TypeScript checking,
+read-only Biome checking, Bun unit tests, both nonempty Vitest projects, full
+Playwright E2E, Python quality, and prek hygiene. `ci / required` checks their
+exact job list and fails on every result other than success. It also verifies
+the exact PR head on repair dispatches. The separately required `policy / ci /
+policy` check validates the PR title, commit sign-offs, review state and hold
+labels from fresh read-only API evidence. Repository protection must require
+both checks from GitHub Actions and up-to-date branches before dependency
+automerging is enabled.
 
 The shared Bun/Python workflows and gate come from immutable full version tags in
 `edbfi/automation`. Other actions also use full version tags. Renovate proposes
@@ -37,11 +38,11 @@ without comparing two noisy absolute wall-clock durations.
 ## Renovate
 
 The shared default and mixed-ecosystem presets discover Bun, Python/uv, actions,
-prek hooks and Biome's schema/package versions. The v1.1.0 default, mixed and
-automerge presets make all dependency update types eligible, including majors
-and shared-policy updates, without dashboard approval. Svelte checks remain
-required to test TypeScript compatibility. The checked merge preserves genuine
-sign-offs and dispatches full CI for the exact merged commit.
+prek hooks and Biome's schema/package versions. The v3 presets keep native
+Renovate PR merging disabled during migration. The legacy Actions merger and
+maintainer merge command are retired. After a protected real canary proves
+Renovate operation, opt-in can be reviewed separately; all application and
+compatibility checks remain mandatory.
 
 Biome repair uses a read-only compute job and a separate publisher, limited to
 approved source/config paths. It runs safe formatting and the official migration,
@@ -58,3 +59,11 @@ network configuration. Python has lint/types/syntax coverage but no dedicated un
 suite for its development orchestration. Pullfrog remains an explicitly invoked
 agent workflow and is not a required check. Existing application tests and their
 security assertions remain required independently of dependency automerging.
+
+Repair CI recovery reads `.github/repair-policy.json`. Recovery remains disabled,
+preserving the previous policy; the configured Biome App repair workflow remains
+enabled and uses the released v3 action. A repair must receive complete current-head
+CI and policy checks. If a workflow-token publication suppresses PR events, the
+missing policy check blocks merging until a supported App/Renovate update triggers
+full validation. Metadata and review events refresh policy; GitHub review rules
+provide the independent server-side review guarantee during event propagation.
