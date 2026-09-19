@@ -4,8 +4,9 @@
     "github>edbfi/automation//default.json#v3.0.1",
     "github>edbfi/automation//mixed.json#v3.0.1"
   ],
-  "automerge": false,
+  "automerge": true,
   "automergeType": "pr",
   "platformAutomerge": false,
-  "ignoreTests": false
+  "ignoreTests": false,
+  "automergeStrategy": "rebase"
 }
