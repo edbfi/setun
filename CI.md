@@ -3,8 +3,7 @@
 Every pull request and default-branch push runs Svelte/TypeScript checking,
 read-only Biome checking, Bun unit tests, both nonempty Vitest projects, full
 Playwright E2E, Python quality, and prek hygiene. `ci / required` checks their
-exact job list and fails on every result other than success. It also verifies
-the exact PR head on repair dispatches. The separately required `policy / ci /
+exact job list and fails on every result other than success. The separately required `policy / ci /
 policy` check validates the PR title, commit sign-offs, review state and hold
 labels from fresh read-only API evidence. Repository protection must require
 both checks from GitHub Actions and up-to-date branches before dependency
@@ -48,7 +47,8 @@ The legacy Actions merger and maintainer merge command are retired.
 
 Biome repair uses a read-only compute job and a separate publisher, limited to
 approved source/config paths. It runs safe formatting and the official migration,
-then explicitly dispatches full CI for the exact repaired commit. Package/lockfile
+then commits with the App token, which starts the normal `pull_request` CI and
+policy runs on the repaired commit; nothing is dispatched. Package/lockfile
 and workflow writes are forbidden. Repairs exceeding 200 changed files require
 manual handling; this matters for broad formatting changes in this application.
 Repository Actions settings must allow the intended automation and workflow runs.
@@ -62,9 +62,8 @@ suite for its development orchestration. Pullfrog remains an explicitly invoked
 agent workflow and is not a required check. Existing application tests and their
 security assertions remain required independently of dependency automerging.
 
-Repair CI recovery reads `.github/repair-policy.json`. Recovery remains disabled,
-preserving the previous policy; the configured Biome App repair workflow remains
-enabled and uses the released v3 action. A repair must receive complete current-head
+The configured Biome App repair workflow remains enabled and uses the released v4
+action. A repair must receive complete current-head
 CI and policy checks. If a workflow-token publication suppresses PR events, the
 missing policy check blocks merging until a supported App/Renovate update triggers
 full validation. Metadata and review events refresh policy; GitHub review rules

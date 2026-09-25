@@ -4,20 +4,7 @@ name: ci
   push:
     branches:
     - main
-  workflow_dispatch:
-    inputs:
-      pr-number:
-        description: PR number for a repair dispatch
-        type: string
-        default: ''
-      expected-head-sha:
-        description: Exact repaired PR commit
-        type: string
-        default: ''
-      expected-default-sha:
-        description: Exact default-branch commit requested after a checked merge
-        type: string
-        default: ''
+  workflow_dispatch: null
 permissions:
   contents: read
   pull-requests: read
@@ -25,33 +12,20 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  guard:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 5
-    steps:
-    - uses: edbfi/automation/actions/dispatch-guard@v3.0.1
-      with:
-        token: ${{ github.token }}
-        pr-number: ${{ inputs.pr-number }}
-        expected-head-sha: ${{ inputs.expected-head-sha }}
-        expected-default-sha: ${{ inputs.expected-default-sha }}
   svelte-check:
-    needs: guard
-    uses: edbfi/automation/.github/workflows/bun.yml@v3.0.1
+    uses: edbfi/automation/.github/workflows/bun.yml@v4.0.0
     with:
       # renovate: datasource=npm depName=bun
       version: 1.4.2
       command: bun run check
   biome:
-    needs: guard
-    uses: edbfi/automation/.github/workflows/bun.yml@v3.0.1
+    uses: edbfi/automation/.github/workflows/bun.yml@v4.0.0
     with:
       # renovate: datasource=npm depName=bun
       version: 1.4.2
       command: bun run lint
   bun-test:
-    needs: guard
-    uses: edbfi/automation/.github/workflows/bun.yml@v3.0.1
+    uses: edbfi/automation/.github/workflows/bun.yml@v4.0.0
     with:
       # renovate: datasource=npm depName=bun
       version: 1.4.2
@@ -78,7 +52,6 @@ jobs:
     - run: bun run test:component
     - name: Reject tracked-file mutation
       run: git diff --exit-code HEAD
-    needs: guard
     timeout-minutes: 30
     env:
       CI: 'true'
@@ -111,18 +84,15 @@ jobs:
         if-no-files-found: ignore
     - name: Reject tracked-file mutation
       run: git diff --exit-code HEAD
-    needs: guard
     timeout-minutes: 30
     env:
       CI: 'true'
   python:
-    needs: guard
-    uses: edbfi/automation/.github/workflows/python.yml@v3.0.1
+    uses: edbfi/automation/.github/workflows/python.yml@v4.0.0
     with:
       version: '3.14'
       command: bash .github/scripts/check-python.sh
   hygiene:
-    needs: guard
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
@@ -141,7 +111,6 @@ jobs:
     name: ci / required
     if: always()
     needs:
-    - guard
     - svelte-check
     - biome
     - bun-test
@@ -152,13 +121,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-    - uses: edbfi/automation/actions/dispatch-guard@v3.0.1
-      with:
-        token: ${{ github.token }}
-        pr-number: ${{ inputs.pr-number }}
-        expected-head-sha: ${{ inputs.expected-head-sha }}
-        expected-default-sha: ${{ inputs.expected-default-sha }}
-    - uses: edbfi/automation/actions/gate@v3.0.1
+    - uses: edbfi/automation/actions/gate@v4.0.0
       with:
         needs: ${{ toJSON(needs) }}
-        required: guard svelte-check biome bun-test vitest playwright python hygiene
+        required: svelte-check biome bun-test vitest playwright python hygiene
