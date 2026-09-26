@@ -1,70 +1,14 @@
-# CI and dependency maintenance
+# Local validation
 
-Every pull request and default-branch push runs Svelte/TypeScript checking,
-read-only Biome checking, Bun unit tests, both nonempty Vitest projects, full
-Playwright E2E, Python quality, and prek hygiene. `ci / required` checks their
-exact job list and fails on every result other than success. The separately required `policy / ci /
-policy` check validates the PR title, commit sign-offs, review state and hold
-labels from fresh read-only API evidence. Repository protection must require
-both checks from GitHub Actions and up-to-date branches before dependency
-automerging is enabled.
+Repository CI, automated dependency updates and workflow-based deployment are disabled.
+Validate changes locally and review dependency updates manually.
+Use Conventional Commit titles and matching author sign-offs (`git commit -s`).
 
-The shared Bun/Python workflows and gate come from immutable full version tags in
-`edbfi/automation`. Other actions also use full version tags. Renovate proposes
-updates; source code and lockfiles must stay unchanged during validation. Jobs
-use read-only permissions, bounded timeouts, and cancel obsolete runs. Browser
-failure reports are retained for seven days. Dependency caches are keyed by the
-runtime, runner architecture, and lockfile; browser binaries match the lockfile.
+Available validation entry points (install the project toolchain first):
 
-## Local checks
+```sh
+SKIP=no-commit-to-branch prek run --all-files
+bash .github/scripts/check-python.sh
+```
 
-Use Bun 1.4.2 and `bun install --frozen-lockfile`. Install Chromium with
-`bunx playwright install chromium`, then run the commands in README's quality gates.
-Run browser/component suites sequentially locally because both generate SvelteKit
-and Paraglide outputs. CI jobs have separate checkouts. `prek install` aligns local
-hygiene and Python checks with CI. CI skips hooks already covered by dedicated jobs.
-Python tools are locked with uv in `scripts/uv.lock`; `bun run check:python` installs
-them reproducibly and enforces zero type errors and warnings without broad overrides.
-
-Playwright retains one worker and four isolated test servers, including a loopback
-provider stub and a cold setup instance. It exercises the real production server,
-app build, and all three sandbox build targets. The application and artifact/sandbox
-origins remain separate. No real model credentials or provider access are needed.
-Bun, Vitest client/server, and Playwright retain disjoint filename conventions.
-The authentication test verifies real Argon2 work and minimum response duration
-without comparing two noisy absolute wall-clock durations.
-
-## Renovate
-
-The shared default and mixed-ecosystem presets discover Bun, Python/uv, actions,
-prek hooks and Biome's schema/package versions. Renovate owns ongoing dependency
-merging after the protected native canary
-[automation#39](https://github.com/edbfi/automation/pull/39). It uses PR rebase merges
-with complete required CI and policy checks for the current head and base.
-Release ages, review requirements and hold labels remain enforced; the TypeScript 7
-hold remains in place. Shared automation configuration updates remain manual.
-The legacy Actions merger and maintainer merge command are retired.
-
-Biome repair uses a read-only compute job and a separate publisher, limited to
-approved source/config paths. It runs safe formatting and the official migration,
-then commits with the App token, which starts the normal `pull_request` CI and
-policy runs on the repaired commit; nothing is dispatched. Package/lockfile
-and workflow writes are forbidden. Repairs exceeding 200 changed files require
-manual handling; this matters for broad formatting changes in this application.
-Repository Actions settings must allow the intended automation and workflow runs.
-
-## Limits
-
-Tests use local provider fixtures, not live paid models. This does not validate
-production hosting, real provider behavior, or an actual external artifact origin's
-network configuration. Python has lint/types/syntax coverage but no dedicated unit
-suite for its development orchestration. Pullfrog remains an explicitly invoked
-agent workflow and is not a required check. Existing application tests and their
-security assertions remain required independently of dependency automerging.
-
-The configured Biome App repair workflow remains enabled and uses the released v4
-action. A repair must receive complete current-head
-CI and policy checks. If a workflow-token publication suppresses PR events, the
-missing policy check blocks merging until a supported App/Renovate update triggers
-full validation. Metadata and review events refresh policy; GitHub review rules
-provide the independent server-side review guarantee during event propagation.
+See [CLAUDE.md](CLAUDE.md) for project-specific commands and test requirements.
