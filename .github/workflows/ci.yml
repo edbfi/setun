@@ -13,19 +13,19 @@ concurrency:
   cancel-in-progress: true
 jobs:
   svelte-check:
-    uses: edbfi/automation/.github/workflows/bun.yml@v4.1.0
+    uses: edbfi/automation/.github/workflows/bun.yml@v4.1.1
     with:
       # renovate: datasource=npm depName=bun
       version: 1.4.2
       command: bun run check
   biome:
-    uses: edbfi/automation/.github/workflows/bun.yml@v4.1.0
+    uses: edbfi/automation/.github/workflows/bun.yml@v4.1.1
     with:
       # renovate: datasource=npm depName=bun
       version: 1.4.2
       command: bun run lint
   bun-test:
-    uses: edbfi/automation/.github/workflows/bun.yml@v4.1.0
+    uses: edbfi/automation/.github/workflows/bun.yml@v4.1.1
     with:
       # renovate: datasource=npm depName=bun
       version: 1.4.2
@@ -88,7 +88,7 @@ jobs:
     env:
       CI: 'true'
   python:
-    uses: edbfi/automation/.github/workflows/python.yml@v4.1.0
+    uses: edbfi/automation/.github/workflows/python.yml@v4.1.1
     with:
       version: '3.14'
       command: bash .github/scripts/check-python.sh
@@ -121,7 +121,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-    - uses: edbfi/automation/actions/gate@v4.1.0
+    - uses: edbfi/automation/actions/gate@v4.1.1
       with:
         needs: ${{ toJSON(needs) }}
         required: svelte-check biome bun-test vitest playwright python hygiene
