@@ -288,8 +288,8 @@ its own database, logs, and production build outputs.
 
 ### Quality gates
 
-CI preserves the five application checks and adds Python and repository hygiene checks.
-The required aggregate blocks missing, skipped, cancelled, and failed jobs. See [CI.md](CI.md).
+Run the application checks from the package scripts and Python checks with
+`bash .github/scripts/check-python.sh`. Run repository hygiene checks locally with prek.
 
 ```sh
 bun run check         # Svelte and TypeScript correctness
