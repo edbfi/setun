@@ -1,30 +1,29 @@
-# Configuration file for `prek`, a git hook framework written in Rust.
-# See https://prek.j178.dev for more information.
+# prek.toml — pre-commit hooks configuration
+# Docs: https://prek.j178.dev/configuration/
 #:schema https://www.schemastore.org/prek.json
 
-# Generated and build output: Paraglide compiles messages/ into src/lib/paraglide,
-# SvelteKit generates .svelte-kit, adapter-node writes build/. None are hand-edited,
-# and all are gitignored — formatting hooks must not touch them.
-exclude = '^(src/lib/paraglide/|\.svelte-kit/|build/|test-results/|playwright-report/|bun\.lock$)'
+minimum_prek_version = "0.3.2"
+default_install_hook_types = ["pre-commit", "commit-msg", "pre-push"]
+default_stages = ["pre-commit", "manual"]
 
+# Builtin hooks — fast, offline, Rust-native
 [[repos]]
 repo = "builtin"
 hooks = [
-  { id = "trailing-whitespace" },
-  { id = "end-of-file-fixer" },
-  { id = "mixed-line-ending", args = ["--fix=lf"] },
+  { id = "trailing-whitespace", exclude = "^(src/lib/paraglide/|\\.svelte-kit/|build/|test-results/|playwright-report/|bun\\.lock$)" },
+  { id = "end-of-file-fixer", exclude = "^(src/lib/paraglide/|\\.svelte-kit/|build/|test-results/|playwright-report/|bun\\.lock$)" },
+  { id = "mixed-line-ending", args = ["--fix=lf"], exclude = "^(src/lib/paraglide/|\\.svelte-kit/|build/|test-results/|playwright-report/|bun\\.lock$)" },
   { id = "check-merge-conflict" },
   { id = "check-case-conflict" },
-  { id = "check-added-large-files", args = ["--maxkb=500"] },
+  { id = "check-added-large-files", args = ["--maxkb=512"] },
   { id = "detect-private-key" },
-  # tsconfig.json carries comments (JSONC), which strict JSON parsing rejects.
   { id = "check-json", exclude = '^tsconfig\.json$' },
   { id = "check-toml" },
   { id = "check-yaml" },
   { id = "no-commit-to-branch", args = ["--branch", "main"] },
 ]
 
-# Conventional Commits
+# Conventional Commits — enforce Conventional Commit message format
 [[repos]]
 repo = "https://github.com/compilerla/conventional-pre-commit"
 rev = "v4.4.0"
@@ -32,7 +31,7 @@ hooks = [
   { id = "conventional-pre-commit", stages = ["commit-msg"] },
 ]
 
-# Secret / credential leak guard — fixtures and dotfiles must never carry tokens.
+# Secret / credential leak guard — fixtures and dotfiles must never carry tokens
 [[repos]]
 repo = "https://github.com/gitleaks/gitleaks"
 rev = "v8.30.1"
@@ -40,16 +39,21 @@ hooks = [
   { id = "gitleaks" },
 ]
 
+# Project-specific builtin checks — preserve syntax and stack conventions
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "check-json5", types = ["file"], files = "^tsconfig\\.json$" },
+]
+
+# Local hooks — project-specific quality gates
 [[repos]]
 repo = "local"
 hooks = [
-  # `--no-errors-on-unmatched`: Biome exits non-zero when every staged file lies
-  # outside its configured paths, which is the normal case for a commit touching
-  # only messages/ or project.inlang/.
-  { id = "biome", name = "Format and lint with Biome", entry = "bunx biome check --write --no-errors-on-unmatched", language = "system", types_or = ["javascript", "ts", "svelte", "json", "css"] },
-  { id = "python-ruff", name = "Python lint", entry = "uv run --project scripts --frozen ruff check --config scripts/ruff.toml", language = "system", types = ["python"], files = '^(scripts/|\.github/scripts/check-python\.py)' },
-  { id = "python-format", name = "Python format", entry = "uv run --project scripts --frozen ruff format --check --config scripts/ruff.toml", language = "system", types = ["python"], files = '^(scripts/|\.github/scripts/check-python\.py)' },
-  { id = "python-types", name = "Python types", entry = "uv run --project scripts --frozen python .github/scripts/check-python.py", language = "system", pass_filenames = false, files = '^(scripts/|\.github/scripts/check-python\.py)' },
+  { id = "biome", name = "Format and lint with Biome", entry = "bunx biome check --write --files-ignore-unknown=true --no-errors-on-unmatched", language = "system", types = ["text"], files = "\\.(js|mjs|cjs|ts|jsx|tsx|json|jsonc|css|svelte)$", exclude = "^(src/lib/paraglide/|\\.svelte-kit/|build/|test-results/|playwright-report/|bun\\.lock$)" },
+  { id = "python-ruff", name = "Python lint", entry = "uv run --project scripts --frozen ruff check --config scripts/ruff.toml", language = "system", types = ["python"], files = "^(scripts/|\\.github/scripts/check-python\\.py$)" },
+  { id = "python-format", name = "Python format", entry = "uv run --project scripts --frozen ruff format --check --config scripts/ruff.toml", language = "system", types = ["python"], files = "^(scripts/|\\.github/scripts/check-python\\.py$)" },
+  { id = "python-types", name = "Python types", entry = "uv run --project scripts --frozen python .github/scripts/check-python.py", language = "system", pass_filenames = false, files = "^(scripts/|\\.github/scripts/check-python\\.py)" },
   { id = "svelte-check", name = "TypeScript and Svelte type check", entry = "bun run check", language = "system", pass_filenames = false, stages = ["pre-push"] },
   { id = "tests", name = "Run test suite", entry = "bun test", language = "system", pass_filenames = false, stages = ["pre-push"] },
 ]
