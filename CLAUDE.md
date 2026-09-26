@@ -141,5 +141,3 @@ deleted in `16ff9c5`). Read them as intent; don't search for or recreate them.
   the overrides above).
 - `README.md`: dev-suite commands, `--production` mode, deployment, and educator recovery. Read
   before running the full stack or changing `Caddyfile`, `docker-compose.yml` or `Dockerfile`.
-- `CI.md`: CI job set, Renovate, and Biome-repair automation. Read before editing
-  `.github/workflows/` or `renovate.json`.
