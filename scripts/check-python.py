@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[2]
+root = Path(__file__).resolve().parents[1]
 config_path = root / "scripts/lib/basedpyrightconfig.json"
 config = json.loads(config_path.read_text())
 assert set(config) == {"//", "pythonVersion", "typeCheckingMode", "include"}

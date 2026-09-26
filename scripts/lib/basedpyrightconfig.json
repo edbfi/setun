@@ -3,7 +3,7 @@
     "Type checking for the dev suite, per .agents/rules/python-3_14-core.md.",
     "Placed here rather than in scripts/ because this directory is the package's import root: scripts/devsuite puts it on sys.path, so `devsuite.layout` is an absolute import and not an implicitly relative one.",
     "HARD RULE — NO GLOBAL DIAGNOSTIC OVERRIDES IN THIS FILE. EVER. Never set failOnWarnings, never disable a report* rule here, never add a baseline file, and never widen this file beyond the four allowlisted keys: pythonVersion, typeCheckingMode, include, and this comment. Warnings are failures: fix the code. If a third-party API is genuinely untyped at a single call site, suppress that one line with `# pyright: ignore[ruleName]` plus a short justification — nothing broader. Never `# type: ignore`.",
-    "CI and the prek hook run the pinned checker through .github/scripts/check-python.py, which enforces this exact scope and removes only the prose metadata from a temporary tool input beside this file. Warnings fail; no diagnostic override or baseline is permitted.",
+    "`bun run check:python` and the prek hook run the pinned checker through scripts/check-python.py, which enforces this exact scope and removes only the prose metadata from a temporary tool input beside this file. Warnings fail; no diagnostic override or baseline is permitted.",
     "Strict JSON, no comment syntax: prek's check-json hook reads this file and excludes only tsconfig.json. Keep the prose in this array."
   ],
   "pythonVersion": "3.14",

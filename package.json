@@ -19,7 +19,7 @@
     "format": "biome check --write",
     "test:component": "vitest run --project client && vitest run --project server",
     "test:e2e": "playwright test",
-    "check:python": "bash .github/scripts/check-python.sh",
+    "check:python": "bash scripts/check-python.sh",
     "check:native": "bunx --bun svelte-check --tsgo --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
