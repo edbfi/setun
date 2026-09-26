@@ -72,7 +72,7 @@ services:
 
   cpa:
     # Pinned, unmodified upstream (§9). Source: https://github.com/router-for-me/CLIProxyAPI
-    image: eceasy/cli-proxy-api:v7.3.17
+    image: eceasy/cli-proxy-api:v7.3.18
     restart: unless-stopped
     # No `ports:` — CPA is deliberately unreachable from the host and the internet.
     # Provider enrolment happens on the host through CPA's own config and login
