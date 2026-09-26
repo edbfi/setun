@@ -30,8 +30,12 @@ let { aliasName, classroomName, studentCount, canFinish }: Props = $props();
 
   <ul class="flex flex-col gap-1 rounded-md border border-border p-4 text-sm text-foreground">
     <li>{m.setup_finish_check_account()}</li>
-    {#if aliasName}<li>{m.setup_finish_check_model({ alias: aliasName })}</li>{/if}
-    {#if classroomName}<li>{m.setup_finish_check_class({ classroom: classroomName })}</li>{/if}
+    {#if aliasName}
+      <li>{m.setup_finish_check_model({ alias: aliasName })}</li>
+    {/if}
+    {#if classroomName}
+      <li>{m.setup_finish_check_class({ classroom: classroomName })}</li>
+    {/if}
     <li>{m.setup_finish_check_students({ count: studentCount })}</li>
   </ul>
 

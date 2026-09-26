@@ -61,11 +61,11 @@ const action =
 >
   <div
     class={[
-      "text-[0.9375rem] leading-[1.65]",
-      isUser
-        ? "max-w-[85%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/10 px-3.5 py-2.5 text-foreground"
-        : "w-full text-foreground",
-    ]}
+  "text-[0.9375rem] leading-[1.65]",
+  isUser
+    ? "max-w-[85%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/10 px-3.5 py-2.5 text-foreground"
+    : "w-full text-foreground",
+]}
   >
     <MessageParts
       parts={message.parts}
@@ -135,34 +135,34 @@ const action =
 </article>
 
 <style>
-  /*
+/*
    * Off-screen messages skip layout and paint entirely; the size hint keeps the
    * scrollbar from jumping as they enter and leave (PRD §20).
    */
-  .contain-message {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 4rem;
-  }
+.contain-message {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4rem;
+}
 
-  /*
+/*
    * Hover-to-reveal only where hovering exists. The touchscreen this is built
    * for has no hover state at all, so on it the actions simply stay.
    */
-  @media (hover: hover) and (pointer: fine) {
-    .message-actions {
-      opacity: 0;
-      transition: opacity 120ms ease;
-    }
-
-    .message:hover .message-actions,
-    .message-actions:focus-within {
-      opacity: 1;
-    }
+@media (hover: hover) and (pointer: fine) {
+  .message-actions {
+    opacity: 0;
+    transition: opacity 120ms ease;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .message-actions {
-      transition: none;
-    }
+  .message:hover .message-actions,
+  .message-actions:focus-within {
+    opacity: 1;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-actions {
+    transition: none;
+  }
+}
 </style>

@@ -22,14 +22,18 @@ const current = $derived(page.url.pathname);
 <svelte:head><title>{m.educator_panel_title()} · {m.app_name()}</title></svelte:head>
 
 <div class="flex min-h-svh flex-col bg-background sm:flex-row">
-  <aside class="flex shrink-0 flex-col gap-4 border-b border-border p-4 sm:w-56 sm:border-r sm:border-b-0">
+  <aside
+    class="flex shrink-0 flex-col gap-4 border-b border-border p-4 sm:w-56 sm:border-r sm:border-b-0"
+  >
     <div class="flex items-center gap-2">
       <SetunMark size={20} class="text-primary" />
       <span class="text-sm font-semibold text-foreground">{m.educator_panel_title()}</span>
     </div>
 
     <nav class="flex flex-col gap-0.5">
-      <span class="px-2 py-1 text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+      <span
+        class="px-2 py-1 text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-muted-foreground"
+      >
         {m.educator_classrooms_title()}
       </span>
 

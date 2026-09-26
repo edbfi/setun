@@ -259,7 +259,7 @@ const failed = $derived(
       alt={m.chat_image_alt({ prompt: part.prompt })}
       loading="lazy"
       class="my-1 max-h-80 w-full rounded-md border border-border object-contain"
-    />
+    >
   {:else if part.type === "artifact-edit"}
     <!--
       The pupil's own current source, carried to the model on this message (§13).
@@ -271,8 +271,8 @@ const failed = $derived(
     >
       <span class="truncate">
         {m.artifact_edit_part_label({
-          title: part.title ?? m.artifact_untitled({ language: part.language }),
-        })}
+  title: part.title ?? m.artifact_untitled({ language: part.language }),
+})}
       </span>
     </span>
   {:else if part.type === "turn-notice"}

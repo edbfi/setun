@@ -64,7 +64,7 @@ const button = "h-9 rounded-md px-3 text-sm font-medium disabled:opacity-60";
 
   <div class="flex flex-wrap items-end gap-2">
     <form method="POST" action="?/setState" use:enhance class="flex items-end gap-2">
-      <input type="hidden" name="state" value="open" />
+      <input type="hidden" name="state" value="open">
       <label class="flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">{m.educator_open_duration_label()}</span>
         <select
@@ -84,7 +84,7 @@ const button = "h-9 rounded-md px-3 text-sm font-medium disabled:opacity-60";
     </form>
 
     <form method="POST" action="?/setState" use:enhance>
-      <input type="hidden" name="state" value="locked" />
+      <input type="hidden" name="state" value="locked">
       <button
         type="submit"
         class="{button} bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -94,11 +94,8 @@ const button = "h-9 rounded-md px-3 text-sm font-medium disabled:opacity-60";
     </form>
 
     <form method="POST" action="?/setState" use:enhance>
-      <input type="hidden" name="state" value="scheduled" />
-      <button
-        type="submit"
-        class="{button} border border-input text-foreground hover:bg-secondary"
-      >
+      <input type="hidden" name="state" value="scheduled">
+      <button type="submit" class="{button} border border-input text-foreground hover:bg-secondary">
         {m.educator_follow_schedule()}
       </button>
     </form>

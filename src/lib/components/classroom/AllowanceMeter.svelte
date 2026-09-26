@@ -52,9 +52,9 @@ const cost = $derived(
          to shrink below its own nowrap width, so `truncate` never clips. -->
     <span class="min-w-0 truncate whitespace-nowrap text-xs text-muted-foreground">
       {m.allowance_used({
-        used: numbers.format(allowance.usedTokens),
-        limit: numbers.format(allowance.limitTokens),
-      })}
+  used: numbers.format(allowance.usedTokens),
+  limit: numbers.format(allowance.limitTokens),
+})}
     </span>
   </div>
 
@@ -77,7 +77,9 @@ const cost = $derived(
   {#if cost || !compact}
     <div class="flex items-baseline justify-between gap-3 text-[0.6875rem] text-muted-foreground">
       <span>{cost ?? ""}</span>
-      {#if !compact}<span>{m.allowance_resets()}</span>{/if}
+      {#if !compact}
+        <span>{m.allowance_resets()}</span>
+      {/if}
     </div>
   {/if}
 </div>

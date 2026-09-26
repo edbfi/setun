@@ -96,9 +96,9 @@ const smallButton =
               class:text-muted-foreground={!student.exhausted}
             >
               {m.allowance_used({
-                used: numbers.format(student.usedTokens),
-                limit: numbers.format(student.limitTokens),
-              })}
+  used: numbers.format(student.usedTokens),
+  limit: numbers.format(student.limitTokens),
+})}
             </span>
 
             {#if costOf(student)}
@@ -120,7 +120,7 @@ const smallButton =
 
           <!-- Per-student instructions: the educator's text, layered after the class's (§10). -->
           <form method="POST" action="?/saveInstructions" use:enhance class="flex flex-col gap-1">
-            <input type="hidden" name="studentId" value={student.id} />
+            <input type="hidden" name="studentId" value={student.id}>
             <label class="flex flex-col gap-1">
               <span class="text-xs text-muted-foreground">
                 {m.educator_student_instructions_label({ label: student.label })}
@@ -137,8 +137,13 @@ const smallButton =
 
           <div class="flex flex-wrap items-end gap-2">
             <!-- Attachment override; inherit hands the decision back to the class (§10). -->
-            <form method="POST" action="?/setAttachments" use:enhance class="flex items-end gap-1.5">
-              <input type="hidden" name="studentId" value={student.id} />
+            <form
+              method="POST"
+              action="?/setAttachments"
+              use:enhance
+              class="flex items-end gap-1.5"
+            >
+              <input type="hidden" name="studentId" value={student.id}>
               <label class="flex flex-col gap-1">
                 <span class="text-[0.6875rem] text-muted-foreground">
                   {m.educator_attachments_override_label()}
@@ -150,10 +155,8 @@ const smallButton =
                 >
                   <option value="inherit">
                     {m.educator_attachments_inherit({
-                      state: student.attachmentsEffective
-                        ? m.educator_attachments_on()
-                        : m.educator_attachments_off(),
-                    })}
+  state: student.attachmentsEffective ? m.educator_attachments_on() : m.educator_attachments_off(),
+})}
                   </option>
                   <option value="on">{m.educator_attachments_on()}</option>
                   <option value="off">{m.educator_attachments_off()}</option>
@@ -162,20 +165,15 @@ const smallButton =
               <button type="submit" class={smallButton}>{m.educator_save()}</button>
             </form>
 
-            <form
-              method="POST"
-              action="?/rotate"
-              use:enhance
-              class="flex max-w-xs flex-col gap-1"
-            >
-              <input type="hidden" name="studentId" value={student.id} />
+            <form method="POST" action="?/rotate" use:enhance class="flex max-w-xs flex-col gap-1">
+              <input type="hidden" name="studentId" value={student.id}>
               <button
                 type="submit"
                 onclick={(event) => {
-                  if (!window.confirm(m.educator_slip_rotate_confirm({ label: student.label }))) {
-                    event.preventDefault();
-                  }
-                }}
+  if (!window.confirm(m.educator_slip_rotate_confirm({ label: student.label }))) {
+    event.preventDefault();
+  }
+}}
                 class={smallButton}
               >
                 {m.educator_slip_create()}
@@ -189,7 +187,7 @@ const smallButton =
 
             {#if student.displayName}
               <form method="POST" action="?/clearDisplayName" use:enhance>
-                <input type="hidden" name="studentId" value={student.id} />
+                <input type="hidden" name="studentId" value={student.id}>
                 <button type="submit" class={smallButton}>
                   {m.educator_clear_display_name()}
                 </button>
@@ -197,30 +195,28 @@ const smallButton =
             {/if}
 
             <form method="POST" action="?/setStatus" use:enhance>
-              <input type="hidden" name="studentId" value={student.id} />
+              <input type="hidden" name="studentId" value={student.id}>
               <input
                 type="hidden"
                 name="status"
                 value={student.status === "active" ? "disabled" : "active"}
-              />
+              >
               <button type="submit" class={smallButton}>
-                {student.status === "active"
-                  ? m.educator_student_disable()
-                  : m.educator_student_enable()}
+                {student.status === "active" ? m.educator_student_disable() : m.educator_student_enable()}
               </button>
             </form>
 
             {#if student.status !== "removed"}
               <form method="POST" action="?/setStatus" use:enhance>
-                <input type="hidden" name="studentId" value={student.id} />
-                <input type="hidden" name="status" value="removed" />
+                <input type="hidden" name="studentId" value={student.id}>
+                <input type="hidden" name="status" value="removed">
                 <button type="submit" class={smallButton}>{m.educator_student_remove()}</button>
               </form>
             {/if}
 
             <!-- Permanent deletion, typed rather than clicked (§16). -->
             <form method="POST" action="?/deleteStudent" use:enhance class="flex items-end gap-1.5">
-              <input type="hidden" name="studentId" value={student.id} />
+              <input type="hidden" name="studentId" value={student.id}>
               <label class="flex flex-col gap-1">
                 <span class="text-[0.6875rem] text-muted-foreground">
                   {m.educator_student_delete_confirm_label({ label: student.label })}
@@ -229,10 +225,9 @@ const smallButton =
                   name="confirmLabel"
                   autocomplete="off"
                   value={deleteConfirmations[student.id] ?? ""}
-                  oninput={(event) =>
-                    (deleteConfirmations[student.id] = event.currentTarget.value)}
+                  oninput={(event) => (deleteConfirmations[student.id] = event.currentTarget.value)}
                   class="h-8 w-40 rounded-md border border-input bg-background px-2 text-xs text-foreground"
-                />
+                >
               </label>
               <button
                 type="submit"

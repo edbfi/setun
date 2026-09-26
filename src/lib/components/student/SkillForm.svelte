@@ -45,18 +45,18 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
 
 <form method="POST" action="?/save" use:enhance class="flex flex-col gap-3">
   {#if editingId}
-    <input type="hidden" name="skillId" value={editingId} />
+    <input type="hidden" name="skillId" value={editingId}>
   {/if}
 
   <label class="flex flex-col gap-1">
     <span class="text-xs text-muted-foreground">{m.student_skill_name_label()}</span>
-    <input name="name" bind:value={$form.name} class="h-11 {field}" />
+    <input name="name" bind:value={$form.name} class="h-11 {field}">
     <FieldError message={$errors.name} />
   </label>
 
   <label class="flex flex-col gap-1">
     <span class="text-xs text-muted-foreground">{m.student_skill_description_label()}</span>
-    <input name="description" bind:value={$form.description} class="h-11 {field}" />
+    <input name="description" bind:value={$form.description} class="h-11 {field}">
     <FieldError message={$errors.description} />
   </label>
 

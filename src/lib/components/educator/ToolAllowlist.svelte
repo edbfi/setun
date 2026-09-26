@@ -61,13 +61,17 @@ const button =
               <span class="flex items-center gap-2">
                 <span class="truncate text-sm text-foreground">{tool.name}</span>
                 {#if tool.sensitive}
-                  <span class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
+                  <span
+                    class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground"
+                  >
                     {m.educator_tool_sensitive()}
                   </span>
                 {/if}
               </span>
               {#if !tool.enabled || !server.enabled}
-                <span class="text-xs text-muted-foreground">{m.educator_tool_disabled_notice()}</span>
+                <span class="text-xs text-muted-foreground"
+                  >{m.educator_tool_disabled_notice()}</span
+                >
               {:else if tool.description}
                 <span class="truncate text-xs text-muted-foreground">{tool.description}</span>
               {/if}
@@ -78,15 +82,15 @@ const button =
               action={tool.allowed ? "?/disallowTool" : "?/allowTool"}
               use:enhance
             >
-              <input type="hidden" name="mcpToolId" value={tool.id} />
+              <input type="hidden" name="mcpToolId" value={tool.id}>
               <button
                 type="submit"
                 disabled={!tool.enabled || !server.enabled}
                 class={[
-                  button,
-                  { "bg-primary text-primary-foreground hover:bg-primary/90": tool.allowed },
-                  "disabled:opacity-50",
-                ]}
+  button,
+  { "bg-primary text-primary-foreground hover:bg-primary/90": tool.allowed },
+  "disabled:opacity-50",
+]}
               >
                 {tool.allowed ? m.educator_allowlist_disallow() : m.educator_allowlist_allow()}
               </button>

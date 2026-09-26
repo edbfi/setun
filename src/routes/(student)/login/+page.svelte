@@ -48,7 +48,7 @@ onMount(() => {
 <svelte:head>
   <title>{m.login_title()} · {m.app_name()}</title>
   {#if data.noScriptFragmentCleanup}
-    <noscript><meta http-equiv="refresh" content="0;url=/login?manual=1" /></noscript>
+    <noscript><meta http-equiv="refresh" content="0;url=/login?manual=1"></noscript>
   {/if}
 </svelte:head>
 
@@ -74,7 +74,7 @@ onMount(() => {
         aria-describedby={form?.failed ? "login-error" : undefined}
         bind:this={codeInput}
         class="h-11 rounded-md border border-input bg-background px-3 text-center font-mono text-sm tracking-wide text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-      />
+      >
     </label>
 
     {#if form?.failed}

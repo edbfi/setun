@@ -52,13 +52,13 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
 
     <label class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-foreground">{m.educator_classroom_name_label()}</span>
-      <input name="name" type="text" bind:value={$form.name} class={field} />
+      <input name="name" type="text" bind:value={$form.name} class={field}>
       <FieldError message={$errors.name} />
     </label>
 
     <label class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-foreground">{m.educator_timezone_label()}</span>
-      <input name="timezone" type="text" bind:value={$form.timezone} class={field} />
+      <input name="timezone" type="text" bind:value={$form.timezone} class={field}>
       <FieldError message={$errors.timezone} />
     </label>
 
@@ -89,7 +89,7 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
         max="365"
         bind:value={$form.sessionSlidingDays}
         class={field}
-      />
+      >
       <FieldError message={$errors.sessionSlidingDays} />
     </label>
 
@@ -110,7 +110,7 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
               name="confirmNoDpa"
               bind:checked={$form.confirmNoDpa}
               class="mt-1"
-            />
+            >
             {m.setup_classroom_no_dpa_confirm()}
           </label>
           {#if setupFieldError($errors.confirmNoDpa)}

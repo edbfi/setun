@@ -45,7 +45,7 @@ const stepFailure = $derived(setupErrorMessage(failure));
 
 <svelte:head>
   <title>{m.setup_title()} · {m.app_name()}</title>
-  <meta name="robots" content="noindex" />
+  <meta name="robots" content="noindex">
 </svelte:head>
 
 <main class="mx-auto flex min-h-svh max-w-2xl flex-col gap-8 px-6 py-12">

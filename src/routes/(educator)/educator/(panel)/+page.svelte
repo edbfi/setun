@@ -64,7 +64,7 @@ const { form, errors, enhance: formEnhance, submitting } = superForm(data.form);
           bind:value={$form.name}
           required
           class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-        />
+        >
         <FieldError message={$errors.name} />
       </label>
 
@@ -74,7 +74,7 @@ const { form, errors, enhance: formEnhance, submitting } = superForm(data.form);
           name="timezone"
           bind:value={$form.timezone}
           class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-        />
+        >
         <FieldError message={$errors.timezone} />
       </label>
 

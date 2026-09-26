@@ -29,10 +29,7 @@ const position = $derived(steps.indexOf(current) + 1);
   <ol class="flex flex-wrap gap-x-4 gap-y-1">
     {#each steps as step, index (step)}
       <li
-        class={[
-          "text-xs",
-          step === current ? "font-medium text-foreground" : "text-muted-foreground",
-        ]}
+        class={["text-xs", step === current ? "font-medium text-foreground" : "text-muted-foreground"]}
         aria-current={step === current ? "step" : undefined}
       >
         {index + 1}. {setupStepLabel(step)}

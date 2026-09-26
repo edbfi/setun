@@ -58,7 +58,9 @@ const percent = $derived(
 );
 </script>
 
-<div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-border px-3 py-2.5">
+<div
+  class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-border px-3 py-2.5"
+>
   <span
     class="size-2 shrink-0 rounded-full"
     class:bg-primary={overview.availability.open}
@@ -74,13 +76,15 @@ const percent = $derived(
   </a>
 
   <span class="text-xs text-muted-foreground">{stateLabel}</span>
-  {#if window}<span class="text-xs text-muted-foreground">{window}</span>{/if}
+  {#if window}
+    <span class="text-xs text-muted-foreground">{window}</span>
+  {/if}
 
   <span class="text-xs text-muted-foreground tabular-nums">
     {m.educator_active_of({
-      active: numbers.format(overview.activeStudents),
-      total: numbers.format(overview.studentCount),
-    })}
+  active: numbers.format(overview.activeStudents),
+  total: numbers.format(overview.studentCount),
+})}
   </span>
 
   <span
@@ -92,12 +96,8 @@ const percent = $derived(
   </span>
 
   <form method="POST" action="?/setState" use:enhance class="ms-auto">
-    <input type="hidden" name="classroomId" value={overview.id} />
-    <input
-      type="hidden"
-      name="state"
-      value={overview.state === "locked" ? "scheduled" : "locked"}
-    />
+    <input type="hidden" name="classroomId" value={overview.id}>
+    <input type="hidden" name="state" value={overview.state === "locked" ? "scheduled" : "locked"}>
     <button
       type="submit"
       class="h-8 rounded-md px-2.5 text-xs font-medium"

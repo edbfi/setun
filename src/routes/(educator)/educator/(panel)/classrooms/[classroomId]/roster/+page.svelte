@@ -63,7 +63,7 @@ const enhanceClassroomRotation: SubmitFunction = () => {
           min="1"
           max="40"
           class="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm text-foreground"
-        />
+        >
       </label>
       <button
         type="submit"
@@ -78,19 +78,15 @@ const enhanceClassroomRotation: SubmitFunction = () => {
     <h2 class="text-sm font-medium text-foreground">{m.educator_slips_title()}</h2>
     <p class="text-xs text-muted-foreground">{m.educator_slip_security()}</p>
 
-    <form
-      method="POST"
-      action="?/rotateClassroom"
-      use:enhance={enhanceClassroomRotation}
-    >
+    <form method="POST" action="?/rotateClassroom" use:enhance={enhanceClassroomRotation}>
       <button
         type="submit"
         disabled={data.activeStudentCount === 0 || rotatingClassroom}
         onclick={(event) => {
-          if (!window.confirm(m.educator_slip_bulk_confirm({ count: data.activeStudentCount }))) {
-            event.preventDefault();
-          }
-        }}
+  if (!window.confirm(m.educator_slip_bulk_confirm({ count: data.activeStudentCount }))) {
+    event.preventDefault();
+  }
+}}
         class="h-9 rounded-md border border-input px-4 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
       >
         {m.educator_slip_bulk_submit({ count: data.activeStudentCount })}
@@ -108,7 +104,7 @@ const enhanceClassroomRotation: SubmitFunction = () => {
 
   <p class="text-xs">
     <a
-      href="?removed={data.includeRemoved ? '0' : '1'}"
+      href="?removed={data.includeRemoved ? "0" : "1"}"
       class="text-muted-foreground underline underline-offset-2 hover:text-foreground"
     >
       {data.includeRemoved ? m.educator_hide_removed() : m.educator_show_removed()}

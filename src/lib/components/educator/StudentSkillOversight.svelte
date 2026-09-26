@@ -67,11 +67,15 @@ const button =
                   {m.educator_student_skill_pending()}
                 </span>
               {:else if skill.approvalState === "rejected"}
-                <span class="rounded bg-destructive/10 px-1.5 py-0.5 text-[0.6875rem] text-destructive">
+                <span
+                  class="rounded bg-destructive/10 px-1.5 py-0.5 text-[0.6875rem] text-destructive"
+                >
                   {m.educator_student_skill_rejected()}
                 </span>
               {:else if !skill.enabled}
-                <span class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
+                <span
+                  class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground"
+                >
                   {m.educator_skill_disabled_badge()}
                 </span>
               {/if}
@@ -90,19 +94,19 @@ const button =
 
             {#if skill.approvalState === "pending"}
               <form method="POST" action="?/setStudentSkillState" use:enhance>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="approvalState" value="approved" />
+                <input type="hidden" name="skillId" value={skill.id}>
+                <input type="hidden" name="approvalState" value="approved">
                 <button type="submit" class={button}>{m.educator_student_skill_approve()}</button>
               </form>
               <form method="POST" action="?/setStudentSkillState" use:enhance>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="approvalState" value="rejected" />
+                <input type="hidden" name="skillId" value={skill.id}>
+                <input type="hidden" name="approvalState" value="rejected">
                 <button type="submit" class={button}>{m.educator_student_skill_reject()}</button>
               </form>
             {:else}
               <form method="POST" action="?/setStudentSkillState" use:enhance>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="enabled" value={skill.enabled ? "false" : "true"} />
+                <input type="hidden" name="skillId" value={skill.id}>
+                <input type="hidden" name="enabled" value={skill.enabled ? "false" : "true"}>
                 <button type="submit" class={button}>
                   {skill.enabled ? m.educator_skill_disable() : m.educator_skill_enable()}
                 </button>

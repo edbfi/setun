@@ -68,7 +68,7 @@ const empty = $derived(data.artifacts.length === 0 && data.images.length === 0);
                   </button>
 
                   <form method="POST" action="?/deleteArtifact" use:enhance>
-                    <input type="hidden" name="id" value={item.id} />
+                    <input type="hidden" name="id" value={item.id}>
                     <button
                       type="submit"
                       class="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-destructive"
@@ -120,11 +120,11 @@ const empty = $derived(data.artifacts.length === 0 && data.images.length === 0);
                   alt={m.creations_image_alt({ prompt: image.prompt })}
                   loading="lazy"
                   class="aspect-square w-full rounded-sm object-cover"
-                />
+                >
                 <span class="truncate text-xs text-muted-foreground">{image.prompt}</span>
 
                 <form method="POST" action="?/deleteImage" use:enhance>
-                  <input type="hidden" name="id" value={image.id} />
+                  <input type="hidden" name="id" value={image.id}>
                   <button
                     type="submit"
                     class="rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:text-destructive"

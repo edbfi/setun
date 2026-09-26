@@ -68,9 +68,7 @@ const nextOpening = $derived.by(() => {
       size nothing else on this screen competes with.
     -->
     <div class="flex flex-col items-center gap-1">
-      <span
-        class="text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted-foreground"
-      >
+      <span class="text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         {m.classroom_next_opening_label()}
       </span>
       <p class="text-xl font-semibold text-foreground sm:text-2xl">

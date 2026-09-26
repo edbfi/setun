@@ -47,7 +47,9 @@ let open = $state(false);
 
   <Dialog.Root bind:open>
     <Dialog.Trigger>
-      {#snippet child({ props })}
+      {#snippet child({
+  props,
+})}
         <Button {...props} data-testid="dialog-trigger">{m.stack_check_open_dialog()}</Button>
       {/snippet}
     </Dialog.Trigger>

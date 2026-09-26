@@ -68,12 +68,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
 <section class="flex flex-col gap-3">
   <h2 class="text-sm font-medium text-foreground">{m.educator_budgets_title()}</h2>
 
-  <form
-    method="POST"
-    action="?/applyPreset"
-    use:formEnhance
-    class="flex flex-wrap items-end gap-2"
-  >
+  <form method="POST" action="?/applyPreset" use:formEnhance class="flex flex-wrap items-end gap-2">
     <label class="flex flex-col gap-1">
       <span class="text-xs text-muted-foreground">{m.educator_preset_label()}</span>
       <select name="preset" bind:value={selectedPreset} class={field}>
@@ -119,7 +114,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
             type="number"
             bind:value={$form.perTurnStepCap}
             class={field}
-          />
+          >
           <FieldError message={$errors.perTurnStepCap} />
         </label>
 
@@ -130,7 +125,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
             type="number"
             bind:value={$form.perTurnWallClockSeconds}
             class={field}
-          />
+          >
           <FieldError message={$errors.perTurnWallClockSeconds} />
         </label>
 
@@ -141,7 +136,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
             type="number"
             bind:value={$form.perTurnTokenCap}
             class={field}
-          />
+          >
           <FieldError message={$errors.perTurnTokenCap} />
         </label>
       </div>
@@ -161,7 +156,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
             type="number"
             bind:value={$form.perStudentDailyTokens}
             class={field}
-          />
+          >
           <FieldError message={$errors.perStudentDailyTokens} />
         </label>
 
@@ -172,7 +167,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
             type="number"
             bind:value={$form.perClassroomDailyTokens}
             class={field}
-          />
+          >
           <FieldError message={$errors.perClassroomDailyTokens} />
         </label>
 
@@ -184,7 +179,7 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
             step="0.01"
             bind:value={$form.costExchangeRate}
             class={field}
-          />
+          >
           <FieldError message={$errors.costExchangeRate} />
         </label>
       </div>

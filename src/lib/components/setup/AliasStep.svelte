@@ -50,13 +50,13 @@ const check = "flex items-center gap-2 text-sm text-foreground";
 
     <label class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-foreground">{m.educator_alias_name_label()}</span>
-      <input name="name" type="text" bind:value={$form.name} class={field} />
+      <input name="name" type="text" bind:value={$form.name} class={field}>
       <FieldError message={$errors.name} />
     </label>
 
     <label class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-foreground">{m.educator_alias_gateway_label()}</span>
-      <input name="gatewayModelId" type="text" bind:value={$form.gatewayModelId} class={field} />
+      <input name="gatewayModelId" type="text" bind:value={$form.gatewayModelId} class={field}>
       <FieldError message={$errors.gatewayModelId} />
     </label>
 
@@ -70,15 +70,15 @@ const check = "flex items-center gap-2 text-sm text-foreground";
 
     <div class="flex flex-wrap gap-x-5 gap-y-1.5">
       <label class={check}>
-        <input type="checkbox" name="available" bind:checked={$form.available} />
+        <input type="checkbox" name="available" bind:checked={$form.available}>
         {m.educator_alias_available_label()}
       </label>
       <label class={check}>
-        <input type="checkbox" name="dataProtection" bind:checked={$form.dataProtection} />
+        <input type="checkbox" name="dataProtection" bind:checked={$form.dataProtection}>
         {m.educator_alias_dpa_label()}
       </label>
       <label class={check}>
-        <input type="checkbox" name="supportsImageInput" bind:checked={$form.supportsImageInput} />
+        <input type="checkbox" name="supportsImageInput" bind:checked={$form.supportsImageInput}>
         {m.educator_alias_image_input_label()}
       </label>
       <label class={check}>
@@ -86,7 +86,7 @@ const check = "flex items-center gap-2 text-sm text-foreground";
           type="checkbox"
           name="supportsImageGeneration"
           bind:checked={$form.supportsImageGeneration}
-        />
+        >
         {m.educator_alias_image_generation_label()}
       </label>
     </div>

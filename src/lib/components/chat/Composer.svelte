@@ -176,7 +176,7 @@ const iconButton =
             onchange={pickFiles}
             aria-hidden="true"
             tabindex="-1"
-          />
+          >
           <button
             type="button"
             onclick={() => filePicker?.click()}
@@ -195,11 +195,7 @@ const iconButton =
             aria-pressed={isImageMode}
             aria-label={isImageMode ? m.chat_image_mode_off() : m.chat_image_mode()}
             title={isImageMode ? m.chat_image_mode_off() : m.chat_image_mode()}
-            class={[
-              iconButton,
-              isImageMode &&
-                "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
-            ]}
+            class={[iconButton, isImageMode && "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"]}
           >
             <Image size={17} aria-hidden="true" />
           </button>

@@ -27,15 +27,15 @@ const thinking = getThinking();
   <span
     aria-hidden="true"
     class={[
-      "relative h-4 w-7 shrink-0 rounded-full transition-colors",
-      thinking.shown ? "bg-primary" : "bg-border",
-    ]}
+  "relative h-4 w-7 shrink-0 rounded-full transition-colors",
+  thinking.shown ? "bg-primary" : "bg-border",
+]}
   >
     <span
       class={[
-        "absolute top-0.5 size-3 rounded-full bg-background transition-all",
-        thinking.shown ? "left-3.5" : "left-0.5",
-      ]}
+  "absolute top-0.5 size-3 rounded-full bg-background transition-all",
+  thinking.shown ? "left-3.5" : "left-0.5",
+]}
     ></span>
   </span>
 </button>
