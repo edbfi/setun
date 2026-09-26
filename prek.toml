@@ -51,9 +51,9 @@ hooks = [
 repo = "local"
 hooks = [
   { id = "biome", name = "Format and lint with Biome", entry = "bunx biome check --write --files-ignore-unknown=true --no-errors-on-unmatched", language = "system", types = ["text"], files = "\\.(js|mjs|cjs|ts|jsx|tsx|json|jsonc|css|svelte)$", exclude = "^(src/lib/paraglide/|\\.svelte-kit/|build/|test-results/|playwright-report/|bun\\.lock$)" },
-  { id = "python-ruff", name = "Python lint", entry = "uv run --project scripts --frozen ruff check --config scripts/ruff.toml", language = "system", types = ["python"], files = "^(scripts/|\\.github/scripts/check-python\\.py$)" },
-  { id = "python-format", name = "Python format", entry = "uv run --project scripts --frozen ruff format --check --config scripts/ruff.toml", language = "system", types = ["python"], files = "^(scripts/|\\.github/scripts/check-python\\.py$)" },
-  { id = "python-types", name = "Python types", entry = "uv run --project scripts --frozen python .github/scripts/check-python.py", language = "system", pass_filenames = false, files = "^(scripts/|\\.github/scripts/check-python\\.py)" },
+  { id = "python-ruff", name = "Python lint", entry = "uv run --project scripts --frozen ruff check --config scripts/ruff.toml", language = "system", types = ["python"], files = "^scripts/" },
+  { id = "python-format", name = "Python format", entry = "uv run --project scripts --frozen ruff format --check --config scripts/ruff.toml", language = "system", types = ["python"], files = "^scripts/" },
+  { id = "python-types", name = "Python types", entry = "uv run --project scripts --frozen python scripts/check-python.py", language = "system", pass_filenames = false, files = "^scripts/" },
   { id = "svelte-check", name = "TypeScript and Svelte type check", entry = "bun run check", language = "system", pass_filenames = false, stages = ["pre-push"] },
   { id = "tests", name = "Run test suite", entry = "bun test", language = "system", pass_filenames = false, stages = ["pre-push"] },
 ]
