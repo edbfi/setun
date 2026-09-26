@@ -27,9 +27,11 @@ let { serverLabel, pending = false }: Props = $props();
 
 <span
   class={[
-    "flex items-center gap-2 border-l-2 pl-2 text-[0.6875rem] font-medium uppercase tracking-[0.12em]",
-    pending ? "border-dotted border-primary text-primary" : "border-solid border-border text-muted-foreground",
-  ]}
+  "flex items-center gap-2 border-l-2 pl-2 text-[0.6875rem] font-medium uppercase tracking-[0.12em]",
+  pending
+    ? "border-dotted border-primary text-primary"
+    : "border-solid border-border text-muted-foreground",
+]}
 >
   {serverLabel ? m.chat_permission_from({ server: serverLabel }) : m.chat_permission_internal()}
 </span>

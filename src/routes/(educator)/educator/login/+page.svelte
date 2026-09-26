@@ -33,7 +33,7 @@ let { form }: PageProps = $props();
         autocomplete="username"
         required
         class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-      />
+      >
     </label>
 
     <label class="flex flex-col gap-1.5">
@@ -44,7 +44,7 @@ let { form }: PageProps = $props();
         autocomplete="current-password"
         required
         class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-      />
+      >
     </label>
 
     {#if form?.failed}

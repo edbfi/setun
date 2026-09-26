@@ -56,13 +56,13 @@ let showing = $state<string | null>(null);
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">{m.educator_skill_name_label()}</span>
-          <input name="name" bind:value={$fields.name} class="h-9 {field}" />
+          <input name="name" bind:value={$fields.name} class="h-9 {field}">
           <FieldError message={$errors.name} />
         </label>
 
         <label class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">{m.educator_skill_description_label()}</span>
-          <input name="description" bind:value={$fields.description} class="h-9 {field}" />
+          <input name="description" bind:value={$fields.description} class="h-9 {field}">
           <FieldError message={$errors.description} />
         </label>
       </div>
@@ -94,7 +94,12 @@ let showing = $state<string | null>(null);
       use:formEnhance
       class="flex flex-wrap items-center gap-2"
     >
-      <input type="file" name="file" accept=".md,.markdown,.txt,text/plain,text/markdown" class="text-xs" />
+      <input
+        type="file"
+        name="file"
+        accept=".md,.markdown,.txt,text/plain,text/markdown"
+        class="text-xs"
+      >
       <button type="submit" class={button}>{m.educator_skill_upload()}</button>
     </form>
     {#if uploadFailed}
@@ -108,7 +113,7 @@ let showing = $state<string | null>(null);
     <form method="POST" action="?/search" use:formEnhance class="flex flex-wrap items-end gap-2">
       <label class="flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">{m.educator_skill_import_query_label()}</span>
-        <input name="query" class="h-8 w-64 {field}" />
+        <input name="query" class="h-8 w-64 {field}">
       </label>
       <button type="submit" class={button}>{m.educator_skill_import_search()}</button>
     </form>
@@ -131,7 +136,7 @@ let showing = $state<string | null>(null);
                 <span class="truncate text-xs text-muted-foreground">{entry.description}</span>
               </div>
               <form method="POST" action="?/import" use:formEnhance>
-                <input type="hidden" name="entryId" value={entry.id} />
+                <input type="hidden" name="entryId" value={entry.id}>
                 <button type="submit" class={button}>{m.educator_skill_import_button()}</button>
               </form>
             </li>
@@ -154,13 +159,16 @@ let showing = $state<string | null>(null);
               <span class="flex items-center gap-2">
                 <span class="truncate text-sm font-medium text-foreground">{skill.name}</span>
                 {#if !skill.enabled}
-                  <span class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
+                  <span
+                    class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground"
+                  >
                     {m.educator_skill_disabled_badge()}
                   </span>
                 {/if}
               </span>
               <span class="truncate text-xs text-muted-foreground">
-                {ORIGIN_LABELS[skill.origin]()} · {skill.description}
+                {ORIGIN_LABELS[skill.origin]()}
+                · {skill.description}
               </span>
             </div>
 
@@ -173,14 +181,14 @@ let showing = $state<string | null>(null);
                 {m.educator_student_skill_view()}
               </button>
               <form method="POST" action="?/setState" use:formEnhance>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="enabled" value={skill.enabled ? "false" : "true"} />
+                <input type="hidden" name="skillId" value={skill.id}>
+                <input type="hidden" name="enabled" value={skill.enabled ? "false" : "true"}>
                 <button type="submit" class={button}>
                   {skill.enabled ? m.educator_skill_disable() : m.educator_skill_enable()}
                 </button>
               </form>
               <form method="POST" action="?/delete" use:formEnhance>
-                <input type="hidden" name="skillId" value={skill.id} />
+                <input type="hidden" name="skillId" value={skill.id}>
                 <button
                   type="submit"
                   class="h-8 rounded-md border border-destructive px-3 text-xs font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground"

@@ -118,8 +118,9 @@ beforeEach(() => {
   `setun:theme`); check both themes.
 - shadcn-svelte: `bunx shadcn-svelte add <component> --skip-preflight`, never `init`.
   `tailwind.config.js` is an empty stub for the CLI.
-- Biome cannot fully parse `.svelte` markup. Never run `--unsafe` fixes on components.
-  `bun run check` is the authority there.
+- Biome uses experimental Svelte markup support with narrow compatibility overrides in
+  `biome.json`; see README "Biome configuration". Never run blanket `--unsafe` fixes on
+  components. `bun run check` remains the type authority.
 - To show an artifact, call `reveal()` / `select()` on `ArtifactWorkspace`
   (`src/lib/state/artifacts.svelte.ts`) rather than assigning `stage`. Layout lives in
   `src/lib/components/workspace/`, not in `src/routes/(student)/chat/`.

@@ -1,53 +1,51 @@
 <!doctype html>
-
 <html lang="%paraglide.lang%" dir="%paraglide.dir%">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" href="%sveltekit.assets%/setun-mark.svg" type="image/svg+xml" />
+  <head>
+    <meta charset="utf-8">
+    <link rel="icon" href="%sveltekit.assets%/setun-mark.svg" type="image/svg+xml">
 
-		<meta
-			name="viewport"
-			content="width=device-width, initial-scale=1"
-		/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-		<meta name="text-scale" content="scale" />
-		<!--
+    <meta name="text-scale" content="scale">
+    <!--
 			Light or dark, before first paint.
 
 			`$lib/state/theme.svelte.ts` owns the preference; this resolves it once,
 			synchronously, so the document is never painted in the wrong theme and
 			then corrected. The storage key is the contract between the two.
 		-->
-		<script>
-			(() => {
-				try {
-					const stored = localStorage.getItem("setun:theme");
-					const dark =
-						stored === "dark" ||
-						(stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-					document.documentElement.classList.toggle("dark", dark);
-					document.documentElement.style.colorScheme = dark ? "dark" : "light";
-				} catch {
-					// Storage can throw where site data is blocked; light is the default.
-				}
-			})();
-		</script>
-		<script>
-			(() => {
-				if (window.location.pathname !== "/login") return;
-				const code = new URLSearchParams(window.location.hash.slice(1)).get("code");
-				if (!code) return;
+    <script>
+    (() => {
+      try {
+        const stored = localStorage.getItem("setun:theme");
+        const dark =
+          stored === "dark" ||
+          (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+      } catch {
+        // Storage can throw where site data is blocked; light is the default.
+      }
+    })();
+    </script>
+    <script>
+    (() => {
+      if (window.location.pathname !== "/login") return;
+      const code = new URLSearchParams(window.location.hash.slice(1)).get("code");
+      if (!code) return;
 
-				window.__setunLoginCode = code;
-				window.history.replaceState(
-					window.history.state,
-					"",
-					`${window.location.pathname}${window.location.search}`,
-				);
-			})();
-		</script>
-		%sveltekit.head%
-	</head>
+      window.__setunLoginCode = code;
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    })();
+    </script>
+    %sveltekit.head%
+  </head>
 
-	<body data-sveltekit-preload-data="hover"><div style="display: contents">%sveltekit.body%</div></body>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
 </html>

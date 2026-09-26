@@ -57,7 +57,9 @@ const field = "h-8 rounded-md border border-input bg-background px-2 text-xs tex
             <span class="flex items-center gap-2">
               <span class="truncate text-sm text-foreground">{skill.name}</span>
               {#if !skill.enabled}
-                <span class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground">
+                <span
+                  class="rounded bg-secondary px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground"
+                >
                   {m.educator_skill_disabled_badge()}
                 </span>
               {/if}
@@ -70,19 +72,17 @@ const field = "h-8 rounded-md border border-input bg-background px-2 text-xs tex
             action={skill.classWide ? "?/revokeSkill" : "?/grantSkill"}
             use:enhance
           >
-            <input type="hidden" name="skillId" value={skill.id} />
+            <input type="hidden" name="skillId" value={skill.id}>
             <button
               type="submit"
               disabled={!skill.enabled}
               class={[
-                button,
-                { "bg-primary text-primary-foreground hover:bg-primary/90": skill.classWide },
-                "disabled:opacity-50",
-              ]}
+  button,
+  { "bg-primary text-primary-foreground hover:bg-primary/90": skill.classWide },
+  "disabled:opacity-50",
+]}
             >
-              {skill.classWide
-                ? m.educator_skill_grant_remove()
-                : m.educator_skill_grant_class()}
+              {skill.classWide ? m.educator_skill_grant_remove() : m.educator_skill_grant_class()}
             </button>
           </form>
         </div>
@@ -90,7 +90,7 @@ const field = "h-8 rounded-md border border-input bg-background px-2 text-xs tex
         {#if students.length > 0}
           <div class="flex flex-wrap items-center gap-2">
             <form method="POST" action="?/grantSkill" use:enhance class="flex items-center gap-2">
-              <input type="hidden" name="skillId" value={skill.id} />
+              <input type="hidden" name="skillId" value={skill.id}>
               <label class="sr-only" for="grant-{skill.id}">
                 {m.educator_skill_grant_student_label()}
               </label>
@@ -111,8 +111,8 @@ const field = "h-8 rounded-md border border-input bg-background px-2 text-xs tex
 
             {#each skill.studentIds as studentId (studentId)}
               <form method="POST" action="?/revokeSkill" use:enhance>
-                <input type="hidden" name="skillId" value={skill.id} />
-                <input type="hidden" name="studentId" value={studentId} />
+                <input type="hidden" name="skillId" value={skill.id}>
+                <input type="hidden" name="studentId" value={studentId}>
                 <button type="submit" class="{button} border-primary text-primary">
                   {students.find((student) => student.id === studentId)?.label ?? studentId}
                   <span aria-hidden="true"> ×</span>

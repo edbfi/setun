@@ -50,24 +50,24 @@ const toggle =
             <code class="rounded bg-secondary px-1 py-0.5">{server.configKey}</code>
             <span>
               {server.negotiatedVersion
-                ? m.educator_mcp_version({ version: server.negotiatedVersion })
-                : m.educator_mcp_version_unknown()}
+  ? m.educator_mcp_version({ version: server.negotiatedVersion })
+  : m.educator_mcp_version_unknown()}
             </span>
             <span
               class={[
-                "rounded px-1.5 py-0.5",
-                {
-                  "bg-primary/10 text-primary": server.reachability === "reachable",
-                  "bg-destructive/10 text-destructive": server.reachability === "unreachable",
-                  "bg-secondary": server.reachability === "unknown",
-                },
-              ]}
+  "rounded px-1.5 py-0.5",
+  {
+    "bg-primary/10 text-primary": server.reachability === "reachable",
+    "bg-destructive/10 text-destructive": server.reachability === "unreachable",
+    "bg-secondary": server.reachability === "unknown",
+  },
+]}
             >
               {server.reachability === "reachable"
-                ? m.educator_mcp_reachable()
-                : server.reachability === "unreachable"
-                  ? m.educator_mcp_unreachable()
-                  : m.educator_mcp_unknown()}
+  ? m.educator_mcp_reachable()
+  : server.reachability === "unreachable"
+    ? m.educator_mcp_unreachable()
+    : m.educator_mcp_unknown()}
             </span>
           </span>
         </div>
@@ -75,19 +75,16 @@ const toggle =
         <div class="flex shrink-0 items-center gap-2">
           {#if server.configured}
             <form method="POST" action="?/refresh" use:enhance>
-              <input type="hidden" name="serverId" value={server.id} />
+              <input type="hidden" name="serverId" value={server.id}>
               <button type="submit" class={toggle}>{m.educator_mcp_refresh()}</button>
             </form>
           {/if}
           <form method="POST" action="?/setServerEnabled" use:enhance>
-            <input type="hidden" name="serverId" value={server.id} />
-            <input type="hidden" name="enabled" value={server.enabled ? "false" : "true"} />
+            <input type="hidden" name="serverId" value={server.id}>
+            <input type="hidden" name="enabled" value={server.enabled ? "false" : "true"}>
             <button
               type="submit"
-              class={[
-                toggle,
-                { "bg-primary text-primary-foreground hover:bg-primary/90": server.enabled },
-              ]}
+              class={[toggle, { "bg-primary text-primary-foreground hover:bg-primary/90": server.enabled }]}
               aria-pressed={server.enabled}
             >
               {m.educator_mcp_server_enabled()}
@@ -111,8 +108,8 @@ const toggle =
 
               <div class="flex shrink-0 items-center gap-2">
                 <form method="POST" action="?/setToolFlags" use:enhance>
-                  <input type="hidden" name="toolId" value={tool.id} />
-                  <input type="hidden" name="sensitive" value={tool.sensitive ? "false" : "true"} />
+                  <input type="hidden" name="toolId" value={tool.id}>
+                  <input type="hidden" name="sensitive" value={tool.sensitive ? "false" : "true"}>
                   <button
                     type="submit"
                     title={m.educator_tool_sensitive_help()}
@@ -123,14 +120,11 @@ const toggle =
                   </button>
                 </form>
                 <form method="POST" action="?/setToolFlags" use:enhance>
-                  <input type="hidden" name="toolId" value={tool.id} />
-                  <input type="hidden" name="enabled" value={tool.enabled ? "false" : "true"} />
+                  <input type="hidden" name="toolId" value={tool.id}>
+                  <input type="hidden" name="enabled" value={tool.enabled ? "false" : "true"}>
                   <button
                     type="submit"
-                    class={[
-                      toggle,
-                      { "bg-primary text-primary-foreground hover:bg-primary/90": tool.enabled },
-                    ]}
+                    class={[toggle, { "bg-primary text-primary-foreground hover:bg-primary/90": tool.enabled }]}
                     aria-pressed={tool.enabled}
                   >
                     {m.educator_tool_enabled()}

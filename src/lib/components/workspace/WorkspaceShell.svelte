@@ -48,11 +48,7 @@ const chatStyle = $derived(split ? `flex: 0 0 ${(workspace.fraction * 100).toFix
 
 <div class={["flex min-h-0 flex-1", axis === "inline" ? "flex-row" : "flex-col"]}>
   <div
-    class={[
-      "min-h-0 min-w-0 flex-col",
-      chatHidden ? "hidden" : "flex",
-      split ? "" : "flex-1",
-    ]}
+    class={["min-h-0 min-w-0 flex-col", chatHidden ? "hidden" : "flex", split ? "" : "flex-1"]}
     style={chatStyle}
   >
     {@render chat()}
@@ -71,10 +67,10 @@ const chatStyle = $derived(split ? `flex: 0 0 ${(workspace.fraction * 100).toFix
   {#if workspace.mounted}
     <div
       class={[
-        "min-h-0 min-w-0 flex-1 flex-col border-border bg-card",
-        buildHidden ? "hidden" : "flex",
-        axis === "inline" ? "border-l" : "border-t",
-      ]}
+  "min-h-0 min-w-0 flex-1 flex-col border-border bg-card",
+  buildHidden ? "hidden" : "flex",
+  axis === "inline" ? "border-l" : "border-t",
+]}
       data-workspace-pane="build"
     >
       {@render build()}

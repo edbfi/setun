@@ -113,15 +113,15 @@ const button =
                 </button>
 
                 <form method="POST" action="?/setEnabled" use:formEnhance>
-                  <input type="hidden" name="skillId" value={skill.id} />
-                  <input type="hidden" name="enabled" value={skill.enabled ? "false" : "true"} />
+                  <input type="hidden" name="skillId" value={skill.id}>
+                  <input type="hidden" name="enabled" value={skill.enabled ? "false" : "true"}>
                   <button type="submit" class={button}>
                     {skill.enabled ? m.student_skill_off() : m.student_skill_on()}
                   </button>
                 </form>
 
                 <form method="POST" action="?/delete" use:formEnhance>
-                  <input type="hidden" name="skillId" value={skill.id} />
+                  <input type="hidden" name="skillId" value={skill.id}>
                   <button
                     type="submit"
                     class="h-9 rounded-md border border-destructive px-3 text-xs font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground"

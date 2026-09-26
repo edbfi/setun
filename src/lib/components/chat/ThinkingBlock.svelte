@@ -68,7 +68,9 @@ const headline = $derived(thinkingParagraphHeadline(paragraphs.at(-1) ?? ""));
     class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-muted-foreground marker:text-muted-foreground"
   >
     {#if live}
-      <span class="thinking-pulse size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true"
+      <span
+        class="thinking-pulse size-1.5 shrink-0 rounded-full bg-primary"
+        aria-hidden="true"
       ></span>
       <span class="shrink-0">{m.chat_thinking_elapsed({ seconds })}</span>
       {#if headline}
@@ -93,21 +95,21 @@ const headline = $derived(thinkingParagraphHeadline(paragraphs.at(-1) ?? ""));
 </details>
 
 <style>
-  @media (prefers-reduced-motion: no-preference) {
-    .thinking-pulse {
-      animation: setun-thinking-pulse 1.4s ease-in-out infinite;
-    }
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-pulse {
+    animation: setun-thinking-pulse 1.4s ease-in-out infinite;
   }
+}
 
-  @keyframes setun-thinking-pulse {
-    0%,
-    100% {
-      opacity: 0.35;
-      transform: scale(0.8);
-    }
-    50% {
-      opacity: 1;
-      transform: scale(1.15);
-    }
+@keyframes setun-thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
   }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
 </style>

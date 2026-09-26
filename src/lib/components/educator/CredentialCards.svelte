@@ -85,8 +85,8 @@ async function downloadPdf(): Promise<void> {
           <h2 class="text-sm font-medium text-foreground">{m.educator_slips_title()}</h2>
           <p class="text-xs text-muted-foreground">
             {scope === "student"
-              ? m.educator_slip_ready_student({ label: cards[0]?.label ?? "" })
-              : m.educator_slip_ready_classroom({ count: cards.length })}
+  ? m.educator_slip_ready_student({ label: cards[0]?.label ?? "" })
+  : m.educator_slip_ready_classroom({ count: cards.length })}
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -129,9 +129,9 @@ async function downloadPdf(): Promise<void> {
             codeInstruction={m.educator_slip_code_instruction({}, cardLocale)}
             keepInstruction={m.educator_slip_keep_instruction({}, cardLocale)}
             pageLabel={m.educator_slip_page_label({
-              page: index + 1,
-              pages: prepared.pages.length,
-            })}
+  page: index + 1,
+  pages: prepared.pages.length,
+})}
           />
         </div>
       {/each}

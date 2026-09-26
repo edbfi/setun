@@ -725,11 +725,11 @@ async function abort(): Promise<void> {
                 <PermissionPrompt
                   permission={conversation.turn.permission}
                   onrespond={(approved) =>
-                    respond({
-                      requestId: conversation.turn.permission?.toolCallId,
-                      kind: "permission",
-                      approved,
-                    })}
+  respond({
+    requestId: conversation.turn.permission?.toolCallId,
+    kind: "permission",
+    approved,
+  })}
                 />
               {/key}
             {/if}
@@ -739,11 +739,11 @@ async function abort(): Promise<void> {
                 <ElicitationForm
                   elicitation={conversation.turn.elicitation}
                   onrespond={(answer) =>
-                    respond({
-                      requestId: conversation.turn.elicitation?.toolCallId,
-                      kind: "elicitation",
-                      ...answer,
-                    })}
+  respond({
+    requestId: conversation.turn.elicitation?.toolCallId,
+    kind: "elicitation",
+    ...answer,
+  })}
                 />
               {/key}
             {/if}
@@ -753,13 +753,13 @@ async function abort(): Promise<void> {
                 <ContinuePrompt
                   prompt={conversation.turn.continuePrompt}
                   onrespond={(proceed) => {
-                    if (proceed) conversation.turn.acknowledgeWarning();
-                    void respond({
-                      requestId: conversation.turn.continuePrompt?.requestId,
-                      kind: "continue",
-                      proceed,
-                    });
-                  }}
+  if (proceed) conversation.turn.acknowledgeWarning();
+  void respond({
+    requestId: conversation.turn.continuePrompt?.requestId,
+    kind: "continue",
+    proceed,
+  });
+}}
                 />
               {/key}
             {/if}

@@ -47,7 +47,7 @@ let { health }: Props = $props();
     </a>
 
     <form method="POST" action="?/gateway" use:enhance>
-      <input type="hidden" name="acknowledged" value="true" />
+      <input type="hidden" name="acknowledged" value="true">
       <button
         type="submit"
         class="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"

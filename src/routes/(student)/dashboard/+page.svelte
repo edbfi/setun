@@ -65,7 +65,9 @@ const action =
       {/if}
       <div class="flex flex-wrap justify-between gap-2">
         <dt class="text-muted-foreground">{m.student_card_title()}</dt>
-        <dd class="text-foreground">{m.educator_card_hint({ hint: data.student.credentialHint })}</dd>
+        <dd class="text-foreground">
+          {m.educator_card_hint({ hint: data.student.credentialHint })}
+        </dd>
       </div>
     </dl>
 
@@ -78,7 +80,7 @@ const action =
           value={data.student.displayName ?? ""}
           placeholder={m.student_display_name_placeholder()}
           class={field}
-        />
+        >
       </label>
       <button type="submit" class={action}>{m.educator_save()}</button>
     </form>
@@ -124,9 +126,9 @@ const action =
     <h2 class="text-sm font-medium text-foreground">{m.creations_title()}</h2>
     <p class="text-sm text-muted-foreground">
       {m.student_creations_count({
-        artifacts: data.creations.artifacts,
-        images: data.creations.images,
-      })}
+  artifacts: data.creations.artifacts,
+  images: data.creations.images,
+})}
     </p>
     <a href="/creations" class="self-start text-xs text-primary underline underline-offset-2">
       {m.student_open_creations()}
@@ -184,13 +186,13 @@ const action =
       method="POST"
       action="?/language"
       use:enhance={() =>
-        async ({ result, update }) => {
-          if (result.type === "success" || result.type === "redirect") {
-            window.location.reload();
-            return;
-          }
-          await update();
-        }}
+  async ({ result, update }) => {
+    if (result.type === "success" || result.type === "redirect") {
+      window.location.reload();
+      return;
+    }
+    await update();
+  }}
       class="flex flex-wrap items-end gap-2"
     >
       <select name="language" value={data.student.interfaceLanguage ?? ""} class={field}>

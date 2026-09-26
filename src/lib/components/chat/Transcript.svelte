@@ -237,19 +237,19 @@ $effect(() => {
         <button
           type="button"
           onclick={async () => {
-            const thread = conversationId;
-            windowSize += MESSAGE_WINDOW;
-            // Part of the position, not a separate preference: coming back to
-            // the same line means coming back to the same mounted thread. After
-            // the update, because thirty more messages mounting *above* moves
-            // the offset this is about to store.
-            await tick();
-            // And only if the pupil is still in the thread they asked it of:
-            // `remember` reads whichever conversation is live, so a switch
-            // inside that update would file this position under the new one.
-            if (conversationId !== thread) return;
-            remember();
-          }}
+  const thread = conversationId;
+  windowSize += MESSAGE_WINDOW;
+  // Part of the position, not a separate preference: coming back to
+  // the same line means coming back to the same mounted thread. After
+  // the update, because thirty more messages mounting *above* moves
+  // the offset this is about to store.
+  await tick();
+  // And only if the pupil is still in the thread they asked it of:
+  // `remember` reads whichever conversation is live, so a switch
+  // inside that update would file this position under the new one.
+  if (conversationId !== thread) return;
+  remember();
+}}
           class="mx-auto min-h-9 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {m.chat_show_earlier({ count: hidden })}

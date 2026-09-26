@@ -15,9 +15,7 @@ async function copyCommand(): Promise<void> {
 </script>
 
 <details class="rounded-md border border-border bg-muted/30 px-4 py-3">
-  <summary
-    class="cursor-pointer text-sm font-medium text-foreground marker:text-muted-foreground"
-  >
+  <summary class="cursor-pointer text-sm font-medium text-foreground marker:text-muted-foreground">
     {m.educator_recovery_action()}
   </summary>
 

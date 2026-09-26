@@ -53,7 +53,7 @@ function costOf(student: RosterEntry): string | null {
             use:enhance
             class="flex flex-col gap-1.5"
           >
-            <input type="hidden" name="studentId" value={student.id} />
+            <input type="hidden" name="studentId" value={student.id}>
 
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span class="text-sm font-medium text-foreground">{student.label}</span>
@@ -72,9 +72,9 @@ function costOf(student: RosterEntry): string | null {
                 class:text-muted-foreground={!student.exhausted}
               >
                 {m.allowance_used({
-                  used: numbers.format(student.usedTokens),
-                  limit: numbers.format(student.limitTokens),
-                })}
+  used: numbers.format(student.usedTokens),
+  limit: numbers.format(student.limitTokens),
+})}
               </span>
               {#if costOf(student)}
                 <span class="text-[0.6875rem] text-muted-foreground">{costOf(student)}</span>

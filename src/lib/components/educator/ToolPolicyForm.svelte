@@ -102,7 +102,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
         name="attachmentsEnabled"
         bind:checked={$form.attachmentsEnabled}
         class="size-4"
-      />
+      >
       <span class="text-sm text-foreground">{m.educator_attachments_enabled_label()}</span>
     </label>
 
@@ -123,12 +123,12 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
               value={mediaType}
               checked={$form.attachmentTypes.includes(mediaType)}
               onchange={(event) => {
-                $form.attachmentTypes = event.currentTarget.checked
-                  ? [...$form.attachmentTypes, mediaType]
-                  : $form.attachmentTypes.filter((type) => type !== mediaType);
-              }}
+  $form.attachmentTypes = event.currentTarget.checked
+    ? [...$form.attachmentTypes, mediaType]
+    : $form.attachmentTypes.filter((type) => type !== mediaType);
+}}
               class="size-4"
-            />
+            >
             <span class="text-sm text-foreground">{ATTACHMENT_TYPE_LABELS[mediaType]()}</span>
           </label>
         {/each}
@@ -144,11 +144,11 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           min="1"
           value={Math.round($form.attachmentImageMaxBytes / MB)}
           oninput={(event) => {
-            $form.attachmentImageMaxBytes = Math.max(1, Number(event.currentTarget.value)) * MB;
-          }}
+  $form.attachmentImageMaxBytes = Math.max(1, Number(event.currentTarget.value)) * MB;
+}}
           class="h-9 {field}"
-        />
-        <input type="hidden" name="attachmentImageMaxBytes" value={$form.attachmentImageMaxBytes} />
+        >
+        <input type="hidden" name="attachmentImageMaxBytes" value={$form.attachmentImageMaxBytes}>
         <FieldError message={$errors.attachmentImageMaxBytes} />
       </label>
 
@@ -159,11 +159,11 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           min="1"
           value={Math.round($form.attachmentTextMaxBytes / KB)}
           oninput={(event) => {
-            $form.attachmentTextMaxBytes = Math.max(1, Number(event.currentTarget.value)) * KB;
-          }}
+  $form.attachmentTextMaxBytes = Math.max(1, Number(event.currentTarget.value)) * KB;
+}}
           class="h-9 {field}"
-        />
-        <input type="hidden" name="attachmentTextMaxBytes" value={$form.attachmentTextMaxBytes} />
+        >
+        <input type="hidden" name="attachmentTextMaxBytes" value={$form.attachmentTextMaxBytes}>
         <FieldError message={$errors.attachmentTextMaxBytes} />
       </label>
 
@@ -174,7 +174,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           type="number"
           bind:value={$form.attachmentMaxPerMessage}
           class="h-9 {field}"
-        />
+        >
         <FieldError message={$errors.attachmentMaxPerMessage} />
       </label>
     </div>
@@ -186,7 +186,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
         type="number"
         bind:value={$form.imageTokenEquivalent}
         class="h-9 {field}"
-      />
+      >
       <FieldError message={$errors.imageTokenEquivalent} />
     </label>
 

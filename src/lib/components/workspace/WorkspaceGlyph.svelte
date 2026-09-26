@@ -63,14 +63,7 @@ const divider = $derived(
 );
 </script>
 
-<svg
-  viewBox="0 0 24 16"
-  width="24"
-  height="16"
-  fill="none"
-  aria-hidden="true"
-  class="shrink-0"
->
+<svg viewBox="0 0 24 16" width="24" height="16" fill="none" aria-hidden="true" class="shrink-0">
   <rect
     x="0.75"
     y="0.75"

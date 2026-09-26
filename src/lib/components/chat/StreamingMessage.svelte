@@ -102,7 +102,9 @@ const seconds = $derived(Math.round(elapsedMs / 1000));
           forty seconds reads as a stall.
         -->
         <p class="flex items-center gap-2 text-muted-foreground">
-          <span class="thinking-pulse size-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true"
+          <span
+            class="thinking-pulse size-1.5 shrink-0 rounded-full bg-primary"
+            aria-hidden="true"
           ></span>
           <span class="sr-only" role="status">{m.chat_thinking()}</span>
           <span aria-hidden="true">{status()}</span>
@@ -122,7 +124,7 @@ const seconds = $derived(Math.round(elapsedMs / 1000));
 {/if}
 
 <style>
-  /*
+/*
    * The one thing that says an answer is still arriving. A block on the last
    * line rather than a spinner somewhere else: it is where the pupil is already
    * looking.
@@ -134,49 +136,49 @@ const seconds = $derived(Math.round(elapsedMs / 1000));
    * stands the caret after the content instead, which is the only place left
    * for it once there is no line to ride.
    */
-  .streaming-caret :global(> p:last-child::after),
+.streaming-caret > :global(p:last-child)::after,
+.streaming-caret:not(:has(> :global(p:last-child)))::after {
+  content: "";
+  display: inline-block;
+  vertical-align: text-bottom;
+  inline-size: 0.45em;
+  block-size: 1.05em;
+  margin-inline-start: 0.15em;
+  background: oklch(var(--primary));
+  border-radius: 1px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .streaming-caret > :global(p:last-child)::after,
   .streaming-caret:not(:has(> :global(p:last-child)))::after {
-    content: "";
-    display: inline-block;
-    vertical-align: text-bottom;
-    inline-size: 0.45em;
-    block-size: 1.05em;
-    margin-inline-start: 0.15em;
-    background: oklch(var(--primary));
-    border-radius: 1px;
+    animation: setun-caret 1.1s steps(1, end) infinite;
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .streaming-caret :global(> p:last-child::after),
-    .streaming-caret:not(:has(> :global(p:last-child)))::after {
-      animation: setun-caret 1.1s steps(1, end) infinite;
-    }
-
-    .thinking-pulse {
-      animation: setun-pulse 1.4s ease-in-out infinite;
-    }
+  .thinking-pulse {
+    animation: setun-pulse 1.4s ease-in-out infinite;
   }
+}
 
-  @keyframes setun-caret {
-    0%,
-    55% {
-      opacity: 1;
-    }
-    56%,
-    100% {
-      opacity: 0.15;
-    }
+@keyframes setun-caret {
+  0%,
+  55% {
+    opacity: 1;
   }
+  56%,
+  100% {
+    opacity: 0.15;
+  }
+}
 
-  @keyframes setun-pulse {
-    0%,
-    100% {
-      opacity: 0.35;
-      transform: scale(0.8);
-    }
-    50% {
-      opacity: 1;
-      transform: scale(1.15);
-    }
+@keyframes setun-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
   }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
 </style>

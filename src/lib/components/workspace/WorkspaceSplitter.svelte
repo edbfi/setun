@@ -89,17 +89,17 @@ function nudge(event: KeyboardEvent): void {
   onpointerdown={drag}
   onkeydown={nudge}
   class={[
-    "workspace-splitter group/splitter relative z-10 flex shrink-0 items-center justify-center",
-    "bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-    axis === "inline" ? "w-2 cursor-col-resize" : "h-4 cursor-row-resize",
-  ]}
+  "workspace-splitter group/splitter relative z-10 flex shrink-0 items-center justify-center",
+  "bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+  axis === "inline" ? "w-2 cursor-col-resize" : "h-4 cursor-row-resize",
+]}
 >
   <span
     class={[
-      "pointer-events-none rounded-full bg-border motion-safe:transition-colors",
-      "group-hover/splitter:bg-primary/60 group-focus-visible/splitter:bg-primary",
-      axis === "inline" ? "h-full w-px" : "h-1 w-10",
-    ]}
+  "pointer-events-none rounded-full bg-border motion-safe:transition-colors",
+  "group-hover/splitter:bg-primary/60 group-focus-visible/splitter:bg-primary",
+  axis === "inline" ? "h-full w-px" : "h-1 w-10",
+]}
   ></span>
 </div>
 

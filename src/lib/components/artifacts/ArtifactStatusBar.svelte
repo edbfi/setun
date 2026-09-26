@@ -132,9 +132,10 @@ const diagnosticStatus = $derived(
     <div class="border-t border-border">
       <pre
         role="log"
-        class="max-h-32 overflow-auto bg-muted p-2 font-mono text-xs whitespace-pre-wrap text-foreground">{workspace.consoleLines
-          .map((line) => `${line.level === "log" ? "" : `${line.level}: `}${line.text}`)
-          .join("\n")}</pre>
+        class="max-h-32 overflow-auto bg-muted p-2 font-mono text-xs whitespace-pre-wrap text-foreground"
+      >{workspace.consoleLines
+  .map((line) => `${line.level === "log" ? "" : `${line.level}: `}${line.text}`)
+  .join("\n")}</pre>
       {#if workspace.consoleTruncated}
         <!-- A rAF loop with a stray log prints sixty lines a second; the useful
              ones are the newest, so the older ones are gone. -->
@@ -148,7 +149,8 @@ const diagnosticStatus = $derived(
     <div class="flex items-start gap-2 border-t border-border bg-destructive/10 p-2">
       <pre
         class="max-h-24 min-w-0 flex-1 overflow-auto text-xs whitespace-pre-wrap text-foreground"
-        role="status">{diagnostic}</pre>
+        role="status"
+      >{diagnostic}</pre>
       {#if onaskforhelp}
         <!--
           The one thing a pupil can do about an error they cannot read: hand it

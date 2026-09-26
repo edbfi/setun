@@ -63,7 +63,7 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
         autocomplete="username"
         bind:value={$form.username}
         class={field}
-      />
+      >
       <FieldError message={$errors.username} />
     </label>
 
@@ -77,7 +77,7 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
           aria-describedby={hintId}
           bind:value={$form.password}
           class={field}
-        />
+        >
       </label>
       <span id={hintId} class="text-xs text-muted-foreground">
         {m.setup_educator_password_hint({ min: minLength })}
@@ -93,7 +93,7 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
         autocomplete="new-password"
         bind:value={$form.confirmPassword}
         class={field}
-      />
+      >
       <FieldError message={$errors.confirmPassword} />
     </label>
 

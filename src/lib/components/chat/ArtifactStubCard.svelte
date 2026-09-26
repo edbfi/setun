@@ -50,7 +50,8 @@ const name = $derived(title ?? m.artifact_untitled({ language }));
     <!-- Identity is always the mono face, so code-things read as code-things. -->
     <p class="truncate font-mono text-xs tabular-nums text-muted-foreground">
       {#if artifactKey}
-        {m.artifact_id_label()}={artifactKey} · {language}
+        {m.artifact_id_label()}={artifactKey}
+        · {language}
       {:else}
         {language}
       {/if}

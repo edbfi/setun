@@ -62,7 +62,7 @@ const button =
           spellcheck="false"
           required
           class="{field} font-mono tracking-[0.08em]"
-        />
+        >
       </label>
 
       {#if message}
@@ -83,7 +83,7 @@ const button =
       <form method="POST" action="?/recover" use:enhance class="flex flex-col gap-3">
         <label class="flex flex-col gap-1.5">
           <span class="text-sm font-medium text-foreground">{m.educator_username_label()}</span>
-          <input name="username" type="text" autocomplete="username" required class={field} />
+          <input name="username" type="text" autocomplete="username" required class={field}>
         </label>
 
         <label class="flex flex-col gap-1.5">
@@ -94,7 +94,7 @@ const button =
             autocomplete="current-password"
             required
             class={field}
-          />
+          >
         </label>
 
         <button

@@ -37,7 +37,9 @@ let { size = 32, title = "", class: className, ...rest }: Props = $props();
   aria-hidden={title ? undefined : "true"}
   {...rest}
 >
-  {#if title}<title>{title}</title>{/if}
+  {#if title}
+    <title>{title}</title>
+  {/if}
   <rect width="32" height="32" rx="7" fill="currentColor" />
   <g fill="var(--setun-mark-glyph, #fff)">
     <!-- minus -->

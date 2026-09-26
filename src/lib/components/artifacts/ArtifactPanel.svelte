@@ -26,12 +26,12 @@ import type {
   PanelTab,
 } from "$lib/state/artifacts.svelte";
 import ArtifactDiff from "./ArtifactDiff.svelte";
-import FileTree from "./FileTree.svelte";
 import ArtifactEditor from "./ArtifactEditor.svelte";
 import ArtifactFrame from "./ArtifactFrame.svelte";
 import ArtifactIndex from "./ArtifactIndex.svelte";
 import ArtifactStatusBar from "./ArtifactStatusBar.svelte";
 import ArtifactTrit from "./ArtifactTrit.svelte";
+import FileTree from "./FileTree.svelte";
 
 /**
  * The build surface (PRD §13, §20).
@@ -677,7 +677,7 @@ $effect(() => {
               -->
               <div
                 class="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-2 py-1"
-                aria-label={m.artifact_diff_file_label()}
+                role="group" aria-label={m.artifact_diff_file_label()}
               >
                 {#each selected.files as file (file.path)}
                   <button

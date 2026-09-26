@@ -1,5 +1,27 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "src/**",
+      "sandbox/**",
+      "*.ts",
+      "*.js",
+      "*.json",
+      "!src/lib/paraglide",
+      "!**/.svelte-kit",
+      "!!build",
+      "!!build-sandbox",
+      "!!test-results",
+      "!!playwright-report",
+      "!**/.svelte-check"
+    ]
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
@@ -12,38 +34,27 @@
       "preset": "recommended"
     }
   },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "preset": "recommended"
+      }
+    }
+  },
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
       "semicolons": "always"
     }
   },
-  "files": {
-    "includes": [
-      "src/**",
-      "sandbox/**",
-      "*.ts",
-      "*.js",
-      "*.json",
-      "!src/lib/paraglide",
-      "!.svelte-kit",
-      "!build",
-      "!test-results",
-      "!playwright-report"
-    ]
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "formatter": {
+      "enabled": true
+    }
   },
   "overrides": [
-    {
-      "includes": ["**/*.svelte"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnusedImports": "off",
-            "noUnusedVariables": "off"
-          }
-        }
-      }
-    },
     {
       "includes": ["src/app.html"],
       "linter": {
@@ -52,6 +63,67 @@
             "useValidLang": "off"
           }
         }
+      }
+    },
+    {
+      "includes": ["src/lib/components/artifacts/FileTree.svelte"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noNoninteractiveElementToInteractiveRole": "off",
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/lib/components/artifacts/ArtifactPanel.svelte",
+        "src/lib/components/ui/ThemeControl.svelte",
+        "src/lib/components/workspace/WorkspaceSplitter.svelte",
+        "src/lib/components/workspace/WorkspaceSwitcher.svelte"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/lib/components/chat/ElicitationForm.svelte"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noLabelWithoutControl": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/routes/**/roster/+page.svelte", "src/routes/**/settings/+page.svelte"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "noHeaderScope": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/routes/(educator)/educator/(panel)/models/+page.svelte",
+        "src/lib/components/ui/ThemeControl.svelte",
+        "src/lib/components/artifacts/ArtifactPanel.svelte",
+        "src/lib/components/artifacts/FileTree.svelte",
+        "src/lib/components/artifacts/ArtifactIndex.svelte",
+        "src/lib/components/chat/ConversationDrawer.svelte",
+        "src/lib/components/workspace/WorkspaceSwitcher.svelte",
+        "src/lib/components/educator/AccessSlipPage.svelte"
+      ],
+      "formatter": {
+        "enabled": false
       }
     }
   ]

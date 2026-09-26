@@ -85,11 +85,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
         <span class="text-xs text-muted-foreground">
           {m.educator_thinking_visibility_label()}
         </span>
-        <select
-          name="thinkingVisibility"
-          bind:value={$form.thinkingVisibility}
-          class="h-9 {field}"
-        >
+        <select name="thinkingVisibility" bind:value={$form.thinkingVisibility} class="h-9 {field}">
           <option value="student">{m.educator_thinking_student()}</option>
           <option value="shown">{m.educator_thinking_shown()}</option>
           <option value="hidden">{m.educator_thinking_hidden()}</option>
@@ -112,7 +108,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           type="number"
           bind:value={$form.sessionSlidingDays}
           class="h-9 {field}"
-        />
+        >
         <FieldError message={$errors.sessionSlidingDays} />
       </label>
 
@@ -123,7 +119,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           type="number"
           bind:value={$form.conversationRetentionDays}
           class="h-9 {field}"
-        />
+        >
         <FieldError message={$errors.conversationRetentionDays} />
       </label>
 
@@ -142,7 +138,7 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           type="number"
           bind:value={$form.creationRetentionDays}
           class="h-9 {field}"
-        />
+        >
         <span class="text-xs text-muted-foreground">{m.educator_creation_retention_hint()}</span>
         <FieldError message={$errors.creationRetentionDays} />
       </label>

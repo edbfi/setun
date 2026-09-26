@@ -23,7 +23,7 @@ interface Props {
 
 let { original, revised, pairKey }: Props = $props();
 
-const diff: Attachment<HTMLDivElement> = (node) => {
+const diff: Attachment<HTMLElement> = (node) => {
   let disposed = false;
   let view: { destroy: () => void } | null = null;
 
@@ -62,5 +62,9 @@ const diff: Attachment<HTMLDivElement> = (node) => {
 </script>
 
 {#key pairKey}
-  <div {@attach diff} class="h-full overflow-hidden" aria-label={m.artifact_diff_heading()}></div>
+  <section
+    {@attach diff}
+    class="h-full overflow-hidden"
+    aria-label={m.artifact_diff_heading()}
+  ></section>
 {/key}

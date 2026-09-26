@@ -87,9 +87,9 @@ const field = "h-9 rounded-md border border-input bg-background px-2 text-sm tex
             class={field}
             value={toLocalInput(window.startsAt)}
             onchange={(event) => {
-              window.startsAt = toEpoch(event.currentTarget.value);
-            }}
-          />
+  window.startsAt = toEpoch(event.currentTarget.value);
+}}
+          >
         </label>
 
         <label class="flex flex-col gap-1">
@@ -99,14 +99,14 @@ const field = "h-9 rounded-md border border-input bg-background px-2 text-sm tex
             class={field}
             value={toLocalInput(window.endsAt)}
             onchange={(event) => {
-              window.endsAt = toEpoch(event.currentTarget.value);
-            }}
-          />
+  window.endsAt = toEpoch(event.currentTarget.value);
+}}
+          >
         </label>
 
         <label class="flex flex-col gap-1">
           <span class="text-xs text-muted-foreground">{m.educator_temporary_note_label()}</span>
-          <input type="text" class={field} bind:value={window.note} />
+          <input type="text" class={field} bind:value={window.note}>
         </label>
 
         <button

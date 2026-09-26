@@ -37,7 +37,11 @@ const text = $derived(
 </script>
 
 {#if text}
-  <span {id} role="alert" class={size === "sm" ? "text-sm text-destructive" : "text-xs text-destructive"}>
+  <span
+    {id}
+    role="alert"
+    class={size === "sm" ? "text-sm text-destructive" : "text-xs text-destructive"}
+  >
     {text}
   </span>
 {/if}

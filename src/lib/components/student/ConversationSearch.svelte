@@ -88,7 +88,7 @@ async function search(value: string): Promise<void> {
       oninput={() => search(query)}
       placeholder={m.student_search_placeholder()}
       class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-    />
+    >
   </label>
 
   {#if hits !== null}

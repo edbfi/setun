@@ -316,8 +316,8 @@ Test filenames select their runner:
 - Add every user-facing message to both `messages/en.json` and `messages/da.json`.
 - Styling uses UnoCSS, not Tailwind. Add shadcn-svelte components with
   `bunx shadcn-svelte add <component> --skip-preflight`; never run `init`.
-- Use `bun run check` as the authority for Svelte templates. Biome does not fully understand Svelte
-  markup, so never apply its unsafe fixes to a component.
+- Use `bun run check` as the type authority for Svelte templates. Biome uses experimental
+  markup support with the compatibility overrides documented below; never apply blanket unsafe fixes.
 - The design baseline is tweakcn's clean-slate theme, ported to bare oklch components in
   `uno.config.ts`. A `<style>` block reading one of those variables must wrap it —
   `oklch(var(--muted))` — because the preset's utilities supply the wrapper and a bare `var()`
@@ -330,3 +330,24 @@ See [`AGENTS.md`](AGENTS.md) for the complete repository rules before contributi
 ## License
 
 Setun is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+## Biome configuration
+
+`biome.json` uses the pinned Biome version, Git ignore rules, recommended lint and
+import-organizing rules, and the existing two-space, 100-column, double-quote style.
+Its maintained scope remains `src/`, `sandbox/`, and root JavaScript, TypeScript and
+JSON files. Generated Paraglide files and build output are excluded. Run
+`bun run lint` to check or `bun run format` to apply formatting and safe fixes.
+
+Experimental HTML support enables Svelte markup checks and formatting. Narrow
+compatibility overrides preserve:
+
+- Eight components whose `{@const}` declarations Biome 2.5.14 formats into invalid
+  Svelte. Formatting is disabled for those files; lint and import organization remain enabled.
+- Custom tree, radio-button, separator and grouped controls with intentional ARIA roles.
+- The elicitation label whose native control is inside a Svelte conditional.
+- Component `scope` props, which are unrelated to HTML table-header `scope`, and
+  the language placeholder in `src/app.html`.
+
+Keep `bun run check` as the framework/type check. Do not apply blanket unsafe
+fixes to components; re-evaluate these overrides when upgrading Biome.
