@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { env } from "$env/dynamic/private";
+import * as env from "$app/env/private";
 
 /**
  * Required environment, validated at boot (PRD §6.2).
@@ -7,9 +7,11 @@ import { env } from "$env/dynamic/private";
  * "Absence of a required variable fails boot with a clear message rather than
  * starting degraded."
  *
- * Read through `$env/dynamic/private` rather than `process.env`: the module is
+ * Read through `$app/env/private` rather than `process.env`: the module is
  * server-only by construction, so a component importing this is a build error
- * rather than a leaked secret.
+ * rather than a leaked secret. SvelteKit 3 exposes only the variables declared
+ * in `src/env.ts`, so a name read here must be declared there too
+ * (`src/env.test.ts` checks it).
  *
  * Validation is lazy and cached rather than performed at import time, so
  * importing a server module in a test does not require a populated environment.
