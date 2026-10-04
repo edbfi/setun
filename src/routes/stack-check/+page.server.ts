@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { dev } from "$app/environment";
+import { dev } from "$app/env";
 
 /**
  * The stack validation page is development tooling, not a feature (PRD §21).
