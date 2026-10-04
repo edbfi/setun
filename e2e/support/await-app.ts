@@ -5,7 +5,7 @@ export {};
  *
  * Playwright starts every `webServer` entry at once, and the application's entry
  * is the one that runs `vite build`. The first-run suite's server needs that
- * build to exist before `bun ./build/index.js` means anything, so its command
+ * build to exist before `bun ./server.js` means anything, so its command
  * waits here first.
  *
  * A readiness poll rather than a file check: `build/index.js` appears partway

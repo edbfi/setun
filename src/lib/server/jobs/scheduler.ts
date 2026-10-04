@@ -5,7 +5,7 @@ import { describeCause, log } from "../logging";
  *
  * §6 puts the scheduler inside the application rather than beside it: three
  * containers, one of which is the app, and no fourth for cron. Development runs
- * the Vite dev server under Node while production runs the adapter-node build
+ * the Vite dev server under Node while production runs the adapter-bun build
  * under Bun, so this is `setInterval` and nothing Bun-specific — `Bun.cron`
  * would work in production and silently not exist in dev.
  *

@@ -1,4 +1,4 @@
-# Setun application image. adapter-node output, executed by the Bun runtime (PRD §5).
+# Setun application image: the @sveltejs/adapter-bun build, started by `bun ./server.js` (PRD §5).
 FROM oven/bun:1.4-alpine AS build
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY --from=build /app/build ./build
 # Boot migrations and the operator recovery entry point must exist without source files.
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/recover-educator.js ./recover-educator.js
-# The production entry installs the process guard before adapter-node listens.
+# The production entry: the process guard, and the ORIGIN front for the adapter-bun build.
 COPY server.js server-guard.js ./
 
 EXPOSE 3000

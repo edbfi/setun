@@ -1,6 +1,6 @@
 # Setun deployment — three services (PRD §5, §6.2).
 #
-#   app     the SvelteKit application (adapter-node build, run under Bun)
+#   app     the SvelteKit application (@sveltejs/adapter-bun build, started by `bun ./server.js`)
 #   cpa     CLIProxyAPI, the model gateway — unmodified, pinned, no host port
 #   caddy   plain reverse proxy terminating TLS for both origins
 #
@@ -32,12 +32,14 @@ services:
       SETUN_CPA_BASE_URL: http://cpa:8317
       SETUN_APP_ORIGIN: ${SETUN_APP_ORIGIN:?set in .env}
       SETUN_SANDBOX_ORIGIN: ${SETUN_SANDBOX_ORIGIN:?set in .env}
-      # adapter-node's own origin, used for its CSRF origin check. Without it the
-      # adapter assumes https and rejects every form POST that arrives over a
-      # different scheme than it guessed. Always the application origin.
+      # The application's public origin, used for SvelteKit's CSRF origin check.
+      # SvelteKit 3 has no runtime setting for it, so `bun ./server.js` reads this:
+      # set, it fronts the app on a private socket and supplies this origin on
+      # every request. Unset, the app would assume https plus the Host header and
+      # log a warning. Always the application origin.
       ORIGIN: ${SETUN_APP_ORIGIN:?set in .env}
       # An artifact is a small project of files now, and its whole file list is
-      # posted when a pupil edits or restores one. adapter-node refuses a body
+      # posted when a pupil edits or restores one. The Bun adapter refuses a body
       # over 512 KB by default, which a project of a few large files reaches —
       # so the ceiling is set just above the project cap in
       # src/lib/artifacts/project.ts (1 MB) rather than left to the default.

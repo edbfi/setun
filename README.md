@@ -82,7 +82,7 @@ reachable only from the app's internal network and has no published host port.
 | Layer | Technology |
 | --- | --- |
 | Runtime and package manager | [Bun](https://bun.com) 1.4+ |
-| Application | [SvelteKit](https://svelte.dev/docs/kit) 2, Svelte 5, TypeScript |
+| Application | [SvelteKit](https://svelte.dev/docs/kit) 3 with the official Bun adapter, Svelte 5, TypeScript |
 | UI | UnoCSS, shadcn-svelte, bits-ui |
 | Data | SQLite with Drizzle ORM |
 | Validation and forms | Valibot and sveltekit-superforms |
@@ -128,7 +128,7 @@ Useful commands:
 ```
 
 Production mode serves `http://setun.localhost:8080` and
-`http://sandbox.setun.localhost:8080`. It builds both applications, runs the adapter-node server
+`http://sandbox.setun.localhost:8080`. It builds both applications, runs `bun ./server.js`
 behind the repository's Caddy configuration, and uses Caddy's static file server for artifacts. TLS
 is the only production behavior omitted.
 
@@ -163,7 +163,8 @@ care:
 
 `SETUN_APP_ORIGIN` and `SETUN_SANDBOX_ORIGIN` must be full public URLs on different hosts. Their
 hostname-only counterparts configure Caddy. Leave both educator seed variables blank to use the
-guided first-run setup.
+guided first-run setup. Compose passes `SETUN_APP_ORIGIN` to the app as `ORIGIN` as well (see
+"Public origin" below).
 
 MCP is optional. If the installation offers no tools, replace the example entry in `mcp.json` with
 an empty `servers` object. Credentials are referenced there by environment-variable name; do not put
@@ -274,12 +275,23 @@ the sign-in. Store and distribute printed and downloaded copies accordingly.
   use Caddy's internal CA as described in the comments in `Caddyfile`.
 - **Backups** contain a consistent SQLite snapshot plus private storage. Fourteen daily snapshots are
   retained by default; copy the backup volume off-host for disaster recovery.
+- **Public origin.** SvelteKit rejects a form post whose `Origin` is not the application's own
+  origin, and SvelteKit 3 has no runtime setting for that origin. The production entry,
+  `bun ./server.js`, supplies one: with `ORIGIN` set (Compose sets it to `SETUN_APP_ORIGIN`), it
+  runs the app on a private socket and tells it that origin on every request. **A plain-HTTP
+  deployment must set `ORIGIN`** to the URL browsers use, for example
+  `ORIGIN=http://192.168.1.10:3000`. Without `ORIGIN` the app takes the origin to be `https` plus
+  the request's `Host`, which is right only behind a TLS-terminating proxy that preserves `Host`;
+  over plain HTTP every sign-in and form post is then refused with 403, and `server.js` logs a
+  warning at startup when neither `ORIGIN` nor `PROTOCOL_HEADER` is set. The origin is never taken
+  from the request's `Host` header. Start production with `bun ./server.js`, never `bun ./build`:
+  that skips the origin handling and the process guard.
 
 ## Development
 
 Every build has two outputs:
 
-- `build/` — the adapter-node application
+- `build/` — the application, built by `@sveltejs/adapter-bun` and started by `bun ./server.js`
 - `build-sandbox/` — the static artifact host, runtimes, and compilers
 
 Always use `bun run build`; running only the SvelteKit build leaves the artifact panel without the

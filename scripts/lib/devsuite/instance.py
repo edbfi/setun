@@ -129,7 +129,7 @@ class Instance:
     @property
     def build_path(self) -> Path:
         """
-        Where `--production` puts the adapter-node build for *this* instance.
+        Where `--production` puts the application build for *this* instance.
 
         Not the repository's own `build/`. That directory is one for the whole
         checkout, and `vite build` empties it before it writes: a second

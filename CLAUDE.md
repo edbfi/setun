@@ -50,8 +50,8 @@ and fails.
   Wind3 / `unocss-preset-shadcn/v3`.
 - Biome formats with 2 spaces and double quotes (`biome.json`), not tabs and single quotes.
 - Scripts: `dev`/`build` run Vite under `bun --bun`; unit script is `test:component`, not
-  `test:unit`; production is `bun ./server.js`, never `bun ./build/index.js`. The latter skips the
-  process guard in `server-guard.js`.
+  `test:unit`; production is `bun ./server.js`, never `bun ./build` (the `@sveltejs/adapter-bun`
+  output). The latter skips the `ORIGIN` front and the process guard in `server-guard.js`.
 
 ## Server code
 
@@ -77,9 +77,18 @@ Every form action calls its guard itself. The `(panel)/+layout.server.ts` guard 
 actions.
 
 - Read config with `getConfig()` from `src/lib/server/config.ts`, not `process.env` or `$env/*`.
-  To add a `SETUN_*` variable, update `ConfigSchema` and `readEnvironment` there, `.env.example`, and
-  the `app` service's `environment:` in `docker-compose.yml`. Compose has no `env_file`, so a
-  variable missing there never reaches production.
+  To add a `SETUN_*` variable, update `ConfigSchema` and `readEnvironment` there, declare it in
+  `src/env.ts` (SvelteKit 3 reads an undeclared variable as `undefined`; `src/env.test.ts` checks
+  the two lists match), and add it to `.env.example` and the `app` service's `environment:` in
+  `docker-compose.yml`. Compose has no `env_file`, so a variable missing there never reaches
+  production. MCP credentials are the exception: their names come from `mcp.json`, so
+  `$lib/server/credentials` reads them from `process.env`.
+- Plain-HTTP deployments must set `ORIGIN` to the URL browsers use. `bun ./server.js` then fronts
+  the app on a private socket with that origin; without it the app assumes `https` plus `Host`
+  (right only behind a TLS-terminating proxy) and logs a startup warning when `PROTOCOL_HEADER` is
+  unset too. Never derive the origin from `Host`.
+- Every `cookies.set` and `cookies.delete` states its `Secure` flag through `$lib/server/cookies`
+  (`secure: secureCookie(url)`, `cookieDeletion(url, path)`); `cookies.test.ts` fails otherwise.
 - Validate with Valibot: `superValidate` (sveltekit-superforms) for multi-field forms, and
   `v.safeParse` on `formData` for single-id actions. Both appear in
   `src/routes/(educator)/educator/(panel)/models/+page.server.ts`.
