@@ -303,10 +303,11 @@ the sign-in. Store and distribute printed and downloaded copies accordingly.
   has an origin, and its front replaces them.
 - **Shutdown and request size.** `SHUTDOWN_TIMEOUT` is how many seconds a stopping server lets
   open requests, such as a pupil's streaming answer, finish: 30 by default, and 7 in the container
-  image, so that it fits inside the 10 seconds `docker stop` waits. Raise it only together with
-  `docker stop -t` or Compose's `stop_grace_period`. `BODY_SIZE_LIMIT` caps a request body, 2M by
-  default (Compose reads `SETUN_BODY_SIZE_LIMIT`); restoring an artifact posts the whole project,
-  which may be up to 1 MB.
+  image, so that it fits inside the 10 seconds `docker stop` waits. When it has passed, the server
+  exits even if the app still has work in flight, such as a turn waiting on the model. Raise it
+  only together with `docker stop -t` or Compose's `stop_grace_period`. `BODY_SIZE_LIMIT` caps a
+  request body, 2M by default (Compose reads `SETUN_BODY_SIZE_LIMIT`); restoring an artifact posts
+  the whole project, which may be up to 1 MB.
 - **Missing compressed files.** The build ships a `.br` and a `.gz` copy of every static file, and
   the server sends one when the browser accepts it. If one of those copies goes missing on disk
   while the server runs (for example, a new build copied over a running one), the front asks the
