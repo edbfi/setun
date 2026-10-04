@@ -54,7 +54,10 @@ async function signIn(page: Page, code: string): Promise<void> {
 }
 
 async function conversationFor(page: Page): Promise<string> {
-  const created = await page.request.post("/api/conversations", { data: {} });
+  const created = await page.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(201);
   return (await created.json()).id;
 }
@@ -254,6 +257,7 @@ test("image generation is refused where no alias carries the flag (§15)", async
   const conversationId = await conversationFor(page);
 
   const refused = await page.request.post("/api/images", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, prompt: "en kat der koder" },
   });
 
@@ -272,6 +276,7 @@ test("a student cannot answer a permission request on another student's turn (§
   const conversationId = await conversationFor(ownerPage);
 
   const streamed = await ownerPage.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "Forklar loops" },
   });
   expect(streamed.status()).toBe(200);
@@ -284,6 +289,7 @@ test("a student cannot answer a permission request on another student's turn (§
 
   // Another student's turn is absent, so there is no call to approve (§21).
   const answered = await intruderPage.request.post(`/api/turns/${turnId}/respond`, {
+    headers: { origin: APP_ORIGIN },
     data: { requestId: crypto.randomUUID(), kind: "permission", approved: true },
   });
   expect(answered.status()).toBe(404);
@@ -294,6 +300,7 @@ test("a student cannot answer a permission request on another student's turn (§
 
 test("the respond endpoint refuses an unauthenticated caller (§21)", async ({ request }) => {
   const answered = await request.post(`/api/turns/${crypto.randomUUID()}/respond`, {
+    headers: { origin: APP_ORIGIN },
     data: { requestId: crypto.randomUUID(), kind: "permission", approved: true },
   });
   expect(answered.status()).toBe(401);

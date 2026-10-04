@@ -85,7 +85,10 @@ async function signInAsEducator(page: Page): Promise<void> {
 
 /** A conversation the enforcement tests can aim `/api/messages` at. */
 async function conversationFor(page: Page): Promise<string> {
-  const created = await page.request.post("/api/conversations", { data: {} });
+  const created = await page.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(201);
   return (await created.json()).id;
 }
@@ -108,6 +111,7 @@ test("the scheduling flow: refused when closed, allowed when open, refused after
   await control("closed-schedule");
 
   const whileClosed = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "hej" },
   });
   expect(whileClosed.status()).toBe(403);
@@ -117,6 +121,7 @@ test("the scheduling flow: refused when closed, allowed when open, refused after
   await control("open");
 
   const whileOpen = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "Forklar loops" },
   });
   expect(whileOpen.status()).toBe(200);
@@ -127,6 +132,7 @@ test("the scheduling flow: refused when closed, allowed when open, refused after
   await control("lock");
 
   const whileLocked = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "og igen" },
   });
   expect(whileLocked.status()).toBe(403);
@@ -143,6 +149,7 @@ test("a response already streaming may finish after a lock; new requests may not
 
   // A slow answer, so there is genuinely a turn in flight to lock around.
   const streaming = page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId: first, text: `Forklar loops ${SLOW_MARKER}` },
     timeout: 60_000,
   });
@@ -153,6 +160,7 @@ test("a response already streaming may finish after a lock; new requests may not
 
   // A new request is refused at once, while the first is still streaming (§8).
   const rejected = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId: second, text: "og en til" },
   });
   expect(rejected.status()).toBe(403);
@@ -199,6 +207,7 @@ test("a scheduled lesson opens and closes access at the right local times (§8, 
   await control("schedule", `${weekday}:${start}:${end}`);
 
   const inLesson = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "i timen" },
   });
   expect(inLesson.status()).toBe(200);
@@ -209,6 +218,7 @@ test("a scheduled lesson opens and closes access at the right local times (§8, 
   await control("schedule", `${yesterday}:${start}:${end}`);
 
   const outOfHours = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "uden for timen" },
   });
   expect(outOfHours.status()).toBe(403);
@@ -224,13 +234,17 @@ test("a model the classroom may not use is refused at the API (§9, §22)", asyn
   await control("disallow-models");
 
   const refused = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "hej" },
   });
   expect(refused.status()).toBe(403);
   expect((await refused.json()).error).toBe("model-not-allowed");
 
   // A conversation cannot be started on one either — an absent row is a denial.
-  const created = await page.request.post("/api/conversations", { data: {} });
+  const created = await page.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(409);
 });
 
@@ -243,6 +257,7 @@ test("an exhausted allowance refuses new turns with a friendly message (§10, §
 
   // Spend the day: one real turn, then an allowance smaller than it cost.
   const first = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "Forklar loops" },
   });
   expect(first.status()).toBe(200);
@@ -256,6 +271,7 @@ test("an exhausted allowance refuses new turns with a friendly message (§10, §
     .poll(
       async () => {
         const attempt = await page.request.post("/api/messages", {
+          headers: { origin: APP_ORIGIN },
           data: { conversationId, text: "en gang til" },
         });
         if (attempt.status() !== 403) {

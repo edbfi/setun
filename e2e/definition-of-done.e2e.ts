@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
-import { E2E_EDUCATOR_PASSWORD, E2E_EDUCATOR_USERNAME } from "../playwright.config";
+import { APP_ORIGIN, E2E_EDUCATOR_PASSWORD, E2E_EDUCATOR_USERNAME } from "../playwright.config";
 import { startConversation } from "./support/chat";
 import { clearLoginWindow } from "./support/login-window";
 import { ARTIFACT_MARKER } from "./support/stub-gateway";
@@ -157,12 +157,16 @@ test("the definition of done, start to finish (§25)", async ({ page, browser })
   await expect(page.getByText(m.educator_state_locked(), { exact: true })).toBeVisible();
 
   // --- …and new requests stop, at the API, not only in the interface ---
-  const created = await pupil.request.post("/api/conversations", { data: {} });
+  const created = await pupil.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(403);
 
   // Their own conversation, which they were using a moment ago: the refusal is
   // the classroom's state, not a missing row.
   const refused = await pupil.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "endnu et spørgsmål" },
   });
   expect(refused.status()).toBe(403);

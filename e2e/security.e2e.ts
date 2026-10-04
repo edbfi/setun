@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
 import {
+  APP_ORIGIN,
   E2E_DATABASE_PATH,
   E2E_EDUCATOR_PASSWORD,
   E2E_EDUCATOR_USERNAME,
@@ -168,9 +169,13 @@ test("a student's search never reaches another student's conversations (§21, §
   const owner = await signInStudent(browser, first.code);
 
   // A conversation with a distinctive word in it, sent through the real path.
-  const created = await owner.request.post("/api/conversations", { data: {} });
+  const created = await owner.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   const { id: conversationId } = await created.json();
   const sent = await owner.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "hemmeligt om vulkanudbrud" },
   });
   expect(sent.status()).toBe(200);

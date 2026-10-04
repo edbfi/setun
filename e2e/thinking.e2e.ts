@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, type Page, test } from "@playwright/test";
-import { E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
+import { APP_ORIGIN, E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
 import * as m from "../src/lib/paraglide/messages";
 import { clearLoginWindow } from "./support/login-window";
 import { openDrawer } from "./support/chat";
@@ -74,11 +74,15 @@ async function ask(page: Page): Promise<void> {
  * so an event absent here is absent from every route a browser could take.
  */
 async function bufferedEvents(page: Page): Promise<string> {
-  const created = await page.request.post("/api/conversations", { data: {} });
+  const created = await page.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(201);
   const conversationId = (await created.json()).id;
 
   const sent = await page.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: `Forklar loops ${THINKING_MARKER}` },
     timeout: 60_000,
   });

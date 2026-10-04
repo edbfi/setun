@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, type Page, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
-import { E2E_DATABASE_PATH, E2E_PEPPER, E2E_STORAGE_PATH } from "../playwright.config";
+import { APP_ORIGIN, E2E_DATABASE_PATH, E2E_PEPPER, E2E_STORAGE_PATH } from "../playwright.config";
 import {
   ARTIFACT_MARKER,
   ARTIFACT_PROJECT_MARKER,
@@ -191,6 +191,7 @@ test("a student builds an artifact, edits it, and the edit travels back", async 
   // and doing it earlier would have made *that* the edit carried above rather
   // than the one the pupil typed into CodeMirror.
   const posted = await page.request.post(`/api/artifacts/${artifactId}/versions`, {
+    headers: { origin: APP_ORIGIN },
     data: {
       files: { "App.svelte": "<p>en komponent</p>" },
       deletes: ["index.html"],
@@ -203,12 +204,14 @@ test("a student builds an artifact, edits it, and the edit travels back", async 
 
   // And a tag Setun does not recognise is refused before it reaches the database.
   const refused = await page.request.post(`/api/artifacts/${artifactId}/versions`, {
+    headers: { origin: APP_ORIGIN },
     data: { files: { "index.html": "<p>nej</p>" }, language: "cobol" },
   });
   expect(refused.status()).toBe(400);
 
   // As is a path that would leave the project (§21).
   const escaped = await page.request.post(`/api/artifacts/${artifactId}/versions`, {
+    headers: { origin: APP_ORIGIN },
     data: { files: { "../stjaalet.html": "<p>nej</p>" } },
   });
   expect(escaped.status()).toBe(400);
@@ -224,20 +227,24 @@ test("history retains deleted paths and language-only restores create revisions"
   const files = { "index.html": "<p>same source</p>", "styles.css": "p { color: red }" };
 
   const initial = await page.request.post(endpoint, {
+    headers: { origin: APP_ORIGIN },
     data: { files, entry: "index.html", language: "html", replace: true },
   });
   expect(initial.status()).toBe(201);
   const changed = await page.request.post(endpoint, {
+    headers: { origin: APP_ORIGIN },
     data: { files, entry: "index.html", language: "svg", replace: true },
   });
   expect(changed.status()).toBe(201);
   expect((await changed.json()).language).toBe("svg");
   const unchanged = await page.request.post(endpoint, {
+    headers: { origin: APP_ORIGIN },
     data: { files, entry: "index.html", language: "svg", replace: true },
   });
   expect(unchanged.status()).toBe(200);
 
   const removed = await page.request.post(endpoint, {
+    headers: { origin: APP_ORIGIN },
     data: { files: {}, deletes: ["styles.css"], language: "svg" },
   });
   expect(removed.status()).toBe(201);
@@ -295,6 +302,7 @@ test("a student cannot reach another student's artifact", async ({ browser }) =>
   expect(read.status()).toBe(404);
 
   const write = await intruderPage.request.post(`/api/artifacts/${target}/versions`, {
+    headers: { origin: APP_ORIGIN },
     data: { files: { "index.html": "<p>stjålet</p>" } },
   });
   expect(write.status()).toBe(404);
@@ -312,6 +320,7 @@ test("the artifact API refuses an unauthenticated caller", async ({ request }) =
   expect(read.status()).toBe(401);
 
   const write = await request.post(`/api/artifacts/${crypto.randomUUID()}/versions`, {
+    headers: { origin: APP_ORIGIN },
     data: { source: "<p>x</p>" },
   });
   expect(write.status()).toBe(401);
@@ -404,7 +413,10 @@ test("a run's outcome is recorded against the version it ran", async ({ page }) 
   const versionId = (await read()).id;
   const patched = await page.request.patch(
     `/api/artifacts/${artifactId}/versions/${versionId}`,
-    { data: { buildStatus: "failed", buildMessage: "SyntaxError" } },
+    {
+      headers: { origin: APP_ORIGIN },
+      data: { buildStatus: "failed", buildMessage: "SyntaxError" },
+    },
   );
   expect(patched.status()).toBe(200);
 
@@ -415,6 +427,7 @@ test("a run's outcome is recorded against the version it ran", async ({ page }) 
   // A page that mounted and then threw is a third outcome the endpoint takes:
   // the pupil is looking at it, and "did not run" would ask for a rewrite (§13).
   const threw = await page.request.patch(`/api/artifacts/${artifactId}/versions/${versionId}`, {
+    headers: { origin: APP_ORIGIN },
     data: { buildStatus: "threw", buildMessage: "TypeError" },
   });
   expect(threw.status()).toBe(200);
@@ -423,7 +436,7 @@ test("a run's outcome is recorded against the version it ran", async ({ page }) 
   // A status the schema does not name is refused before it reaches the database.
   const invalid = await page.request.patch(
     `/api/artifacts/${artifactId}/versions/${versionId}`,
-    { data: { buildStatus: "exploded" } },
+    { headers: { origin: APP_ORIGIN }, data: { buildStatus: "exploded" } },
   );
   expect(invalid.status()).toBe(400);
 });
@@ -451,7 +464,7 @@ test("a build outcome cannot be written to somebody else's artifact", async ({ b
   // Absent, not forbidden: there is nothing to probe (§21).
   const write = await intruderPage.request.patch(
     `/api/artifacts/${target}/versions/${versionId}`,
-    { data: { buildStatus: "failed", buildMessage: "hacked" } },
+    { headers: { origin: APP_ORIGIN }, data: { buildStatus: "failed", buildMessage: "hacked" } },
   );
   expect(write.status()).toBe(404);
 
@@ -459,7 +472,7 @@ test("a build outcome cannot be written to somebody else's artifact", async ({ b
   const anonymous = await unauthenticated.newPage();
   const refused = await anonymous.request.patch(
     `/api/artifacts/${target}/versions/${versionId}`,
-    { data: { buildStatus: "failed" } },
+    { headers: { origin: APP_ORIGIN }, data: { buildStatus: "failed" } },
   );
   expect(refused.status()).toBe(401);
 

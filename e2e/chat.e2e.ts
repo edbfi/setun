@@ -174,6 +174,7 @@ test("a wrong code is refused with the same message as an unknown one", async ({
 test("the API refuses an unauthenticated caller", async ({ request }) => {
   // Enforcement is server-side on every path that can reach a model (§8, §21).
   const send = await request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId: crypto.randomUUID(), text: "hej" },
   });
   expect(send.status()).toBe(401);
@@ -192,7 +193,10 @@ test("a student cannot reach another student's conversation", async ({ browser }
   await ownerPage.getByRole("button", { name: m.login_submit() }).click();
   await expect(ownerPage).toHaveURL(/\/chat/);
 
-  const created = await ownerPage.request.post("/api/conversations", { data: {} });
+  const created = await ownerPage.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(201);
   const { id: conversationId } = await created.json();
 
@@ -205,6 +209,7 @@ test("a student cannot reach another student's conversation", async ({ browser }
 
   // Another student's conversation is absent, not forbidden — nothing to probe (§21).
   const stolen = await intruderPage.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "hej" },
   });
   expect(stolen.status()).toBe(404);
