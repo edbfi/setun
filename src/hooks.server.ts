@@ -13,6 +13,7 @@ import { studentInterfaceLanguage } from "$lib/server/classroom/settings";
 import { cookieDeletion, localeCookieOptions } from "$lib/server/cookies";
 import { createHandleError } from "$lib/server/errors";
 import { log } from "$lib/server/logging";
+import { foreignWriteResponse, isForeignWrite } from "$lib/server/request-origin";
 import { isSetupComplete, isSetupGateExempt, SETUP_PATH } from "$lib/server/setup/state";
 
 /**
@@ -55,6 +56,19 @@ const handleSecurityHeaders: Handle = async ({ event, resolve }) => {
   }
 
   return response;
+};
+
+/**
+ * Refuse a write from any other origin, whatever its content type (PRD §21).
+ *
+ * SvelteKit checks only form posts and bodyless writes, so a JSON write carrying a pupil's cookie
+ * reached its endpoint from anywhere; see `$lib/server/request-origin`. Placed before the session
+ * and setup hooks so a refused write touches neither the database nor a cookie, and after the
+ * security headers and the request log so the refusal carries the one and appears in the other.
+ */
+const handleRequestOrigin: Handle = ({ event, resolve }) => {
+  if (isForeignWrite(event.request, event.url)) return foreignWriteResponse();
+  return resolve(event);
 };
 
 /**
@@ -258,6 +272,7 @@ const handleRequestLog: Handle = async ({ event, resolve }) => {
 export const handle: Handle = sequence(
   handleSecurityHeaders,
   handleRequestLog,
+  handleRequestOrigin,
   handleSession,
   handleSetupGate,
   handleLocale,
