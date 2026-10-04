@@ -286,6 +286,12 @@ the sign-in. Store and distribute printed and downloaded copies accordingly.
   warning at startup when neither `ORIGIN` nor `PROTOCOL_HEADER` is set. The origin is never taken
   from the request's `Host` header. Start production with `bun ./server.js`, never `bun ./build`:
   that skips the origin handling and the process guard.
+- **Missing compressed files.** The build ships a `.br` and a `.gz` copy of every static file, and
+  the server sends one when the browser accepts it. If one of those copies goes missing on disk
+  while the server runs (for example, a new build copied over a running one), the front asks the
+  app for the plain file instead, so the page keeps working. Without `ORIGIN` and
+  `SETUN_APP_ORIGIN` there is no front, and such a request fails with 500 until the build
+  directory is complete again or the server restarts from a complete build.
 
 ## Development
 

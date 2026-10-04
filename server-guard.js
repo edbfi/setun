@@ -38,7 +38,7 @@
  * which is the same class of detail §16 already permits.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join, normalize, sep } from "node:path";
 
 /**
@@ -144,13 +144,17 @@ function acceptedName(part) {
  * variant's name is dropped, and `*` is replaced by the names still on disk, so
  * the request is served compressed where possible and plain otherwise.
  *
- * Only `/_app/` is considered: those are the hashed, immutable build outputs,
- * where this happens. It costs one `existsSync` per encoding on requests that
- * both ask for one and address a build asset.
+ * Every static file is considered, not only the hashed build outputs under
+ * `/_app/`: the files copied from `static/` (`setun-mark.svg`, `robots.txt`)
+ * are precompressed and served the same way. A path that is no file in the
+ * build's `client` directory (a page, an endpoint) is left alone. It costs one
+ * `stat`, plus one `existsSync` per asked-for encoding on a static file, for
+ * each request that asks for an encoding.
  *
  * `server.js` applies it in the front, before forwarding. The front runs only
- * when ORIGIN is set; without it the adapter listens directly and a missing
- * variant answers 500 until the build directory is whole again.
+ * when ORIGIN (or SETUN_APP_ORIGIN) is set; without either the adapter listens
+ * directly, and a missing variant answers 500 until the build directory is
+ * whole again.
  *
  * @param {string | null | undefined} accept the request's `Accept-Encoding`
  * @param {string} pathname the request path, still percent-encoded
@@ -159,7 +163,6 @@ function acceptedName(part) {
  */
 export function dropMissingEncodings(accept, pathname, clientDir) {
   if (typeof accept !== "string" || accept === "") return null;
-  if (!pathname.startsWith("/_app/")) return null;
 
   let asset;
   try {
@@ -176,6 +179,13 @@ export function dropMissingEncodings(accept, pathname, clientDir) {
   }
 
   if (!asset.startsWith(clientDir + sep)) return null;
+  // Only a file the adapter serves from disk; anything else is the app's. The
+  // stat throws on a null byte, which a client is free to send too.
+  try {
+    if (!statSync(asset, { throwIfNoEntry: false })?.isFile()) return null;
+  } catch {
+    return null;
+  }
 
   const parts = accept
     .split(",")

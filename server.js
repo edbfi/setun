@@ -14,7 +14,7 @@
  *     directory, and forwards every request to it with headers that state
  *     `ORIGIN`'s scheme and host. Only the front can reach that socket, so only
  *     the front can set those headers, and it overwrites them on every request.
- *     It also stops a request for a build asset from asking for a
+ *     It also stops a request for a static file from asking for a
  *     pre-compressed variant that has gone missing on disk, which the adapter
  *     would answer with a 500 (`dropMissingEncodings` in `server-guard.js`).
  *
@@ -251,8 +251,9 @@ export function frontHeaders(incoming, { origin, ownPeerHeader, peer }) {
 }
 
 /**
- * For a static asset request, stop asking for a pre-compressed variant that is
- * missing on disk (see `dropMissingEncodings` in server-guard.js).
+ * For a static file request (any path, not only `/_app/`), stop asking for a
+ * pre-compressed variant that is missing on disk (see `dropMissingEncodings`
+ * in server-guard.js).
  *
  * @param {Headers} headers modified in place
  * @param {string} method

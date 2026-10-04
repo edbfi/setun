@@ -556,7 +556,7 @@ describe("endQuietly", () => {
 });
 
 describe("guardEncodings", () => {
-  test("drops a missing pre-compressed variant from a build asset request", () => {
+  test("drops a missing pre-compressed variant from a static file request", () => {
     const client = scratch();
     const chunks = join(client, "_app", "immutable", "chunks");
     mkdirSync(chunks, { recursive: true });
@@ -570,6 +570,13 @@ describe("guardEncodings", () => {
     const head = new Headers({ "accept-encoding": "br" });
     guardEncodings(head, "HEAD", "/_app/immutable/chunks/a.js", client);
     expect(head.get("accept-encoding")).toBe("identity");
+
+    // Outside /_app/ too: a file copied from static/ (setun-mark.svg) is served the same way.
+    writeFileSync(join(client, "setun-mark.svg"), "<svg/>");
+    writeFileSync(join(client, "setun-mark.svg.gz"), "gz");
+    const mark = new Headers({ "accept-encoding": "gzip, deflate, br" });
+    guardEncodings(mark, "GET", "/setun-mark.svg", client);
+    expect(mark.get("accept-encoding")).toBe("gzip, deflate");
 
     // Not a static-asset request: left alone.
     const post = new Headers({ "accept-encoding": "br" });

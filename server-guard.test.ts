@@ -106,7 +106,8 @@ describe("installServerGuard", () => {
 /**
  * A build `client` directory holding one chunk with its gzip sibling and
  * deliberately no Brotli sibling — the divergence that fails the request — one
- * chunk with both, and one with neither.
+ * chunk with both, and one with neither; and, outside `/_app/`, a copied
+ * `static/` file in each of the first two states.
  */
 function clientDir() {
   const root = mkdtempSync(join(tmpdir(), "setun-guard-"));
@@ -118,6 +119,11 @@ function clientDir() {
   writeFileSync(join(chunks, "both.js.br"), "br");
   writeFileSync(join(chunks, "both.js.gz"), "gz");
   writeFileSync(join(chunks, "none.js"), "export const n = 1;");
+  writeFileSync(join(root, "setun-mark.svg"), "<svg/>");
+  writeFileSync(join(root, "setun-mark.svg.gz"), "gz");
+  writeFileSync(join(root, "robots.txt"), "User-agent: *");
+  writeFileSync(join(root, "robots.txt.br"), "br");
+  writeFileSync(join(root, "robots.txt.gz"), "gz");
   return root;
 }
 
@@ -162,9 +168,18 @@ describe("dropMissingEncodings", () => {
     expect(dropMissingEncodings("*", "/_app/immutable/chunks/none.js", dir)).toBe("identity");
   });
 
-  test("ignores requests that are not for build assets", () => {
+  test("covers every static file, not only the build's /_app/ assets", () => {
+    // A file copied from static/ is precompressed and served the same way.
+    expect(dropMissingEncodings("gzip, deflate, br", "/setun-mark.svg", dir)).toBe("gzip, deflate");
+    expect(dropMissingEncodings("br", "/setun-mark.svg", dir)).toBe("identity");
+    expect(dropMissingEncodings("br, gzip", "/robots.txt", dir)).toBeNull();
+  });
+
+  test("ignores a path that is no file in the build, such as a page", () => {
     expect(dropMissingEncodings("br", "/chat", dir)).toBeNull();
-    expect(dropMissingEncodings("br", "/robots.txt", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/_app/immutable", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/_app/immutable/chunks/gone.js", dir)).toBeNull();
   });
 
   test("ignores a request that asks for no encoding", () => {
@@ -187,5 +202,7 @@ describe("dropMissingEncodings", () => {
   test("refuses to look outside the build directory", () => {
     expect(dropMissingEncodings("br", "/_app/../../../../etc/hosts", dir)).toBeNull();
     expect(dropMissingEncodings("br", "/_app/%2e%2e/%2e%2e/%2e%2e/etc/hosts", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/../../../../etc/hosts", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/hosts", dir)).toBeNull();
   });
 });
