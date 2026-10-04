@@ -152,6 +152,11 @@ test("a pupil can ask again, and delete a conversation for good", async ({ page 
 
   // Nothing left to open into, and nothing left to find on a reload.
   await expect(page.locator("nav a[href^='/chat?c=']")).toHaveCount(0);
+  // The confirm button left with the drawer, and the keyboard is back on the
+  // control that opened it rather than dropped onto <body> (SvelteKit 3's
+  // `reset: false` leaves focus to the page).
+  await expect(page.getByRole("button", { name: m.chat_conversations() })).toBeFocused();
+  await expect(page).toHaveURL(/\/chat$/);
   await page.reload();
   await expect(page.getByText(m.chat_empty_body())).toBeVisible();
 });
