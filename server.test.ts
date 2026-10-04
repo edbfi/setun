@@ -348,6 +348,39 @@ describe("prepare", () => {
     expect(blank).toEqual({});
   });
 
+  test("fronts SETUN_APP_ORIGIN when ORIGIN is unset, so one variable suffices", () => {
+    const environment: Record<string, string | undefined> = {
+      SETUN_APP_ORIGIN: " HTTPS://Setun.Example.org:443/ ",
+    };
+    const plan = prepare(environment);
+    if (plan.mode !== "front") throw new Error("expected the front");
+    cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
+    expect(plan.origin.origin).toBe("https://setun.example.org");
+    expect(environment.ORIGIN).toBe("https://setun.example.org");
+    // The operator's own variable is left as it was.
+    expect(environment.SETUN_APP_ORIGIN).toBe(" HTTPS://Setun.Example.org:443/ ");
+
+    expect(prepare({ SETUN_APP_ORIGIN: "  " })).toEqual({
+      mode: "direct",
+      warning: MISSING_ORIGIN_WARNING,
+    });
+    expect(() => prepare({ SETUN_APP_ORIGIN: "https://setun.example.org/app" })).toThrow(
+      ORIGIN_ERROR,
+    );
+  });
+
+  test("lets ORIGIN win over SETUN_APP_ORIGIN", () => {
+    const environment: Record<string, string | undefined> = {
+      ORIGIN: "http://192.168.1.10:3000",
+      SETUN_APP_ORIGIN: "https://setun.example.org",
+    };
+    const plan = prepare(environment);
+    if (plan.mode !== "front") throw new Error("expected the front");
+    cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
+    expect(plan.origin.origin).toBe("http://192.168.1.10:3000");
+    expect(environment.ORIGIN).toBe("http://192.168.1.10:3000");
+  });
+
   test("warns in the words every edbfi front uses", () => {
     expect(MISSING_ORIGIN_WARNING).toBe(
       "ORIGIN is not set: Setun assumes it is served over HTTPS behind a proxy that preserves " +
@@ -551,6 +584,21 @@ describe("bun ./server.js", () => {
     await sleep(100);
     expect(count(server.output(), MISSING_ORIGIN_WARNING)).toBe(1);
     expect(socketDirectories(server.temp)).toEqual([]);
+  });
+
+  test("fronts SETUN_APP_ORIGIN when ORIGIN is unset, and exports it as ORIGIN", async () => {
+    const port = await freePort();
+    const server = await start({
+      SETUN_APP_ORIGIN: `http://LocalHost:${port}/`,
+      PORT: String(port),
+    });
+    const seen = await echo(server.port);
+    expect(seen.env.SOCKET_PATH).toMatch(/setun-[^/]+\/app\.sock$/);
+    expect(seen.env.ORIGIN).toBe(`http://localhost:${port}`);
+    expect(seen.headers[PROTOCOL_HEADER]).toBe("http");
+    expect(seen.headers[HOST_HEADER]).toBe(`localhost:${port}`);
+    await sleep(100);
+    expect(server.output()).not.toContain(MISSING_ORIGIN_WARNING);
   });
 
   test("does not warn when ORIGIN or PROTOCOL_HEADER is set", async () => {

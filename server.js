@@ -5,9 +5,10 @@
  * file fails that request instead of the whole server, and then starts the
  * `@sveltejs/adapter-bun` build in one of two ways:
  *
- *   - **without `ORIGIN`**, the build listens directly on `HOST`/`PORT`, and the
- *     adapter takes the public origin to be `https` plus the request's `Host`,
- *     which is right behind a TLS-terminating proxy that preserves `Host`;
+ *   - **without `ORIGIN`** (or `SETUN_APP_ORIGIN`, which stands in for it), the
+ *     build listens directly on `HOST`/`PORT`, and the adapter takes the public
+ *     origin to be `https` plus the request's `Host`, which is right behind a
+ *     TLS-terminating proxy that preserves `Host`;
  *   - **with `ORIGIN`**, this file is a small front: it listens on `HOST`/`PORT`
  *     itself, runs the build on a private Unix socket in a fresh temporary
  *     directory, and forwards every request to it with headers that state
@@ -174,7 +175,10 @@ export function shutdownTimeoutSeconds(environment) {
  * @returns {DirectPlan | FrontPlan}
  */
 export function prepare(environment) {
-  const configured = environment.ORIGIN?.trim();
+  // One variable suffices: SETUN_APP_ORIGIN (the URL Setun prints on access
+  // slips, which Compose requires) stands in for ORIGIN when ORIGIN is unset,
+  // and ORIGIN wins when both are set.
+  const configured = environment.ORIGIN?.trim() || environment.SETUN_APP_ORIGIN?.trim();
   if (!configured) {
     // Blank means unset; the app must not read a blank ORIGIN either.
     delete environment.ORIGIN;

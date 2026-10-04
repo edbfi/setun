@@ -1,5 +1,7 @@
 import * as v from "valibot";
+import { dev } from "$app/env";
 import * as env from "$app/env/private";
+import { resolveAppOrigin } from "./app-origin";
 
 /**
  * Required environment, validated at boot (PRD §6.2).
@@ -38,7 +40,11 @@ const ConfigSchema = v.object({
   /** Shared with CPA; the only thing authenticating the gateway (§9). */
   cpaListenerKey: nonEmpty("SETUN_CPA_LISTENER_KEY is required"),
   cpaBaseUrl: v.pipe(nonEmpty("SETUN_CPA_BASE_URL is required"), v.url()),
-  appOrigin: v.pipe(nonEmpty("SETUN_APP_ORIGIN is required"), v.url()),
+  /**
+   * The address people open in the browser: ORIGIN, or SETUN_APP_ORIGIN when ORIGIN is unset
+   * (`$lib/server/app-origin`). Either one is enough.
+   */
+  appOrigin: v.pipe(nonEmpty("ORIGIN or SETUN_APP_ORIGIN is required"), v.url()),
   /** A distinct host from the app origin — artifacts are isolated by origin (§14). */
   sandboxOrigin: v.pipe(nonEmpty("SETUN_SANDBOX_ORIGIN is required"), v.url()),
   databasePath: nonEmpty("SETUN_DATABASE_PATH is required"),
@@ -131,7 +137,7 @@ function readEnvironment() {
     educatorPassword: optionalValue(env.SETUN_EDUCATOR_SEED_PASSWORD),
     cpaListenerKey: env.SETUN_CPA_LISTENER_KEY,
     cpaBaseUrl: env.SETUN_CPA_BASE_URL ?? "http://localhost:8317",
-    appOrigin: env.SETUN_APP_ORIGIN ?? "http://localhost:5173",
+    appOrigin: resolveAppOrigin({ origin: env.ORIGIN, appOrigin: env.SETUN_APP_ORIGIN, dev }),
     sandboxOrigin: env.SETUN_SANDBOX_ORIGIN ?? "http://localhost:5174",
     databasePath: env.SETUN_DATABASE_PATH ?? "./data/setun.sqlite",
     storagePath: env.SETUN_STORAGE_PATH ?? "./data/storage",

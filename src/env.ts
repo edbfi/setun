@@ -27,6 +27,9 @@ export const variables = defineEnvVars({
   SETUN_CPA_LISTENER_KEY: { schema: passThrough },
   SETUN_CPA_BASE_URL: { schema: passThrough },
   SETUN_APP_ORIGIN: { schema: passThrough },
+  // The public origin. `bun ./server.js` exports it in canonical form (from ORIGIN, or from
+  // SETUN_APP_ORIGIN when ORIGIN is unset); config.ts prefers it to SETUN_APP_ORIGIN.
+  ORIGIN: { schema: passThrough },
   SETUN_SANDBOX_ORIGIN: { schema: passThrough },
   SETUN_DATABASE_PATH: { schema: passThrough },
   SETUN_STORAGE_PATH: { schema: passThrough },
