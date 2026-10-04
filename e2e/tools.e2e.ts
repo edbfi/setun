@@ -136,7 +136,11 @@ test("a text attachment is accepted, stored, and served only to its owner (§10,
   const stolen = await intruderPage.request.get(`/api/attachments/${record.id}`);
   expect(stolen.status()).toBe(404);
 
-  const deleted = await intruderPage.request.delete(`/api/attachments/${record.id}`);
+  // Sent as the browser sends it: a DELETE always carries `Origin` (SvelteKit 3
+  // refuses a cross-site write with no Content-Type, so without one this is 403).
+  const deleted = await intruderPage.request.delete(`/api/attachments/${record.id}`, {
+    headers: { origin: APP_ORIGIN },
+  });
   expect(deleted.status()).toBe(404);
 
   // And it is still there for its owner after the failed attempts.

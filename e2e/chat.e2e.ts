@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
-import { E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
+import { APP_ORIGIN, E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
 import { openDrawer } from "./support/chat";
 import { clearLoginWindow } from "./support/login-window";
 
@@ -209,8 +209,15 @@ test("a student cannot reach another student's conversation", async ({ browser }
   });
   expect(stolen.status()).toBe(404);
 
-  const deleted = await intruderPage.request.delete(`/api/conversations/${conversationId}`);
+  // Sent as the browser sends it: a DELETE always carries `Origin`. SvelteKit 3
+  // refuses a cross-site write with no Content-Type before the route runs, so a
+  // request with no Origin at all now stops there, with 403.
+  const deleted = await intruderPage.request.delete(`/api/conversations/${conversationId}`, {
+    headers: { origin: APP_ORIGIN },
+  });
   expect(deleted.status()).toBe(404);
+  const originless = await intruderPage.request.delete(`/api/conversations/${conversationId}`);
+  expect(originless.status()).toBe(403);
 
   await ownerContext.close();
   await intruderContext.close();
