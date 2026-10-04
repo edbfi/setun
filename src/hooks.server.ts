@@ -36,6 +36,12 @@ import { isSetupComplete, isSetupGateExempt, SETUP_PATH } from "$lib/server/setu
  * closed in a classroom. It is worth doing and it is worth doing with its own
  * verification, so it is left as follow-up rather than guessed at here.
  *
+ * `same-origin`, not `no-referrer`: no other origin learns a Setun URL either
+ * way, but under `no-referrer` browsers send `Origin: null` with a form
+ * submitted without JavaScript, and SvelteKit refuses that post, so signing in
+ * without JavaScript failed. `same-origin` lets the browser state the page's
+ * own origin on Setun's own forms.
+ *
  * Set rather than overwritten: routes that serve pupil files already choose
  * their own `x-content-type-options`, and a blanket assignment here would start
  * quietly deciding for them.
@@ -44,7 +50,7 @@ const RESPONSE_HEADERS: ReadonlyArray<readonly [string, string]> = [
   ["content-security-policy", "frame-ancestors 'none'"],
   ["x-frame-options", "DENY"],
   ["x-content-type-options", "nosniff"],
-  ["referrer-policy", "no-referrer"],
+  ["referrer-policy", "same-origin"],
   ["permissions-policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()"],
 ];
 

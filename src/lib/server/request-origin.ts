@@ -10,12 +10,11 @@
  * the app's own origin. A missing `Origin` and `Origin: null` count as foreign, as in Kit's own
  * check.
  *
- * Browsers send the page's origin with every `fetch` write from a Setun page, `keepalive` ones
- * included (checked 2026-10-04 in Chromium 153 and WebKit 26.6 under Setun's
- * `Referrer-Policy: no-referrer`). Under that policy WebKit sends `Origin: null` for
- * `navigator.sendBeacon`, and both send it for a form submitted without JavaScript, which
- * SvelteKit refuses already; so writes go through `fetch` or an enhanced form. Clients outside a
- * browser, such as Playwright's request API, must send `Origin` themselves.
+ * Browsers send the page's origin with every write from a Setun page: `fetch` (`keepalive` ones
+ * included), `navigator.sendBeacon` and a form submitted without JavaScript (checked 2026-10-04
+ * in Chromium 153 and WebKit 26.6 under Setun's `Referrer-Policy: same-origin`; under
+ * `no-referrer` both sent `Origin: null` for the form and WebKit for the beacon). Clients outside
+ * a browser, such as Playwright's request API, must send `Origin` themselves.
  *
  * `url` is `event.url`: SvelteKit builds it from the origin the front in `server.js` states
  * (ORIGIN), or the adapter's default of `https` plus `Host`. Nothing here reads `Host` itself.

@@ -273,3 +273,20 @@ test("a write from any other origin is refused, whatever its content type (§21)
 
   await pupil.context().close();
 });
+
+test("a pupil signs in with JavaScript turned off (§7, §21)", async ({ browser }) => {
+  const { code } = await provisionStudent();
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+
+  // Under `Referrer-Policy: no-referrer` the browser sent `Origin: null` with this native form
+  // post, and SvelteKit refused it with 403. `same-origin` lets it state the page's own origin.
+  const login = await page.goto("/login");
+  expect(login?.headers()["referrer-policy"]).toBe("same-origin");
+
+  await page.getByLabel(m.login_code_label()).fill(code);
+  await page.getByRole("button", { name: m.login_submit() }).click();
+  await expect(page).toHaveURL(/\/chat/);
+
+  await context.close();
+});
