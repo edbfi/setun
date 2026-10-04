@@ -3,6 +3,7 @@ import { enhance, type SubmitFunction } from "$app/forms";
 import CredentialCards from "$lib/components/educator/CredentialCards.svelte";
 import RosterTable from "$lib/components/educator/RosterTable.svelte";
 import type { CredentialBatch } from "$lib/credentials";
+import { stayOnPage } from "$lib/enhance";
 import * as m from "$lib/paraglide/messages";
 import type { PageProps } from "./$types";
 
@@ -31,7 +32,8 @@ const enhanceClassroomRotation: SubmitFunction = () => {
   rotatingClassroom = true;
   return async ({ update }) => {
     try {
-      await update();
+      // Stay on this URL (the `?removed=1` view); see `stayOnPage`.
+      await update({ navigate: false });
     } finally {
       rotatingClassroom = false;
     }
@@ -52,7 +54,12 @@ const enhanceClassroomRotation: SubmitFunction = () => {
     <h2 class="text-sm font-medium text-foreground">{m.educator_provision_title()}</h2>
     <p class="text-xs text-muted-foreground">{m.educator_provision_help()}</p>
 
-    <form method="POST" action="?/provision" use:enhance class="flex flex-wrap items-end gap-2">
+    <form
+      method="POST"
+      action="?/provision"
+      use:enhance={stayOnPage}
+      class="flex flex-wrap items-end gap-2"
+    >
       <label class="flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">{m.educator_provision_count_label()}</span>
         <input

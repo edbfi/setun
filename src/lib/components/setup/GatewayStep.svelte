@@ -1,5 +1,6 @@
 <script lang="ts">
 import { enhance } from "$app/forms";
+import { stayOnPage } from "$lib/enhance";
 import * as m from "$lib/paraglide/messages";
 import type { GatewayHealth } from "$lib/server/gateway/health";
 
@@ -46,7 +47,7 @@ let { health }: Props = $props();
       {m.setup_gateway_retry()}
     </a>
 
-    <form method="POST" action="?/gateway" use:enhance>
+    <form method="POST" action="?/gateway" use:enhance={stayOnPage}>
       <input type="hidden" name="acknowledged" value="true">
       <button
         type="submit"

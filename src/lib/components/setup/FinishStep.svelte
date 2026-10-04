@@ -1,5 +1,6 @@
 <script lang="ts">
 import { enhance } from "$app/forms";
+import { stayOnPage } from "$lib/enhance";
 import * as m from "$lib/paraglide/messages";
 
 /**
@@ -46,7 +47,7 @@ let { aliasName, classroomName, studentCount, canFinish }: Props = $props();
     >
       {m.setup_back()}
     </a>
-    <form method="POST" action="?/finish" use:enhance>
+    <form method="POST" action="?/finish" use:enhance={stayOnPage}>
       <button
         type="submit"
         disabled={!canFinish}

@@ -307,6 +307,17 @@ test("a removed pupil leaves the roster, and a disabled one cannot sign in (§16
 
   await page.getByRole("link", { name: m.educator_show_removed() }).click();
   await expect(page.getByText(m.educator_status_removed(), { exact: true })).toBeVisible();
+
+  // Acting from the removed view keeps that view (SvelteKit 3 would otherwise
+  // navigate to the action's page, which drops `?removed=1`).
+  await page
+    .getByRole("listitem")
+    .filter({ hasText: labels[1] })
+    .getByRole("button", { name: m.educator_student_enable() })
+    .click();
+  await expect(page.getByText(m.educator_status_removed(), { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]removed=1/);
+  await expect(page.getByRole("link", { name: m.educator_hide_removed() })).toBeVisible();
 });
 
 test("deleting a classroom restores the dashboard title", async ({ page }) => {

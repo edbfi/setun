@@ -1,5 +1,6 @@
 <script lang="ts">
 import { enhance } from "$app/forms";
+import { stayOnPage } from "$lib/enhance";
 import * as m from "$lib/paraglide/messages";
 import { getLocale } from "$lib/paraglide/runtime";
 import type { RosterEntry } from "$lib/server/classroom/roster";
@@ -119,7 +120,12 @@ const smallButton =
           </div>
 
           <!-- Per-student instructions: the educator's text, layered after the class's (§10). -->
-          <form method="POST" action="?/saveInstructions" use:enhance class="flex flex-col gap-1">
+          <form
+            method="POST"
+            action="?/saveInstructions"
+            use:enhance={stayOnPage}
+            class="flex flex-col gap-1"
+          >
             <input type="hidden" name="studentId" value={student.id}>
             <label class="flex flex-col gap-1">
               <span class="text-xs text-muted-foreground">
@@ -140,7 +146,7 @@ const smallButton =
             <form
               method="POST"
               action="?/setAttachments"
-              use:enhance
+              use:enhance={stayOnPage}
               class="flex items-end gap-1.5"
             >
               <input type="hidden" name="studentId" value={student.id}>
@@ -165,7 +171,12 @@ const smallButton =
               <button type="submit" class={smallButton}>{m.educator_save()}</button>
             </form>
 
-            <form method="POST" action="?/rotate" use:enhance class="flex max-w-xs flex-col gap-1">
+            <form
+              method="POST"
+              action="?/rotate"
+              use:enhance={stayOnPage}
+              class="flex max-w-xs flex-col gap-1"
+            >
               <input type="hidden" name="studentId" value={student.id}>
               <button
                 type="submit"
@@ -186,7 +197,7 @@ const smallButton =
             </form>
 
             {#if student.displayName}
-              <form method="POST" action="?/clearDisplayName" use:enhance>
+              <form method="POST" action="?/clearDisplayName" use:enhance={stayOnPage}>
                 <input type="hidden" name="studentId" value={student.id}>
                 <button type="submit" class={smallButton}>
                   {m.educator_clear_display_name()}
@@ -194,7 +205,7 @@ const smallButton =
               </form>
             {/if}
 
-            <form method="POST" action="?/setStatus" use:enhance>
+            <form method="POST" action="?/setStatus" use:enhance={stayOnPage}>
               <input type="hidden" name="studentId" value={student.id}>
               <input
                 type="hidden"
@@ -207,7 +218,7 @@ const smallButton =
             </form>
 
             {#if student.status !== "removed"}
-              <form method="POST" action="?/setStatus" use:enhance>
+              <form method="POST" action="?/setStatus" use:enhance={stayOnPage}>
                 <input type="hidden" name="studentId" value={student.id}>
                 <input type="hidden" name="status" value="removed">
                 <button type="submit" class={smallButton}>{m.educator_student_remove()}</button>
@@ -215,7 +226,12 @@ const smallButton =
             {/if}
 
             <!-- Permanent deletion, typed rather than clicked (§16). -->
-            <form method="POST" action="?/deleteStudent" use:enhance class="flex items-end gap-1.5">
+            <form
+              method="POST"
+              action="?/deleteStudent"
+              use:enhance={stayOnPage}
+              class="flex items-end gap-1.5"
+            >
               <input type="hidden" name="studentId" value={student.id}>
               <label class="flex flex-col gap-1">
                 <span class="text-[0.6875rem] text-muted-foreground">
