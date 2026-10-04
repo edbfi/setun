@@ -592,6 +592,10 @@ describe("forwardPath and buildEntry", () => {
     );
     expect(forwardPath("http://x//double")).toBe("//double");
     expect(forwardPath("http://x")).toBe("/");
+    // What Bun gives when the client's Host header is not a valid host: the bare path, whose
+    // query may itself hold a URL.
+    expect(forwardPath("/p%2Fq?x=%20")).toBe("/p%2Fq?x=%20");
+    expect(forwardPath("/login?next=http://x/y")).toBe("/login?next=http://x/y");
   });
 
   test("resolves the build beside server.js, or from SETUN_BUILD_DIR", () => {

@@ -274,11 +274,14 @@ export function guardEncodings(headers, method, path, clientDir) {
  * The path and query of a request, exactly as Bun received them.
  *
  * Taken from the URL string rather than re-serialized, so an encoded path stays
- * encoded byte for byte.
+ * encoded byte for byte. For a Host header Bun cannot parse, the URL string is
+ * the bare path already.
  *
  * @param {string} requestUrl
  */
 export function forwardPath(requestUrl) {
+  // A bare path is already the path; its query may itself contain "://".
+  if (requestUrl.startsWith("/")) return requestUrl;
   const scheme = requestUrl.indexOf("://");
   const start = scheme === -1 ? 0 : requestUrl.indexOf("/", scheme + 3);
   return start === -1 ? "/" : requestUrl.slice(start);
