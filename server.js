@@ -3,20 +3,19 @@
  *
  * It installs the process guard from `server-guard.js`, so a failed read of one
  * file fails that request instead of the whole server, and then starts the
- * `@sveltejs/adapter-bun` build in one of two ways:
+ * `@sveltejs/adapter-bun` build behind a small front. The front listens on
+ * `HOST`/`PORT` itself, runs the build on a private Unix socket in a fresh
+ * temporary directory, and forwards every request to it with headers that
+ * state `ORIGIN`'s scheme and host. Only the front can reach that socket, so
+ * only the front can set those headers, and it overwrites them on every
+ * request. It also stops a request for a static file from asking for a
+ * pre-compressed variant that has gone missing on disk, which the adapter
+ * would answer with a 500 (`dropMissingEncodings` in `server-guard.js`).
  *
- *   - **without `ORIGIN`** (or `SETUN_APP_ORIGIN`, which stands in for it), the
- *     build listens directly on `HOST`/`PORT`, and the adapter takes the public
- *     origin to be `https` plus the request's `Host`, which is right behind a
- *     TLS-terminating proxy that preserves `Host`;
- *   - **with `ORIGIN`**, this file is a small front: it listens on `HOST`/`PORT`
- *     itself, runs the build on a private Unix socket in a fresh temporary
- *     directory, and forwards every request to it with headers that state
- *     `ORIGIN`'s scheme and host. Only the front can reach that socket, so only
- *     the front can set those headers, and it overwrites them on every request.
- *     It also stops a request for a static file from asking for a
- *     pre-compressed variant that has gone missing on disk, which the adapter
- *     would answer with a 500 (`dropMissingEncodings` in `server-guard.js`).
+ * `ORIGIN` (or `SETUN_APP_ORIGIN`, which stands in for it) is required. Setun
+ * prints its public address on access slips, QR codes and the first-run
+ * banner, so without one every page would fail; the server stops before it
+ * binds instead, with one message that names `ORIGIN`.
  *
  * Why a front at all: SvelteKit 3 has no runtime `ORIGIN` (adapter-node's
  * variable is gone, and `paths.origin` is fixed at build time), and Kit checks a
@@ -70,13 +69,16 @@ export const HOST_HEADER = "x-setun-origin-host";
 export const PEER_HEADER = "x-setun-peer";
 
 /**
- * Logged once at startup when nothing tells the adapter the public scheme. The
- * wording is the one every edbfi front uses (the shared origin contract).
+ * The one startup error when neither ORIGIN nor SETUN_APP_ORIGIN is set.
+ *
+ * Other edbfi apps only warn here, because an HTTPS proxy that preserves
+ * `Host` gives them a working origin. Setun also prints the address on access
+ * slips, QR codes and the first-run banner, and has no other way to know it,
+ * so it does not start without one.
  */
-export const MISSING_ORIGIN_WARNING =
-  "ORIGIN is not set: Setun assumes it is served over HTTPS behind a proxy that preserves the " +
-  "Host header. Over plain HTTP, signing in and saving changes will fail. Set ORIGIN to the " +
-  "address users open, for example ORIGIN=http://192.168.1.10:3000.";
+export const MISSING_ORIGIN_ERROR =
+  "Setun needs its public address: set ORIGIN to the address users open, for example " +
+  "ORIGIN=http://192.168.1.10:3000.";
 
 /**
  * The request body limit unless the operator sets BODY_SIZE_LIMIT: just above
@@ -155,9 +157,7 @@ export function shutdownTimeoutSeconds(environment) {
 }
 
 /**
- * @typedef {{ mode: "direct"; warning: string | null }} DirectPlan
  * @typedef {{
- *   mode: "front";
  *   origin: URL;
  *   hostname: string;
  *   port: number;
@@ -169,35 +169,32 @@ export function shutdownTimeoutSeconds(environment) {
  */
 
 /**
- * Decide how to start, and prepare the environment the adapter will read:
- * the body limit's default, and in front mode the socket, the origin headers,
- * the peer header and the idle timeout.
+ * Check the origin, and prepare the environment the adapter will read: the
+ * body limit's default, the socket, the origin headers, the peer header and the
+ * idle timeout.
  *
- * Mutates `environment`, and in front mode creates the socket directory: the
- * adapter reads its configuration once, when the build is imported, so all of
- * this has to happen first.
+ * Mutates `environment` and creates the socket directory: the adapter reads
+ * its configuration once, when the build is imported, so all of this has to
+ * happen first. Only the origin is checked here; the app checks its other
+ * settings itself, when it first needs them.
  *
  * `IDLE_TIMEOUT` is deliberately not mapped to `CONNECTION_IDLE_TIMEOUT`.
  * Under adapter-node it was a systemd socket-activation sleep timer, not a
  * connection timeout, and nothing in Setun's deployment sets it.
  *
  * @param {Record<string, string | undefined>} environment
- * @returns {DirectPlan | FrontPlan}
+ * @returns {FrontPlan}
  */
 export function prepare(environment) {
-  // In both modes: the adapter enforces it, directly or behind the socket.
+  // The adapter enforces it, behind the socket.
   environment.BODY_SIZE_LIMIT ??= DEFAULT_BODY_SIZE_LIMIT;
 
   // One variable suffices: SETUN_APP_ORIGIN (the URL Setun prints on access
   // slips, which Compose requires) stands in for ORIGIN when ORIGIN is unset,
-  // and ORIGIN wins when both are set.
+  // and ORIGIN wins when both are set. Blank means unset. Without either the
+  // server stops here, before it binds, whatever PROTOCOL_HEADER says.
   const configured = environment.ORIGIN?.trim() || environment.SETUN_APP_ORIGIN?.trim();
-  if (!configured) {
-    // Blank means unset; the app must not read a blank ORIGIN either.
-    delete environment.ORIGIN;
-    const warning = environment.PROTOCOL_HEADER ? null : MISSING_ORIGIN_WARNING;
-    return { mode: "direct", warning };
-  }
+  if (!configured) throw new Error(MISSING_ORIGIN_ERROR);
 
   const origin = parseOrigin(configured);
   const hostname = environment.HOST || "0.0.0.0";
@@ -231,7 +228,7 @@ export function prepare(environment) {
   // enforces the client idle timeout instead.
   environment.CONNECTION_IDLE_TIMEOUT = "0";
 
-  return { mode: "front", origin, hostname, port, idleTimeout, ownPeerHeader, directory, socket };
+  return { origin, hostname, port, idleTimeout, ownPeerHeader, directory, socket };
 }
 
 /**
@@ -335,7 +332,7 @@ export function buildEntry(environment) {
 }
 
 /**
- * Start the build, directly or behind the front.
+ * Start the build behind the front.
  *
  * @param {Record<string, string | undefined>} [environment]
  * @param {() => Promise<unknown>} [importServer]
@@ -346,12 +343,6 @@ export async function serve(
 ) {
   const clientDir = join(dirname(buildEntry(environment)), "client");
   const plan = prepare(environment);
-  if (plan.mode === "direct") {
-    if (plan.warning) console.warn(plan.warning);
-    await importServer();
-    return;
-  }
-
   const { origin, ownPeerHeader, directory, socket } = plan;
   const removeSocketDirectory = () => rmSync(directory, { recursive: true, force: true });
   let markReady = () => {};
