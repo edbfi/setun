@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildEntry,
+  endQuietly,
   forwardPath,
   frontHeaders,
   guardEncodings,
@@ -74,6 +75,18 @@ async function handle(request) {
           await sleep(Number(url.searchParams.get("gap") || 3000));
           controller.enqueue(new TextEncoder().encode("data: two\n\n"));
           controller.close();
+        },
+      });
+      return new Response(stream, { headers: { "content-type": "text/event-stream" } });
+    }
+    case "/sse-break": {
+      // One event, then the connection is torn down mid-stream, as the adapter's
+      // force-close at the end of its shutdown drain does.
+      const stream = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(new TextEncoder().encode("data: one\n\n"));
+          await sleep(300);
+          server.stop(true);
         },
       });
       return new Response(stream, { headers: { "content-type": "text/event-stream" } });
@@ -437,6 +450,36 @@ describe("frontHeaders", () => {
   });
 });
 
+describe("endQuietly", () => {
+  test("passes chunks through and closes instead of erroring", async () => {
+    let step = 0;
+    const broken = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        step++;
+        if (step === 1) controller.enqueue(new TextEncoder().encode("data: one\n\n"));
+        else controller.error(new Error("socket closed"));
+      },
+    });
+    expect(await new Response(endQuietly(broken)).text()).toBe("data: one\n\n");
+  });
+
+  test("cancels the upstream when the client goes away", async () => {
+    let cancelled = false;
+    const upstream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new TextEncoder().encode("."));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const reader = endQuietly(upstream).getReader();
+    await reader.read();
+    await reader.cancel();
+    expect(cancelled).toBe(true);
+  });
+});
+
 describe("guardEncodings", () => {
   test("drops a missing pre-compressed variant from a build asset request", () => {
     const client = scratch();
@@ -654,6 +697,22 @@ describe("bun ./server.js", () => {
     const reply = await fetch(`http://127.0.0.1:${server.port}/sse?gap=2500`);
     expect(reply.headers.get("content-type")).toBe("text/event-stream");
     expect(await reply.text()).toBe("data: one\n\ndata: two\n\n");
+  }, 15_000);
+
+  test("ends an event stream normally when the build breaks it off", async () => {
+    const port = await freePort();
+    const server = await start({ ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port) });
+    const curl = Bun.spawn(
+      ["curl", "-sN", "--max-time", "10", `http://127.0.0.1:${server.port}/sse-break`],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const code = await curl.exited;
+    expect(await new Response(curl.stdout).text()).toBe("data: one\n\n");
+    // 0, not 18 ("transfer closed with outstanding read data"): the public stream ended cleanly.
+    expect(code).toBe(0);
   }, 15_000);
 
   test("exits 0 on SIGTERM with nothing in flight, and removes the socket directory", async () => {

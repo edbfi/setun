@@ -258,6 +258,36 @@ export function forwardPath(requestUrl) {
 }
 
 /**
+ * An event-stream body that ends normally when the adapter breaks it off.
+ *
+ * At the end of its shutdown drain the adapter force-closes the streams still
+ * open, and a body passed through as is would then fail on the public side too,
+ * which a browser reports as a connection reset. Ending it cleanly instead lets
+ * `EventSource` and the chat's resumable turn reconnect as they would after any
+ * ordinary end of stream. A client that goes away still cancels the upstream.
+ *
+ * @param {ReadableStream<Uint8Array>} body
+ * @returns {ReadableStream<Uint8Array>}
+ */
+export function endQuietly(body) {
+  const reader = body.getReader();
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      } catch {
+        controller.close();
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+}
+
+/**
  * Where the adapter-bun build lives: `build/` beside this file, or
  * `SETUN_BUILD_DIR`.
  *
@@ -335,9 +365,18 @@ export async function serve(
           return new Response("Service Unavailable", { status: 503 });
         }
         // The public listener applies the idle timeout, so an event stream
-        // (a chat turn waiting on the model) is exempted here.
-        if (response.headers.get("content-type")?.startsWith("text/event-stream")) {
+        // (a chat turn waiting on the model) is exempted here, and it ends
+        // normally if the adapter breaks it off at shutdown.
+        if (
+          response.headers.get("content-type")?.startsWith("text/event-stream") &&
+          response.body
+        ) {
           server.timeout(request, 0);
+          return new Response(endQuietly(response.body), {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
         }
         return response;
       },
