@@ -159,17 +159,6 @@ export function validateConfig(raw: Record<string, unknown> = readEnvironment())
   throw new ConfigurationError(issues);
 }
 
-/**
- * The raw environment, for the few modules that resolve names out of it.
- *
- * The MCP configuration references credentials *by variable name* (§11), so the
- * name is only known at runtime and cannot be a field on the schema above. This
- * keeps the `$env` import in the one module that already owns it.
- */
-export function credentialEnvironment(): Readonly<Record<string, string | undefined>> {
-  return env;
-}
-
 let cached: ServerConfig | null = null;
 
 /** The validated configuration. Throws on first access if the environment is incomplete. */
