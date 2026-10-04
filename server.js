@@ -78,6 +78,14 @@ export const MISSING_ORIGIN_WARNING =
   "Host header. Over plain HTTP, signing in and saving changes will fail. Set ORIGIN to the " +
   "address users open, for example ORIGIN=http://192.168.1.10:3000.";
 
+/**
+ * The request body limit unless the operator sets BODY_SIZE_LIMIT: just above
+ * the 1 MB project cap in src/lib/artifacts/project.ts, because restoring an
+ * artifact posts its whole file list, and the adapter's own 512K default
+ * refuses a project of a few large files with 413.
+ */
+export const DEFAULT_BODY_SIZE_LIMIT = "2M";
+
 /** The one startup error for an unusable ORIGIN; it never repeats the value. */
 export const ORIGIN_ERROR =
   "ORIGIN must be a bare http(s) origin such as http://192.168.1.10:3000 (no path, query, fragment or credentials).";
@@ -161,7 +169,9 @@ export function shutdownTimeoutSeconds(environment) {
  */
 
 /**
- * Decide how to start, and prepare the environment the adapter will read.
+ * Decide how to start, and prepare the environment the adapter will read:
+ * the body limit's default, and in front mode the socket, the origin headers,
+ * the peer header and the idle timeout.
  *
  * Mutates `environment`, and in front mode creates the socket directory: the
  * adapter reads its configuration once, when the build is imported, so all of
@@ -175,6 +185,9 @@ export function shutdownTimeoutSeconds(environment) {
  * @returns {DirectPlan | FrontPlan}
  */
 export function prepare(environment) {
+  // In both modes: the adapter enforces it, directly or behind the socket.
+  environment.BODY_SIZE_LIMIT ??= DEFAULT_BODY_SIZE_LIMIT;
+
   // One variable suffices: SETUN_APP_ORIGIN (the URL Setun prints on access
   // slips, which Compose requires) stands in for ORIGIN when ORIGIN is unset,
   // and ORIGIN wins when both are set.

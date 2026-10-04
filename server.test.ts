@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildEntry,
+  DEFAULT_BODY_SIZE_LIMIT,
   endQuietly,
   forwardPath,
   frontHeaders,
@@ -331,10 +332,10 @@ describe("parseOrigin", () => {
 });
 
 describe("prepare", () => {
-  test("without ORIGIN changes nothing and warns unless PROTOCOL_HEADER is set", () => {
+  test("without ORIGIN changes nothing but the body limit, and warns unless PROTOCOL_HEADER is set", () => {
     const environment: Record<string, string | undefined> = { PORT: "3000" };
     expect(prepare(environment)).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
-    expect(environment).toEqual({ PORT: "3000" });
+    expect(environment).toEqual({ PORT: "3000", BODY_SIZE_LIMIT: DEFAULT_BODY_SIZE_LIMIT });
 
     expect(prepare({ PROTOCOL_HEADER: "x-forwarded-proto" })).toEqual({
       mode: "direct",
@@ -345,7 +346,7 @@ describe("prepare", () => {
     // Blank means unset, and a blank value is not left behind for the app to read.
     const blank: Record<string, string | undefined> = { ORIGIN: " \t " };
     expect(prepare(blank)).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
-    expect(blank).toEqual({});
+    expect(blank).toEqual({ BODY_SIZE_LIMIT: DEFAULT_BODY_SIZE_LIMIT });
   });
 
   test("fronts SETUN_APP_ORIGIN when ORIGIN is unset, so one variable suffices", () => {
@@ -465,6 +466,27 @@ describe("prepare", () => {
     expect(() => prepare({ ...environment })).toThrow(new RegExp(`^${name} must be`));
     const after = readdirSync(tmpdir()).filter((entry) => entry.startsWith("setun-"));
     expect(after).toEqual(before);
+  });
+
+  test("defaults BODY_SIZE_LIMIT to 2M in both modes, and an operator value wins", () => {
+    // A pupil restoring an artifact posts its whole file list, up to the 1 MB project cap in
+    // src/lib/artifacts/project.ts; the adapter's own 512K default refuses that with 413.
+    expect(DEFAULT_BODY_SIZE_LIMIT).toBe("2M");
+    const direct: Record<string, string | undefined> = {};
+    prepare(direct);
+    expect(direct.BODY_SIZE_LIMIT).toBe("2M");
+
+    const fronted: Record<string, string | undefined> = { ORIGIN: "http://a.example" };
+    const plan = prepare(fronted);
+    if (plan.mode !== "front") throw new Error("expected the front");
+    cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
+    expect(fronted.BODY_SIZE_LIMIT).toBe("2M");
+
+    for (const value of ["512K", "10M", "Infinity"]) {
+      const environment: Record<string, string | undefined> = { BODY_SIZE_LIMIT: value };
+      prepare(environment);
+      expect(environment.BODY_SIZE_LIMIT).toBe(value);
+    }
   });
 
   test("reads SHUTDOWN_TIMEOUT as the adapter does, and keeps its 30 s default", () => {
@@ -714,6 +736,18 @@ describe("bun ./server.js", () => {
     expect(new Uint8Array(await gzip.arrayBuffer()).subarray(0, 2)).toEqual(
       new Uint8Array([0x1f, 0x8b]),
     );
+  });
+
+  test("hands the build a 2M body limit unless the operator set one, in both modes", async () => {
+    const direct = await start({});
+    expect((await echo(direct.port)).env.BODY_SIZE_LIMIT).toBe("2M");
+
+    const port = await freePort();
+    const fronted = await start({ ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port) });
+    expect((await echo(fronted.port)).env.BODY_SIZE_LIMIT).toBe("2M");
+
+    const operator = await start({ BODY_SIZE_LIMIT: "5M" });
+    expect((await echo(operator.port)).env.BODY_SIZE_LIMIT).toBe("5M");
   });
 
   test("leaves the body limit to the adapter", async () => {
