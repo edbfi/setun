@@ -1,5 +1,5 @@
-import { describe, expect, it, spyOn } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { afterAll, describe, expect, it, spyOn } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { recordAttachmentWithinLimit } from "../db/queries/attachments";
@@ -25,8 +25,21 @@ import { classroomDeletionScope, purgeClassroom } from "./students";
  * at them. Both are the failure mode that looks like success.
  */
 
+/** Temporary directories this file creates, removed once its tests have run. */
+const ROOTS: string[] = [];
+
+function tempRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  ROOTS.push(root);
+  return root;
+}
+
+afterAll(() => {
+  for (const root of ROOTS) rmSync(root, { recursive: true, force: true });
+});
+
 function store(): FileStore {
-  return new FileStore(mkdtempSync(join(tmpdir(), "setun-purge-")));
+  return new FileStore(tempRoot("setun-purge-"));
 }
 
 async function populated() {

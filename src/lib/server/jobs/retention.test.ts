@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { afterAll, describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appendSnapshot, createArtifact, snapshotOf } from "../db/queries/artifacts";
@@ -26,8 +26,21 @@ import { sweepSessions } from "./sessions";
 
 const NOW = new Date("2026-08-25T10:00:00Z");
 
+/** Temporary directories this file creates, removed once its tests have run. */
+const ROOTS: string[] = [];
+
+function tempRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  ROOTS.push(root);
+  return root;
+}
+
+afterAll(() => {
+  for (const root of ROOTS) rmSync(root, { recursive: true, force: true });
+});
+
 function store(): FileStore {
-  return new FileStore(mkdtempSync(join(tmpdir(), "setun-retention-")));
+  return new FileStore(tempRoot("setun-retention-"));
 }
 
 /** Backdate a row the schema stamps on insert. */
@@ -180,7 +193,7 @@ describe("runRetention", () => {
     const db = createTestDatabase();
     const { student, alias } = seedTestFixtures(db);
 
-    const root = mkdtempSync(join(tmpdir(), "setun-retention-"));
+    const root = tempRoot("setun-retention-");
     const expire = (id: string) =>
       backdate(
         db,
@@ -232,7 +245,7 @@ describe("runRetention", () => {
 
     // The upload lands after the job has read the attachment list — here, from
     // inside `remove`, which is the only await between the read and the delete.
-    const root = mkdtempSync(join(tmpdir(), "setun-retention-"));
+    const root = tempRoot("setun-retention-");
     const files = new FileStore(root);
     const late = {
       remove: async (storagePath: string) => {
@@ -278,7 +291,7 @@ describe("runRetention", () => {
       settings: { creationRetentionDays: 90 },
     });
 
-    const root = mkdtempSync(join(tmpdir(), "setun-retention-"));
+    const root = tempRoot("setun-retention-");
     const storagePath = `images/${student.id}/${crypto.randomUUID()}.png`;
     // A directory where the file should be: `unlink` refuses it, which is what
     // a permission or I/O failure looks like from the job's side.

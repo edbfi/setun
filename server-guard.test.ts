@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -103,6 +103,19 @@ describe("installServerGuard", () => {
   });
 });
 
+/** Temporary directories this file creates, removed once its tests have run. */
+const ROOTS: string[] = [];
+
+function tempRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  ROOTS.push(root);
+  return root;
+}
+
+afterAll(() => {
+  for (const root of ROOTS) rmSync(root, { recursive: true, force: true });
+});
+
 /**
  * A build `client` directory holding one chunk with its gzip sibling and
  * deliberately no Brotli sibling — the divergence that fails the request — one
@@ -110,7 +123,7 @@ describe("installServerGuard", () => {
  * `static/` file in each of the first two states.
  */
 function clientDir() {
-  const root = mkdtempSync(join(tmpdir(), "setun-guard-"));
+  const root = tempRoot("setun-guard-");
   const chunks = join(root, "_app", "immutable", "chunks");
   mkdirSync(chunks, { recursive: true });
   writeFileSync(join(chunks, "a.js"), "export const a = 1;");
