@@ -17,7 +17,9 @@ import * as v from "valibot";
  * The environment arrives as an argument rather than being read here, so this
  * module stays pure enough for `bun test` to exercise the validation without a
  * populated environment. The one caller that has an environment — the boot
- * path — reads it through `$env/dynamic/private` as everything else does (§5).
+ * path — takes it from `credentialEnvironment()` in `$lib/server/credentials`,
+ * which reads `process.env`: the variable names are the operator's choice, so
+ * SvelteKit's declared environment (`src/env.ts`) cannot list them.
  */
 
 /** The subset of the environment this module reads: credential variables, by name. */

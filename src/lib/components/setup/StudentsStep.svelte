@@ -2,6 +2,7 @@
 import { enhance } from "$app/forms";
 import CredentialCards from "$lib/components/educator/CredentialCards.svelte";
 import type { CredentialCard } from "$lib/credentials";
+import { stayOnPage } from "$lib/enhance";
 import * as m from "$lib/paraglide/messages";
 import type { Locale } from "$lib/paraglide/runtime";
 
@@ -43,7 +44,12 @@ const field = "h-10 rounded-md border border-input bg-background px-3 text-sm te
     <p class="text-sm text-foreground">{m.setup_students_again()}</p>
   {/if}
 
-  <form method="POST" action="?/students" use:enhance class="flex flex-wrap items-end gap-2">
+  <form
+    method="POST"
+    action="?/students"
+    use:enhance={stayOnPage}
+    class="flex flex-wrap items-end gap-2"
+  >
     <label class="flex flex-col gap-1.5">
       <span class="text-sm font-medium text-foreground">{m.educator_provision_count_label()}</span>
       <input name="count" type="number" min="1" max="40" value="20" class={field}>

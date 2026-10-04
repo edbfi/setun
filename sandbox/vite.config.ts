@@ -148,7 +148,7 @@ export default defineConfig({
    */
   worker: { format: "iife" },
   build: {
-    // Outside `build/`: adapter-node empties that directory on every application
+    // Outside `build/`: the application build empties that directory on every application
     // build, and the two builds are independent by design (§6).
     //
     // SETUN_SANDBOX_BUILD_DIR is the dev suite's override, and the only reason

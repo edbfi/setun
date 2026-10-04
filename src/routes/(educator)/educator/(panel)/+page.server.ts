@@ -9,6 +9,7 @@ import { resolveDashboard } from "$lib/server/classroom/overview";
 import { resolveOpenUntil } from "$lib/server/classroom/schedule";
 import { CreateClassroomSchema, LockClassroomSchema } from "$lib/server/classroom/schemas";
 import { classroomStateChannel } from "$lib/server/classroom/state-channel";
+import { cookieDeletion } from "$lib/server/cookies";
 import {
   createClassroom,
   getClassroom,
@@ -86,10 +87,10 @@ export const actions: Actions = {
     return { saved: true };
   },
 
-  logout: async ({ cookies }) => {
+  logout: async ({ cookies, url }) => {
     const token = cookies.get(EDUCATOR_SESSION_COOKIE_NAME);
     if (token) destroySession(getDb(), token);
-    cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, { path: "/" });
+    cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, cookieDeletion(url, "/"));
 
     redirect(303, "/educator/login");
   },

@@ -34,7 +34,7 @@ Setun development suite — start, stop and watch the whole local stack.
   database  SQLite file, per instance   —       no process to run
 
 --production replaces the two Vite ports with the deployment's own topology: the
-adapter-node build behind the repository's Caddyfile, on http://setun.localhost:8080
+adapter-bun build behind the repository's Caddyfile, on http://setun.localhost:8080
 and http://sandbox.setun.localhost:8080, with build-sandbox/ served by Caddy's own
 file_server. TLS is the only piece left out. --no-caddy opts back out.
 """
@@ -152,7 +152,7 @@ def add_lifecycle_flags(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "run the whole stack the way a deployment does: `bun run build` and the "
-            "adapter-node server instead of the Vite dev server, behind the "
+            "production server (bun ./server.js) instead of the Vite dev server, behind the "
             "deployment's own Caddy on http://setun.localhost:8080 and "
             "http://sandbox.setun.localhost:8080. Slower to start and no hot reload, "
             "and the only way to reproduce behaviour that differs between a dev "

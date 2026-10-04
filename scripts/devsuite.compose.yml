@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
     # Same number inside and out: the port is part of the origin, and an origin
     # that differed between Caddy's view and the browser's would break both the
-    # CSP sources and adapter-node's CSRF check.
+    # CSP sources and SvelteKit's CSRF check.
     ports:
       - "127.0.0.1:${SETUN_CADDY_PORT:-8080}:${SETUN_CADDY_PORT:-8080}"
     environment:

@@ -50,8 +50,8 @@ and fails.
   Wind3 / `unocss-preset-shadcn/v3`.
 - Biome formats with 2 spaces and double quotes (`biome.json`), not tabs and single quotes.
 - Scripts: `dev`/`build` run Vite under `bun --bun`; unit script is `test:component`, not
-  `test:unit`; production is `bun ./server.js`, never `bun ./build/index.js`. The latter skips the
-  process guard in `server-guard.js`.
+  `test:unit`; production is `bun ./server.js`, never `bun ./build` (the `@sveltejs/adapter-bun`
+  output). The latter skips the `ORIGIN` front and the process guard in `server-guard.js`.
 
 ## Server code
 
@@ -77,14 +77,33 @@ Every form action calls its guard itself. The `(panel)/+layout.server.ts` guard 
 actions.
 
 - Read config with `getConfig()` from `src/lib/server/config.ts`, not `process.env` or `$env/*`.
-  To add a `SETUN_*` variable, update `ConfigSchema` and `readEnvironment` there, `.env.example`, and
-  the `app` service's `environment:` in `docker-compose.yml`. Compose has no `env_file`, so a
-  variable missing there never reaches production.
+  To add a `SETUN_*` variable, update `ConfigSchema` and `readEnvironment` there, declare it in
+  `src/env.ts` (SvelteKit 3 reads an undeclared variable as `undefined`; `src/env.test.ts` checks
+  the two lists match), and add it to `.env.example` and the `app` service's `environment:` in
+  `docker-compose.yml`. Compose has no `env_file`, so a variable missing there never reaches
+  production. MCP credentials are the exception: their names come from `mcp.json`, so
+  `$lib/server/credentials` reads them from `process.env`.
+- `ORIGIN` is the public origin, the address people open in the browser; `SETUN_APP_ORIGIN` means
+  the same (one is enough, `ORIGIN` wins). `bun ./server.js` fronts the app on a private socket
+  with it and exports the canonical value as `ORIGIN`; `getConfig().appOrigin` reads `ORIGIN`, then
+  `SETUN_APP_ORIGIN` (`$lib/server/app-origin`), and the `localhost:5173` default is for
+  `bun run dev` only. Plain HTTP needs it; without either, `server.js` logs the startup warning
+  and the app reports the variable as required. Never derive the origin from `Host`. Parsing and
+  the warning text follow the shared contract in `.agents/rules/svelte5-sveltekit-app.md`.
+- `hooks.server.ts` refuses every `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not
+  `event.url.origin` (`$lib/server/request-origin`), whatever the content type. Write from the
+  browser with `fetch` or an enhanced form (both send `Origin`), and in Playwright pass
+  `headers: { origin: APP_ORIGIN }` to every `request.post/put/patch/delete`; never relax the check.
+- Every `cookies.set` and `cookies.delete` states its `Secure` flag through `$lib/server/cookies`
+  (`secure: secureCookie(url)`, `cookieDeletion(url, path)`); `cookies.test.ts` fails otherwise.
 - Validate with Valibot: `superValidate` (sveltekit-superforms) for multi-field forms, and
   `v.safeParse` on `formData` for single-id actions. Both appear in
   `src/routes/(educator)/educator/(panel)/models/+page.server.ts`.
 - Runtime image (`Dockerfile`) ships only `build/`, `drizzle/`, `server.js`, `server-guard.js` and
-  `recover-educator.js`. Any other file needed at runtime must be added there.
+  `recover-educator.js`. Any other file needed at runtime must be added there. `.dockerignore`
+  keeps secrets, local state and host build output out of the build context, and the image sets
+  `SHUTDOWN_TIMEOUT=7` to drain inside `docker stop`'s 10 s; `docker.test.ts` checks both.
+  `server.js` defaults `BODY_SIZE_LIMIT` to 2M (an operator value wins).
 
 ## Database changes
 

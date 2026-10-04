@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
 import {
+  APP_ORIGIN,
   E2E_DATABASE_PATH,
   E2E_EDUCATOR_PASSWORD,
   E2E_EDUCATOR_USERNAME,
@@ -168,9 +169,13 @@ test("a student's search never reaches another student's conversations (§21, §
   const owner = await signInStudent(browser, first.code);
 
   // A conversation with a distinctive word in it, sent through the real path.
-  const created = await owner.request.post("/api/conversations", { data: {} });
+  const created = await owner.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   const { id: conversationId } = await created.json();
   const sent = await owner.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "hemmeligt om vulkanudbrud" },
   });
   expect(sent.status()).toBe(200);
@@ -225,4 +230,46 @@ test("repeated wrong codes say the same thing every time (§7, §21, §22)", asy
   // Nothing accumulated on screen: no counter, no lockout notice, nothing an
   // attacker could calibrate against (§7).
   await expect(page.getByText(m.login_failed())).toHaveCount(1);
+});
+
+test("a write from any other origin is refused, whatever its content type (§21)", async ({
+  browser,
+}) => {
+  const { code } = await provisionStudent();
+  await control("open");
+  const pupil = await signInStudent(browser, code);
+  const count = async () =>
+    ((await (await pupil.request.get("/api/conversations")).json()) as { conversations: unknown[] })
+      .conversations.length;
+
+  // SvelteKit checks the origin of form posts and bodyless writes only; a JSON write with the
+  // pupil's cookie used to reach the endpoint from anywhere. Now the app refuses it first.
+  const before = await count();
+  for (const origin of ["http://attacker.test", "null", undefined]) {
+    const created = await pupil.request.post("/api/conversations", {
+      data: {},
+      headers: origin === undefined ? {} : { origin },
+    });
+    expect(created.status(), `Origin ${origin ?? "(none)"}`).toBe(403);
+    expect((await created.json()).error).toBe("cross-origin-write");
+  }
+  expect(await count()).toBe(before);
+
+  const created = await pupil.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
+  expect(created.status()).toBe(201);
+  const { id } = await created.json();
+
+  // A DELETE with a JSON content type is not one SvelteKit checks either.
+  const deleted = await pupil.request.delete(`/api/conversations/${id}`, {
+    data: {},
+    headers: { origin: "http://attacker.test" },
+  });
+  expect(deleted.status()).toBe(403);
+  expect((await deleted.json()).error).toBe("cross-origin-write");
+  expect(await count()).toBe(before + 1);
+
+  await pupil.context().close();
 });

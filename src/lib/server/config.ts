@@ -1,5 +1,7 @@
 import * as v from "valibot";
-import { env } from "$env/dynamic/private";
+import { dev } from "$app/env";
+import * as env from "$app/env/private";
+import { resolveAppOrigin } from "./app-origin";
 
 /**
  * Required environment, validated at boot (PRD §6.2).
@@ -7,9 +9,11 @@ import { env } from "$env/dynamic/private";
  * "Absence of a required variable fails boot with a clear message rather than
  * starting degraded."
  *
- * Read through `$env/dynamic/private` rather than `process.env`: the module is
+ * Read through `$app/env/private` rather than `process.env`: the module is
  * server-only by construction, so a component importing this is a build error
- * rather than a leaked secret.
+ * rather than a leaked secret. SvelteKit 3 exposes only the variables declared
+ * in `src/env.ts`, so a name read here must be declared there too
+ * (`src/env.test.ts` checks it).
  *
  * Validation is lazy and cached rather than performed at import time, so
  * importing a server module in a test does not require a populated environment.
@@ -36,7 +40,11 @@ const ConfigSchema = v.object({
   /** Shared with CPA; the only thing authenticating the gateway (§9). */
   cpaListenerKey: nonEmpty("SETUN_CPA_LISTENER_KEY is required"),
   cpaBaseUrl: v.pipe(nonEmpty("SETUN_CPA_BASE_URL is required"), v.url()),
-  appOrigin: v.pipe(nonEmpty("SETUN_APP_ORIGIN is required"), v.url()),
+  /**
+   * The address people open in the browser: ORIGIN, or SETUN_APP_ORIGIN when ORIGIN is unset
+   * (`$lib/server/app-origin`). Either one is enough.
+   */
+  appOrigin: v.pipe(nonEmpty("ORIGIN or SETUN_APP_ORIGIN is required"), v.url()),
   /** A distinct host from the app origin — artifacts are isolated by origin (§14). */
   sandboxOrigin: v.pipe(nonEmpty("SETUN_SANDBOX_ORIGIN is required"), v.url()),
   databasePath: nonEmpty("SETUN_DATABASE_PATH is required"),
@@ -129,7 +137,7 @@ function readEnvironment() {
     educatorPassword: optionalValue(env.SETUN_EDUCATOR_SEED_PASSWORD),
     cpaListenerKey: env.SETUN_CPA_LISTENER_KEY,
     cpaBaseUrl: env.SETUN_CPA_BASE_URL ?? "http://localhost:8317",
-    appOrigin: env.SETUN_APP_ORIGIN ?? "http://localhost:5173",
+    appOrigin: resolveAppOrigin({ origin: env.ORIGIN, appOrigin: env.SETUN_APP_ORIGIN, dev }),
     sandboxOrigin: env.SETUN_SANDBOX_ORIGIN ?? "http://localhost:5174",
     databasePath: env.SETUN_DATABASE_PATH ?? "./data/setun.sqlite",
     storagePath: env.SETUN_STORAGE_PATH ?? "./data/storage",
@@ -155,17 +163,6 @@ export function validateConfig(raw: Record<string, unknown> = readEnvironment())
     return `${path}: ${issue.message}`;
   });
   throw new ConfigurationError(issues);
-}
-
-/**
- * The raw environment, for the few modules that resolve names out of it.
- *
- * The MCP configuration references credentials *by variable name* (§11), so the
- * name is only known at runtime and cannot be a field on the schema above. This
- * keeps the `$env` import in the one module that already owns it.
- */
-export function credentialEnvironment(): Readonly<Record<string, string | undefined>> {
-  return env;
 }
 
 let cached: ServerConfig | null = null;

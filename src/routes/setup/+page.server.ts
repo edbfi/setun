@@ -18,6 +18,7 @@ import {
 } from "$lib/server/boot";
 import { AliasSchema, ProvisionSchema } from "$lib/server/classroom/schemas";
 import { getConfig } from "$lib/server/config";
+import { cookieDeletion, secureCookie } from "$lib/server/cookies";
 import type { AppDatabase } from "$lib/server/db/client";
 import { getClassroom } from "$lib/server/db/queries/classrooms";
 import { getAliasById } from "$lib/server/db/queries/model-aliases";
@@ -119,7 +120,7 @@ function setClaimCookie(cookies: Cookies, url: URL, proof: string): void {
     path: "/setup",
     httpOnly: true,
     sameSite: "strict",
-    secure: url.protocol === "https:",
+    secure: secureCookie(url),
     maxAge: Math.floor(SETUP_CLAIM_TTL_MS / 1_000),
   });
 }
@@ -559,16 +560,16 @@ export const actions: Actions = {
     const result = finishSetup(claim.db, { educatorSeeded: claim.progress.educatorSeeded });
     if (!result.ok) return kitFail(409, { error: result.reason });
 
-    cookies.delete(SETUP_CLAIM_COOKIE_NAME, { path: "/setup" });
+    cookies.delete(SETUP_CLAIM_COOKIE_NAME, cookieDeletion(url, "/setup"));
     clearBootstrapToken();
 
-    cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
-    cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, { path: "/" });
+    cookies.delete(SESSION_COOKIE_NAME, cookieDeletion(url, "/"));
+    cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, cookieDeletion(url, "/"));
     cookies.set(EDUCATOR_SESSION_COOKIE_NAME, result.session.token, {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
-      secure: url.protocol === "https:",
+      secure: secureCookie(url),
       maxAge: EDUCATOR_SESSION_TTL_DAYS * 24 * 60 * 60,
     });
 

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
-import { E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
+import { APP_ORIGIN, E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
 import { openDrawer } from "./support/chat";
 import { clearLoginWindow } from "./support/login-window";
 
@@ -152,6 +152,11 @@ test("a pupil can ask again, and delete a conversation for good", async ({ page 
 
   // Nothing left to open into, and nothing left to find on a reload.
   await expect(page.locator("nav a[href^='/chat?c=']")).toHaveCount(0);
+  // The confirm button left with the drawer, and the keyboard is back on the
+  // control that opened it rather than dropped onto <body> (SvelteKit 3's
+  // `reset: false` leaves focus to the page).
+  await expect(page.getByRole("button", { name: m.chat_conversations() })).toBeFocused();
+  await expect(page).toHaveURL(/\/chat$/);
   await page.reload();
   await expect(page.getByText(m.chat_empty_body())).toBeVisible();
 });
@@ -169,6 +174,7 @@ test("a wrong code is refused with the same message as an unknown one", async ({
 test("the API refuses an unauthenticated caller", async ({ request }) => {
   // Enforcement is server-side on every path that can reach a model (§8, §21).
   const send = await request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId: crypto.randomUUID(), text: "hej" },
   });
   expect(send.status()).toBe(401);
@@ -187,7 +193,10 @@ test("a student cannot reach another student's conversation", async ({ browser }
   await ownerPage.getByRole("button", { name: m.login_submit() }).click();
   await expect(ownerPage).toHaveURL(/\/chat/);
 
-  const created = await ownerPage.request.post("/api/conversations", { data: {} });
+  const created = await ownerPage.request.post("/api/conversations", {
+    data: {},
+    headers: { origin: APP_ORIGIN },
+  });
   expect(created.status()).toBe(201);
   const { id: conversationId } = await created.json();
 
@@ -200,12 +209,20 @@ test("a student cannot reach another student's conversation", async ({ browser }
 
   // Another student's conversation is absent, not forbidden — nothing to probe (§21).
   const stolen = await intruderPage.request.post("/api/messages", {
+    headers: { origin: APP_ORIGIN },
     data: { conversationId, text: "hej" },
   });
   expect(stolen.status()).toBe(404);
 
-  const deleted = await intruderPage.request.delete(`/api/conversations/${conversationId}`);
+  // Sent as the browser sends it: a DELETE always carries `Origin`. SvelteKit 3
+  // refuses a cross-site write with no Content-Type before the route runs, so a
+  // request with no Origin at all now stops there, with 403.
+  const deleted = await intruderPage.request.delete(`/api/conversations/${conversationId}`, {
+    headers: { origin: APP_ORIGIN },
+  });
   expect(deleted.status()).toBe(404);
+  const originless = await intruderPage.request.delete(`/api/conversations/${conversationId}`);
+  expect(originless.status()).toBe(403);
 
   await ownerContext.close();
   await intruderContext.close();

@@ -2,8 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * Setun runs on two origins (PRD §6): the application, and the artifact sandbox.
- * Both are served here, by two independent servers: the application by the
- * adapter-node build, and the sandbox by the prebuilt static files Caddy serves
+ * Both are served here, by two independent servers: the application by
+ * `bun ./server.js`, and the sandbox by the prebuilt static files Caddy serves
  * in a real deployment. Sharing one server would mean one origin, and origin
  * separation is the entire artifact isolation mechanism (§14).
  */
@@ -68,9 +68,9 @@ export const SETUP_TOKEN_PATH = `${SETUP_ROOT}/bootstrap-token`;
 
 const appEnv = {
   PORT: String(APP_PORT),
-  // adapter-node's CSRF origin check compares against this. Unset, the adapter
-  // assumes https and rejects every form POST arriving over http — which is
-  // what a browser sends here.
+  // SvelteKit's CSRF origin check compares against this, through the front in
+  // server.js. Unset, the app assumes https and rejects every form POST arriving
+  // over http — which is what a browser sends here.
   ORIGIN: APP_ORIGIN,
   SETUN_DATABASE_PATH: E2E_DATABASE_PATH,
   SETUN_STORAGE_PATH: E2E_STORAGE_PATH,

@@ -42,7 +42,7 @@ let { data, form: actionResult }: PageProps = $props();
  * is what should have been on screen all along.
  */
 function submitRow() {
-  return async ({ result }: { result: import("@sveltejs/kit").ActionResult }) => {
+  return async ({ result }: { result: import("$app/forms").ActionResult }) => {
     await applyAction(result);
     if (result.type === "success") await invalidateAll();
   };

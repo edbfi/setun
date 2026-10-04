@@ -188,7 +188,7 @@ def child_environment(
             "SETUN_DATABASE_PATH": str(instance.database_path),
             "SETUN_STORAGE_PATH": str(instance.storage_path),
             "SETUN_BACKUP_PATH": str(instance.backup_path),
-            # Per-instance build output. Read by svelte.config.js (adapter-node's
+            # Per-instance build output. Read by vite.config.ts (the adapter's
             # `out`), by server.js when it loads that build, and by
             # sandbox/vite.config.ts as its `outDir` — so a second instance's
             # build never empties the directory the first one is serving from.
@@ -196,11 +196,12 @@ def child_environment(
             # own build/ and build-sandbox/ exactly as before.
             "SETUN_BUILD_DIR": str(instance.build_path),
             "SETUN_SANDBOX_BUILD_DIR": str(instance.sandbox_build_path),
-            # Both origins, and adapter-node's ORIGIN for its CSRF check.
+            # Both origins, and ORIGIN, which server.js supplies to SvelteKit's
+            # CSRF check (plain HTTP needs it).
             "SETUN_APP_ORIGIN": app_origin,
             "SETUN_SANDBOX_ORIGIN": sandbox_origin,
             "ORIGIN": app_origin,
-            # adapter-node reads its listen port from PORT. Vite takes --port on
+            # server.js listens on PORT. Vite takes --port on
             # the command line and ignores this, so it is safe to set for both.
             "PORT": str(ports["app"]),
             "SETUN_SANDBOX_PORT": str(ports["sandbox"]),

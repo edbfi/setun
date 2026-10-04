@@ -1,28 +1,27 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
+  // SvelteKit 3 writes `$app/tsconfig` during `svelte-kit sync`. It already sets allowJs,
+  // checkJs, esModuleInterop, forceConsistentCasingInFileNames, resolveJsonModule,
+  // skipLibCheck, moduleResolution "bundler", verbatimModuleSyntax and isolatedModules.
+  "extends": "$app/tsconfig",
   "compilerOptions": {
     "rewriteRelativeImportExtensions": true,
-    "allowJs": true,
-    "checkJs": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "moduleResolution": "bundler",
     // `bun test` suites import `bun:test`; server modules use `bun:sqlite` and `Bun.*`.
-    // `verbatimModuleSyntax` and `isolatedModules` are inherited from ./.svelte-kit/tsconfig.json.
-    "types": ["bun"]
+    // `$app/types` must stay: it carries SvelteKit's ambient module declarations.
+    "types": ["bun", "$app/types"],
+    // SvelteKit 3 no longer generates `$lib`; it is an explicit alias, declared here and in
+    // vite.config.ts's `resolve.alias`.
+    "paths": {
+      "$lib": ["./src/lib"],
+      "$lib/*": ["./src/lib/*"]
+    }
   },
-  // The generated config covers src/, test/ and tests/ but not the Playwright
-  // suite or the separate-origin sandbox host, both of which are type-checked here.
+  // `$app/tsconfig` sets no `include`, so the type-check scope is stated in full: the app,
+  // the Playwright suite and the separate-origin sandbox host.
   "include": [
-    "./.svelte-kit/ambient.d.ts",
-    "./.svelte-kit/non-ambient.d.ts",
     "./.svelte-kit/types/**/$types.d.ts",
     "./vite.config.ts",
-    "./svelte.config.js",
     "./uno.config.ts",
     "./playwright.config.ts",
     "./src/**/*.js",
@@ -31,6 +30,4 @@
     "./e2e/**/*.ts",
     "./sandbox/**/*.ts"
   ]
-  // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
-  // except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 }

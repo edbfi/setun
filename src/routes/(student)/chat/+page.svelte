@@ -493,7 +493,12 @@ async function deleteConversation(conversationId: string): Promise<void> {
   if (conversationId === conversation.id) {
     // Nothing left to show on this page; the load falls back to the newest
     // conversation the pupil still has, or to an empty composer if none remain.
-    await goto("/chat", { invalidateAll: true, noScroll: true });
+    //
+    // `reset: false` keeps scroll, as `noScroll: true` did, and leaves focus to
+    // the page: the focused confirm button leaves with the drawer, and the
+    // drawer returns focus to its opener, the Conversations button. The window
+    // itself never scrolls here; the transcript is its own scroller.
+    await goto("/chat", { refreshAll: true, reset: false });
     return;
   }
   await invalidateAll();

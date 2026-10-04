@@ -1,6 +1,5 @@
-import type { Handle, HandleServerError } from "@sveltejs/kit";
 import { redirect } from "@sveltejs/kit";
-import { sequence } from "@sveltejs/kit/hooks";
+import { type Handle, sequence } from "@sveltejs/kit/hooks";
 import { cookieName, getTextDirection } from "$lib/paraglide/runtime";
 import { paraglideMiddleware } from "$lib/paraglide/server";
 import { resolveEducatorSession } from "$lib/server/auth/educator";
@@ -11,7 +10,10 @@ import {
 } from "$lib/server/auth/sessions";
 import { getDb } from "$lib/server/boot";
 import { studentInterfaceLanguage } from "$lib/server/classroom/settings";
-import { describeCause, log } from "$lib/server/logging";
+import { cookieDeletion, localeCookieOptions } from "$lib/server/cookies";
+import { createHandleError } from "$lib/server/errors";
+import { log } from "$lib/server/logging";
+import { foreignWriteResponse, isForeignWrite } from "$lib/server/request-origin";
 import { isSetupComplete, isSetupGateExempt, SETUP_PATH } from "$lib/server/setup/state";
 
 /**
@@ -57,6 +59,19 @@ const handleSecurityHeaders: Handle = async ({ event, resolve }) => {
 };
 
 /**
+ * Refuse a write from any other origin, whatever its content type (PRD §21).
+ *
+ * SvelteKit checks only form posts and bodyless writes, so a JSON write carrying a pupil's cookie
+ * reached its endpoint from anywhere; see `$lib/server/request-origin`. Placed before the session
+ * and setup hooks so a refused write touches neither the database nor a cookie, and after the
+ * security headers and the request log so the refusal carries the one and appears in the other.
+ */
+const handleRequestOrigin: Handle = ({ event, resolve }) => {
+  if (isForeignWrite(event.request, event.url)) return foreignWriteResponse();
+  return resolve(event);
+};
+
+/**
  * Resolve the session cookie into request-scoped state (PRD §7).
  *
  * Request state lives on `event.locals`, typed in `app.d.ts` — never at module
@@ -80,7 +95,7 @@ const handleSession: Handle = async ({ event, resolve }) => {
       event.locals.student = resolved.student;
       event.locals.sessionToken = token;
     } else {
-      event.cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
+      event.cookies.delete(SESSION_COOKIE_NAME, cookieDeletion(event.url, "/"));
     }
   }
 
@@ -93,7 +108,7 @@ const handleSession: Handle = async ({ event, resolve }) => {
     if (educator) {
       event.locals.educator = educator;
     } else {
-      event.cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, { path: "/" });
+      event.cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, cookieDeletion(event.url, "/"));
     }
   }
 
@@ -159,7 +174,6 @@ const handleLocale: Handle = ({ event, resolve }) => {
   const preferred = student ? studentInterfaceLanguage(getDb(), student) : null;
 
   const request = preferred ? withLocaleCookie(event.request, preferred) : event.request;
-  event.request = request;
 
   /**
    * Tell the browser which locale won, whenever the pupil's preference differs
@@ -177,24 +191,26 @@ const handleLocale: Handle = ({ event, resolve }) => {
    * It carries a locale and nothing else.
    */
   if (preferred && event.cookies.get(cookieName) !== preferred) {
-    event.cookies.set(cookieName, preferred, {
-      path: "/",
-      httpOnly: false,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-    });
+    event.cookies.set(cookieName, preferred, localeCookieOptions(event.url));
   }
 
-  return paraglideMiddleware(request, ({ request: localised, locale }) => {
-    event.request = localised;
-
-    return resolve(event, {
-      transformPageChunk: ({ html }) =>
-        html
-          .replace("%paraglide.lang%", locale)
-          .replace("%paraglide.dir%", getTextDirection(locale)),
-    });
-  });
+  /**
+   * The rest of the request sees the localised request, never the original: the rebuilt
+   * request above carries the body, so an action reading the original would find it consumed.
+   * `RequestEvent` is read-only in SvelteKit 3, so the request travels in a copy of the event,
+   * which is also what SvelteKit's own `sequence` hands from one handle to the next.
+   */
+  return paraglideMiddleware(request, ({ request: localised, locale }) =>
+    resolve(
+      { ...event, request: localised },
+      {
+        transformPageChunk: ({ html }) =>
+          html
+            .replace("%paraglide.lang%", locale)
+            .replace("%paraglide.dir%", getTextDirection(locale)),
+      },
+    ),
+  );
 };
 
 /**
@@ -256,36 +272,11 @@ const handleRequestLog: Handle = async ({ event, resolve }) => {
 export const handle: Handle = sequence(
   handleSecurityHeaders,
   handleRequestLog,
+  handleRequestOrigin,
   handleSession,
   handleSetupGate,
   handleLocale,
 );
 
-/**
- * What an unexpected failure tells the browser, and what it tells the log
- * (PRD §16, §21).
- *
- * "Production errors expose no stack traces or infrastructure detail" (§21), and
- * `App.Error` is `{ message: string }` for exactly that reason: the shape has no
- * field a detail could travel in even by accident.
- *
- * The operator side gets the route, the request id SvelteKit generated, and one
- * redacted line describing the failure — never a stack, and never a body, which
- * on this application would be somebody's prompt (§16).
- */
-export const handleError: HandleServerError = ({ error, event, status, message }) => {
-  // Expected HTTP outcomes — a 404 from `error()`, a guard's refusal — are not
-  // faults and do not deserve an operator line each.
-  if (status !== 500) return { message };
-
-  log.error("request failed", {
-    route: event.route.id,
-    method: event.request.method,
-    cause: describeCause(error),
-  });
-
-  // Deliberately not `message`: SvelteKit's default for a 500 is already
-  // generic, and restating it here means a future change upstream cannot start
-  // leaking through this hook.
-  return { message: "Internal Error" };
-};
+/** What an unexpected failure tells the browser and the log; see `$lib/server/errors`. */
+export const handleError = createHandleError();

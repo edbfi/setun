@@ -28,7 +28,7 @@ class Service:
 
 def app_service(level: str, port: int, *, built: bool) -> Service:
     if built:
-        # The adapter-node output, exactly as a deployment runs it. It takes its
+        # The adapter-bun build, through server.js, exactly as a deployment runs it. It takes its
         # port and origin from the environment rather than the command line.
         return Service(name="app", argv=["bun", "run", "start"], port=port)
 

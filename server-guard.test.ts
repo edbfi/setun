@@ -104,8 +104,10 @@ describe("installServerGuard", () => {
 });
 
 /**
- * A build directory holding one chunk, its gzip sibling, and deliberately no
- * Brotli sibling — the exact divergence that took the server down.
+ * A build `client` directory holding one chunk with its gzip sibling and
+ * deliberately no Brotli sibling — the divergence that fails the request — one
+ * chunk with both, and one with neither; and, outside `/_app/`, a copied
+ * `static/` file in each of the first two states.
  */
 function clientDir() {
   const root = mkdtempSync(join(tmpdir(), "setun-guard-"));
@@ -116,102 +118,91 @@ function clientDir() {
   writeFileSync(join(chunks, "both.js"), "export const b = 1;");
   writeFileSync(join(chunks, "both.js.br"), "br");
   writeFileSync(join(chunks, "both.js.gz"), "gz");
+  writeFileSync(join(chunks, "none.js"), "export const n = 1;");
+  writeFileSync(join(root, "setun-mark.svg"), "<svg/>");
+  writeFileSync(join(root, "setun-mark.svg.gz"), "gz");
+  writeFileSync(join(root, "robots.txt"), "User-agent: *");
+  writeFileSync(join(root, "robots.txt.br"), "br");
+  writeFileSync(join(root, "robots.txt.gz"), "gz");
   return root;
-}
-
-function request(url: string, accept?: string) {
-  return { url, headers: accept === undefined ? {} : { "accept-encoding": accept } };
 }
 
 describe("dropMissingEncodings", () => {
   const dir = clientDir();
+  const a = "/_app/immutable/chunks/a.js";
 
   test("leaves the header alone when every asked-for variant is on disk", () => {
-    const req = request("/_app/immutable/chunks/both.js", "br, gzip");
-    dropMissingEncodings(req, dir);
-
-    expect(req.headers["accept-encoding"]).toBe("br, gzip");
+    expect(dropMissingEncodings("br, gzip", "/_app/immutable/chunks/both.js", dir)).toBeNull();
+    expect(dropMissingEncodings("gzip", a, dir)).toBeNull();
   });
 
   test("drops only the encoding whose file is missing", () => {
-    const req = request("/_app/immutable/chunks/a.js", "br, gzip");
-    dropMissingEncodings(req, dir);
-
-    expect(req.headers["accept-encoding"]).toBe("gzip");
+    expect(dropMissingEncodings("br, gzip", a, dir)).toBe("gzip");
+    expect(dropMissingEncodings("gzip, deflate, br, zstd", a, dir)).toBe("gzip, deflate, zstd");
   });
 
   test("falls back to identity rather than leaving the header empty", () => {
-    const req = request("/_app/immutable/chunks/a.js?v=1", "br");
-    dropMissingEncodings(req, dir);
-
-    expect(req.headers["accept-encoding"]).toBe("identity");
+    expect(dropMissingEncodings("br", a, dir)).toBe("identity");
+    expect(dropMissingEncodings("br, gzip", "/_app/immutable/chunks/none.js", dir)).toBe(
+      "identity",
+    );
   });
 
-  test("matches encoding tokens whatever their case", () => {
-    // adapter-node's static handler tests Brotli with `/(br|brotli)/i`, so a
-    // header spelled `BR` reaches the missing `.br` file unless it is dropped
-    // here too.
-    const req = request("/_app/immutable/chunks/a.js", "BR");
-    dropMissingEncodings(req, dir);
-
-    expect(req.headers["accept-encoding"]).toBe("identity");
-
-    const mixed = request("/_app/immutable/chunks/a.js", "Br;q=1.0, GZip");
-    dropMissingEncodings(mixed, dir);
-
-    expect(mixed.headers["accept-encoding"]).toBe("GZip");
+  test("compares names the way adapter-bun does: lower-cased and whole", () => {
+    // adapter-bun lower-cases each name, so `BR` selects the missing `.br` file.
+    expect(dropMissingEncodings("BR", a, dir)).toBe("identity");
+    expect(dropMissingEncodings("Br;q=1.0, GZip", a, dir)).toBe("GZip");
+    // It compares whole names, so an alias such as `x-gzip` or `brotli` selects
+    // nothing there and is left as it is.
+    expect(dropMissingEncodings("x-gzip, brotli", a, dir)).toBeNull();
   });
 
-  test("drops an alias that merely contains the token", () => {
-    // The handler tests the whole header for the substring `gzip`, so the
-    // historical `x-gzip` alias selects the `.gz` file there. Dropping only
-    // parts that *start* with the token would leave it behind.
-    const req = request("/_app/immutable/chunks/both.js", "x-gzip");
-    dropMissingEncodings(req, dir);
-
-    // `both.js.gz` is on disk, so nothing is dropped.
-    expect(req.headers["accept-encoding"]).toBe("x-gzip");
-
-    const missing = request("/_app/immutable/chunks/a.js", "x-gzip, brotli");
-    dropMissingEncodings(missing, dir);
-
-    // `a.js.gz` exists but `a.js.br` does not, so only the Brotli alias goes.
-    expect(missing.headers["accept-encoding"]).toBe("x-gzip");
+  test("ignores a part that says q=0, as adapter-bun does", () => {
+    expect(dropMissingEncodings("br;q=0, gzip", a, dir)).toBeNull();
+    expect(dropMissingEncodings("br;q=0.0", a, dir)).toBeNull();
   });
 
-  test("ignores requests that are not for build assets", () => {
-    const req = request("/chat", "br");
-    dropMissingEncodings(req, dir);
+  test("replaces a wildcard with the encodings still on disk", () => {
+    expect(dropMissingEncodings("*", a, dir)).toBe("gzip");
+    expect(dropMissingEncodings("*", "/_app/immutable/chunks/both.js", dir)).toBeNull();
+    expect(dropMissingEncodings("*", "/_app/immutable/chunks/none.js", dir)).toBe("identity");
+  });
 
-    expect(req.headers["accept-encoding"]).toBe("br");
+  test("covers every static file, not only the build's /_app/ assets", () => {
+    // A file copied from static/ is precompressed and served the same way.
+    expect(dropMissingEncodings("gzip, deflate, br", "/setun-mark.svg", dir)).toBe("gzip, deflate");
+    expect(dropMissingEncodings("br", "/setun-mark.svg", dir)).toBe("identity");
+    expect(dropMissingEncodings("br, gzip", "/robots.txt", dir)).toBeNull();
+  });
+
+  test("ignores a path that is no file in the build, such as a page", () => {
+    expect(dropMissingEncodings("br", "/chat", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/_app/immutable", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/_app/immutable/chunks/gone.js", dir)).toBeNull();
   });
 
   test("ignores a request that asks for no encoding", () => {
-    const req = request("/_app/immutable/chunks/a.js");
-    dropMissingEncodings(req, dir);
-
-    expect(req.headers["accept-encoding"]).toBeUndefined();
+    expect(dropMissingEncodings(null, a, dir)).toBeNull();
+    expect(dropMissingEncodings(undefined, a, dir)).toBeNull();
+    expect(dropMissingEncodings("", a, dir)).toBeNull();
   });
 
   test("survives input a client is free to send", () => {
-    // `decodeURIComponent` throws on a malformed escape, and this runs inside a
-    // `request` listener where an exception would reach nothing at all.
-    for (const url of ["/_app/%", "/_app/%zz"]) {
-      const req = request(url, "br");
-      expect(() => dropMissingEncodings(req, dir)).not.toThrow();
-      expect(req.headers["accept-encoding"]).toBe("br");
+    // `decodeURIComponent` throws on a malformed escape.
+    for (const path of ["/_app/%", "/_app/%zz"]) {
+      expect(() => dropMissingEncodings("br", path, dir)).not.toThrow();
+      expect(dropMissingEncodings("br", path, dir)).toBeNull();
     }
 
-    // A path with a null byte does not throw either; it simply matches no file,
-    // and the request is served uncompressed for the static handler to 404.
-    const nul = request("/_app/a\u0000b.js", "br");
-    expect(() => dropMissingEncodings(nul, dir)).not.toThrow();
+    // A path with a null byte does not throw either; it simply matches no file.
+    expect(() => dropMissingEncodings("br", "/_app/a%00b.js", dir)).not.toThrow();
   });
 
   test("refuses to look outside the build directory", () => {
-    const req = request("/_app/../../../../etc/hosts", "br");
-    dropMissingEncodings(req, dir);
-
-    expect(req.headers["accept-encoding"]).toBe("br");
+    expect(dropMissingEncodings("br", "/_app/../../../../etc/hosts", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/_app/%2e%2e/%2e%2e/%2e%2e/etc/hosts", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/../../../../etc/hosts", dir)).toBeNull();
+    expect(dropMissingEncodings("br", "/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/hosts", dir)).toBeNull();
   });
 });
