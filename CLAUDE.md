@@ -104,7 +104,9 @@ actions.
 - Runtime image (`Dockerfile`) ships only `build/`, `drizzle/`, `server.js`, `server-guard.js` and
   `recover-educator.js`. Any other file needed at runtime must be added there. `.dockerignore`
   keeps secrets, local state and host build output out of the build context, and the image sets
-  `SHUTDOWN_TIMEOUT=7` to drain inside `docker stop`'s 10 s; `docker.test.ts` checks both.
+  `SHUTDOWN_TIMEOUT=7` to drain inside `docker stop`'s 10 s; `docker.test.ts` checks both. At that
+  deadline `server.js` exits even if the app still has work in flight (a chat turn runs detached
+  from its request).
   `server.js` defaults `BODY_SIZE_LIMIT` to 2M (an operator value wins). Its front applies
   `CONNECTION_IDLE_TIMEOUT` (Bun's 10 s when unset) to the client only: the timer is off from the
   end of the request body until the app answers, then re-armed, and event streams are exempt

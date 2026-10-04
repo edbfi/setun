@@ -1020,6 +1020,36 @@ describe("bun ./server.js", () => {
     expect(socketDirectories(server.temp)).toEqual([]);
   }, 30_000);
 
+  // A request the build is still working on when the drain deadline passes (a chat turn waiting
+  // on the model gateway) gets the front's 503, but its work kept the process alive past the
+  // deadline, so a container stop killed it. The stand-in's /slow handler keeps a 15 s timer.
+  test("exits at the drain deadline while the build is still working on a request", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      SHUTDOWN_TIMEOUT: "2",
+    });
+    const pending = fetch(`http://127.0.0.1:${server.port}/slow?ms=15000`).catch(
+      (error: unknown) => error,
+    );
+    await sleep(300);
+    const signalled = Date.now();
+    server.process.kill("SIGTERM");
+
+    const exited = await Promise.race([
+      server.process.exited,
+      sleep(8_000).then(() => "still running"),
+    ]);
+    expect(exited).toBe(0);
+    const elapsed = (Date.now() - signalled) / 1000;
+    expect(elapsed).toBeGreaterThanOrEqual(1.5);
+    expect(elapsed).toBeLessThan(5);
+    const reply = await pending;
+    expect(reply instanceof Error || (reply as Response).status === 503).toBe(true);
+    expect(socketDirectories(server.temp)).toEqual([]);
+  }, 20_000);
+
   test("shuts down cleanly when SIGTERM arrives while the build is still loading", async () => {
     const port = await freePort();
     const server = await start(
