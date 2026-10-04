@@ -1,6 +1,5 @@
-import type { Handle, HandleServerError } from "@sveltejs/kit";
 import { redirect } from "@sveltejs/kit";
-import { sequence } from "@sveltejs/kit/hooks";
+import { type Handle, type HandleServerError, sequence } from "@sveltejs/kit/hooks";
 import { cookieName, getTextDirection } from "$lib/paraglide/runtime";
 import { paraglideMiddleware } from "$lib/paraglide/server";
 import { resolveEducatorSession } from "$lib/server/auth/educator";

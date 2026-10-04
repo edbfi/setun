@@ -1,6 +1,5 @@
 <script lang="ts">
-import type { SubmitFunction } from "@sveltejs/kit";
-import { enhance } from "$app/forms";
+import { enhance, type SubmitFunction } from "$app/forms";
 import CredentialCards from "$lib/components/educator/CredentialCards.svelte";
 import RosterTable from "$lib/components/educator/RosterTable.svelte";
 import type { CredentialBatch } from "$lib/credentials";
