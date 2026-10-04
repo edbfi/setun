@@ -344,6 +344,8 @@ export async function serve(
   const clientDir = join(dirname(buildEntry(environment)), "client");
   const plan = prepare(environment);
   const { origin, ownPeerHeader, directory, socket } = plan;
+  // The public listener's idle window (Bun's default is 10 s).
+  const idleSeconds = plan.idleTimeout ?? 10;
   const removeSocketDirectory = () => rmSync(directory, { recursive: true, force: true });
   let markReady = () => {};
   const ready = new Promise((resolveReady) => {
@@ -370,13 +372,22 @@ export async function serve(
         });
         const path = forwardPath(request.url);
         guardEncodings(headers, request.method, path, clientDir);
+        // Bun 1.4.2 keeps the idle timer running while this handler awaits fetch(), so a
+        // request the build answers after the idle window (a page waiting on the model
+        // gateway, a chat stream whose first event waits on the model) would get an empty
+        // reply. Waiting for the build is not client idleness: the timer is off from the end
+        // of the request body (at once without one) until the build answers, then re-armed.
+        // A client that stalls mid-body is still closed.
+        const waitForApp = () => server.timeout(request, 0);
+        const body = request.method === "GET" || request.method === "HEAD" ? null : request.body;
+        if (!body) waitForApp();
         /** @type {Response} */
         let response;
         try {
           response = await fetch(`http://localhost${path}`, {
             method: request.method,
             headers,
-            body: request.method === "GET" || request.method === "HEAD" ? null : request.body,
+            body: body?.pipeThrough(new TransformStream({ flush: waitForApp })) ?? null,
             redirect: "manual",
             decompress: false,
             signal: request.signal,
@@ -384,6 +395,8 @@ export async function serve(
           });
         } catch {
           return new Response("Service Unavailable", { status: 503 });
+        } finally {
+          server.timeout(request, idleSeconds);
         }
         // The public listener applies the idle timeout, so an event stream
         // (a chat turn waiting on the model) is exempted here, and it ends
