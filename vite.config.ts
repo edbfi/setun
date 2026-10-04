@@ -1,5 +1,7 @@
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
+import adapter from "@sveltejs/adapter-node";
 import { sveltekit } from "@sveltejs/kit/vite";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 import { playwright } from "@vitest/browser-playwright";
 import UnoCSS from "unocss/vite";
 import { defineConfig } from "vitest/config";
@@ -8,7 +10,28 @@ export default defineConfig({
   // UnoCSS must come before sveltekit() — the order matters for HMR.
   plugins: [
     UnoCSS(),
-    sveltekit(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      // Runes are mandatory in application code (see .agents/rules/svelte5-sveltekit-app.md).
+      // Dependencies keep their own mode so non-runes libraries still compile.
+      compilerOptions: {
+        runes: ({ filename }) =>
+          filename.split(/[/\\]/).includes("node_modules") ? undefined : true,
+      },
+
+      /**
+       * Production runs `bun ./server.js`, which loads this output (PRD §5).
+       *
+       * `out` is normally `build/`, and every path that names it — the Dockerfile,
+       * the Playwright `webServer` commands, `.gitignore` — assumes that. It is
+       * overridable only so the dev suite can give each of its instances a
+       * directory of its own: `vite build` empties `out` before it writes, so two
+       * instances sharing one would have the second delete the files the first is
+       * still serving. Unset, which is every case but that one, nothing moves.
+       */
+      adapter: adapter({ out: process.env.SETUN_BUILD_DIR || "build" }),
+    }),
+
     paraglideVitePlugin({
       project: "./project.inlang",
       outdir: "./src/lib/paraglide",
