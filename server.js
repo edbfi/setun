@@ -68,27 +68,32 @@ export const PROTOCOL_HEADER = "x-setun-origin-proto";
 export const HOST_HEADER = "x-setun-origin-host";
 export const PEER_HEADER = "x-setun-peer";
 
-/** Logged once at startup when nothing tells the adapter the public scheme. */
+/**
+ * Logged once at startup when nothing tells the adapter the public scheme. The
+ * wording is the one every edbfi front uses (the shared origin contract).
+ */
 export const MISSING_ORIGIN_WARNING =
-  "server.js: ORIGIN is not set and no PROTOCOL_HEADER is configured, so Setun takes the " +
-  "public origin to be https plus the request's Host. Over plain HTTP every sign-in and " +
-  "every other form post is then rejected with 403. Set ORIGIN to the public URL (for " +
-  "example http://192.168.1.10:3000) when serving plain HTTP; leave it unset only behind " +
-  "an HTTPS proxy that preserves Host.";
+  "ORIGIN is not set: Setun assumes it is served over HTTPS behind a proxy that preserves the " +
+  "Host header. Over plain HTTP, signing in and saving changes will fail. Set ORIGIN to the " +
+  "address users open, for example ORIGIN=http://192.168.1.10:3000.";
 
-const ORIGIN_SHAPE = "ORIGIN must be a bare http(s) origin: a scheme, a host and an optional port";
+/** The one startup error for an unusable ORIGIN; it never repeats the value. */
+export const ORIGIN_ERROR =
+  "ORIGIN must be a bare http(s) origin such as http://192.168.1.10:3000 (no path, query, fragment or credentials).";
 
 /**
  * Parse `ORIGIN`, which must be a bare `http(s)` origin.
  *
- * The parts are checked one by one, and the result is normalized: surrounding
- * whitespace, an uppercase scheme or host, an explicit default port and a
+ * The value is trimmed and parsed, and the parts are checked one by one: the
+ * scheme is `http` or `https`, there are no credentials, the path is `/` and the
+ * value has no `?` or `#` (checked on the value itself, because an empty query
+ * or fragment leaves no trace on the parsed URL). What remains is normalized to
+ * `url.origin`: an uppercase scheme or host, an explicit default port and a
  * trailing `/` are accepted, as adapter-node accepted them, and
- * `HTTP://Setun.Example:80/` means `http://setun.example`. A path, a query, a
- * fragment or credentials are refused (adapter-node silently dropped them).
+ * `HTTP://Setun.Example:80/` means `http://setun.example`.
  *
- * The error is always a fresh one naming `ORIGIN` and never the value, which
- * could carry credentials; the URL parser's own error is not wrapped either,
+ * Every failure is the same fresh error, which never contains the value (it
+ * could carry credentials); the URL parser's own error is not wrapped either,
  * because it keeps the raw input.
  *
  * @param {string} value
@@ -103,17 +108,15 @@ export function parseOrigin(value) {
   } catch {
     // fall through to the redacted error below
   }
-  if (!url) throw new Error(`${ORIGIN_SHAPE}; it is not a valid URL.`);
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`${ORIGIN_SHAPE}; the scheme must be http or https.`);
-  }
-  if (url.username !== "" || url.password !== "") {
-    throw new Error(`${ORIGIN_SHAPE}; remove the credentials.`);
-  }
-  // `?` and `#` are checked on the value itself: an empty query or fragment
-  // leaves no trace on the parsed URL.
-  if (url.pathname !== "/" || /[?#]/.test(trimmed)) {
-    throw new Error(`${ORIGIN_SHAPE}; remove the path, query or fragment.`);
+  if (
+    !url ||
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.pathname !== "/" ||
+    /[?#]/.test(trimmed)
+  ) {
+    throw new Error(ORIGIN_ERROR);
   }
   return url;
 }
@@ -171,16 +174,22 @@ export function shutdownTimeoutSeconds(environment) {
  * @returns {DirectPlan | FrontPlan}
  */
 export function prepare(environment) {
-  if (!environment.ORIGIN) {
+  const configured = environment.ORIGIN?.trim();
+  if (!configured) {
+    // Blank means unset; the app must not read a blank ORIGIN either.
+    delete environment.ORIGIN;
     const warning = environment.PROTOCOL_HEADER ? null : MISSING_ORIGIN_WARNING;
     return { mode: "direct", warning };
   }
 
-  const origin = parseOrigin(environment.ORIGIN);
+  const origin = parseOrigin(configured);
   const hostname = environment.HOST || "0.0.0.0";
   const port = integer("PORT", environment.PORT || "3000", 65535);
   const idle = environment.CONNECTION_IDLE_TIMEOUT;
   const idleTimeout = idle ? integer("CONNECTION_IDLE_TIMEOUT", idle, 255) : undefined;
+
+  // The canonical value, so the app reads the same string the front sends.
+  environment.ORIGIN = origin.origin;
 
   const directory = mkdtempSync(join(tmpdir(), "setun-"));
   const socket = join(directory, "app.sock");

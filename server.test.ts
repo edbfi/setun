@@ -11,6 +11,7 @@ import {
   guardEncodings,
   HOST_HEADER,
   MISSING_ORIGIN_WARNING,
+  ORIGIN_ERROR,
   PEER_HEADER,
   PROTOCOL_HEADER,
   parseOrigin,
@@ -43,7 +44,7 @@ if (process.env.STANDIN_LOAD_DELAY_MS) {
 
 const env = process.env;
 const seen = Object.fromEntries(
-  ["SOCKET_PATH", "PROTOCOL_HEADER", "HOST_HEADER", "PORT_HEADER", "ADDRESS_HEADER", "XFF_DEPTH",
+  ["ORIGIN", "SOCKET_PATH", "PROTOCOL_HEADER", "HOST_HEADER", "PORT_HEADER", "ADDRESS_HEADER", "XFF_DEPTH",
    "CONNECTION_IDLE_TIMEOUT", "SHUTDOWN_TIMEOUT", "BODY_SIZE_LIMIT", "IDLE_TIMEOUT"]
     .map((name) => [name, env[name] ?? null]),
 );
@@ -284,17 +285,22 @@ describe("parseOrigin", () => {
   });
 
   test.each([
-    ["a path", "http://setun.example/app", /remove the path, query or fragment/],
-    ["a query", "http://setun.example/?a=1", /remove the path, query or fragment/],
-    ["an empty query", "http://setun.example/?", /remove the path, query or fragment/],
-    ["a fragment", "http://setun.example/#top", /remove the path, query or fragment/],
-    ["an empty fragment", "http://setun.example#", /remove the path, query or fragment/],
-    ["a non-http(s) scheme", "ftp://setun.example", /the scheme must be http or https/],
-    ["garbage", "not a url", /it is not a valid URL/],
-    ["an empty host", "http://", /it is not a valid URL/],
-  ])("rejects %s with a clear error naming ORIGIN", (_case, value, reason) => {
-    expect(() => parseOrigin(value)).toThrow(/^ORIGIN must be a bare http\(s\) origin/);
-    expect(() => parseOrigin(value)).toThrow(reason);
+    ["a path", "http://setun.example/app"],
+    ["a query", "http://setun.example/?a=1"],
+    ["an empty query", "http://setun.example/?"],
+    ["a fragment", "http://setun.example/#top"],
+    ["an empty fragment", "http://setun.example#"],
+    ["a non-http(s) scheme", "ftp://setun.example"],
+    ["garbage", "not a url"],
+    ["an empty host", "http://"],
+  ])("rejects %s with the one ORIGIN error", (_case, value) => {
+    expect(() => parseOrigin(value)).toThrow(ORIGIN_ERROR);
+  });
+
+  test("says what a valid ORIGIN looks like, in the words every edbfi front uses", () => {
+    expect(ORIGIN_ERROR).toBe(
+      "ORIGIN must be a bare http(s) origin such as http://192.168.1.10:3000 (no path, query, fragment or credentials).",
+    );
   });
 
   test("never repeats credentials, whether or not the URL parser accepts the value", () => {
@@ -314,7 +320,7 @@ describe("parseOrigin", () => {
       }
       expect(caught).toBeInstanceOf(Error);
       const error = caught as Error;
-      expect(error.message).toStartWith("ORIGIN must be a bare http(s) origin");
+      expect(error.message).toBe(ORIGIN_ERROR);
       expect(error.cause).toBeUndefined();
       expect(Object.keys(error)).toEqual([]);
       expect(error.message).not.toContain(secret);
@@ -335,6 +341,19 @@ describe("prepare", () => {
       warning: null,
     });
     expect(prepare({ ORIGIN: "" })).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
+
+    // Blank means unset, and a blank value is not left behind for the app to read.
+    const blank: Record<string, string | undefined> = { ORIGIN: " \t " };
+    expect(prepare(blank)).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
+    expect(blank).toEqual({});
+  });
+
+  test("warns in the words every edbfi front uses", () => {
+    expect(MISSING_ORIGIN_WARNING).toBe(
+      "ORIGIN is not set: Setun assumes it is served over HTTPS behind a proxy that preserves " +
+        "the Host header. Over plain HTTP, signing in and saving changes will fail. Set ORIGIN to " +
+        "the address users open, for example ORIGIN=http://192.168.1.10:3000.",
+    );
   });
 
   test("with ORIGIN prepares a private socket and the front's headers", () => {
@@ -358,7 +377,8 @@ describe("prepare", () => {
     expect(existsSync(plan.directory)).toBe(true);
     expect(plan.socket).toBe(join(plan.directory, "app.sock"));
     expect(environment).toEqual({
-      ORIGIN: "HTTP://192.168.1.10:3000/",
+      // Exported in canonical form, so the app compares the same string the front sends.
+      ORIGIN: "http://192.168.1.10:3000",
       SOCKET_PATH: plan.socket,
       PROTOCOL_HEADER,
       HOST_HEADER,
@@ -586,6 +606,8 @@ describe("bun ./server.js", () => {
     const seen = await echo(server.port);
     expect(seen.headers[PROTOCOL_HEADER]).toBe("http");
     expect(seen.headers[HOST_HEADER]).toBe(`localhost:${port}`);
+    // The build reads the same canonical string from ORIGIN.
+    expect(seen.env.ORIGIN).toBe(`http://localhost:${port}`);
     expect(server.output()).toContain(`for http://localhost:${port}`);
   });
 
@@ -877,7 +899,7 @@ describe("bun ./server.js", () => {
     ]) {
       const server = await start({ ORIGIN: origin }, { waitFor: "exit" });
       expect(await server.process.exited).not.toBe(0);
-      expect(server.output()).toContain("ORIGIN must be a bare http(s) origin");
+      expect(server.output()).toContain(ORIGIN_ERROR);
       expect(server.output()).not.toContain(secret);
       expect(server.output()).not.toContain("standin listening");
       expect(socketDirectories(server.temp)).toEqual([]);
