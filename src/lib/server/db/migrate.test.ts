@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDatabase } from "./client";
@@ -59,6 +59,19 @@ function sourceOf(db: ReturnType<typeof createDatabase>, versionId: string): str
   return row?.content;
 }
 
+/** Temporary directories this file creates, removed once its tests have run. */
+const ROOTS: string[] = [];
+
+function tempRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  ROOTS.push(root);
+  return root;
+}
+
+afterAll(() => {
+  for (const root of ROOTS) rmSync(root, { recursive: true, force: true });
+});
+
 describe("applyMigrations", () => {
   it("upgrades a populated database through every committed migration", () => {
     const journal = readJournal();
@@ -67,7 +80,7 @@ describe("applyMigrations", () => {
     // Nothing to prove with a single migration; this becomes real from 0001 on.
     expect(journal.entries.length).toBeGreaterThan(1);
 
-    const root = mkdtempSync(join(tmpdir(), "setun-migrate-"));
+    const root = tempRoot("setun-migrate-");
     const db = createDatabase(join(root, "setun.sqlite"));
 
     // Stand up the schema as it was one migration ago, and put a row in it —
@@ -96,7 +109,7 @@ describe("applyMigrations", () => {
     const identity = journal.entries.find((entry) => entry.tag.includes("artifact_identity"));
     if (!identity) throw new Error("the artifact identity migration is not in the journal");
 
-    const root = mkdtempSync(join(tmpdir(), "setun-migrate-artifact-"));
+    const root = tempRoot("setun-migrate-artifact-");
     const db = createDatabase(join(root, "setun.sqlite"));
 
     // An artifact and a revision stored by a deployment that had never heard of
@@ -137,7 +150,7 @@ describe("applyMigrations", () => {
     const entry = journal.entries.find((item) => item.tag.includes("version_language"));
     if (!entry) throw new Error("the version language migration is not in the journal");
 
-    const root = mkdtempSync(join(tmpdir(), "setun-migrate-language-"));
+    const root = tempRoot("setun-migrate-language-");
     const db = createDatabase(join(root, "setun.sqlite"));
 
     applyMigrations(db, migrationsThrough(entry.idx - 1, join(root, "previous")));
@@ -179,7 +192,7 @@ describe("applyMigrations", () => {
     const entry = journal.entries.find((item) => item.tag.includes("artifact_project_files"));
     if (!entry) throw new Error("the artifact project migration is not in the journal");
 
-    const root = mkdtempSync(join(tmpdir(), "setun-migrate-project-"));
+    const root = tempRoot("setun-migrate-project-");
     const db = createDatabase(join(root, "setun.sqlite"));
 
     applyMigrations(db, migrationsThrough(entry.idx - 1, join(root, "previous")));
@@ -241,7 +254,7 @@ describe("applyMigrations", () => {
   });
 
   it("is idempotent — a second application changes nothing", () => {
-    const root = mkdtempSync(join(tmpdir(), "setun-migrate-"));
+    const root = tempRoot("setun-migrate-");
     const db = createDatabase(join(root, "setun.sqlite"));
 
     applyMigrations(db);

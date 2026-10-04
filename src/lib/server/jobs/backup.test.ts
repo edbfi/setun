@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,8 +21,21 @@ import { runBackup, snapshotDay, snapshotName, storageSnapshotName } from "./bac
 
 const TIMEZONE = "Europe/Copenhagen";
 
+/** Temporary directories this file creates, removed once its tests have run. */
+const ROOTS: string[] = [];
+
+function tempRoot(prefix: string): string {
+  const root = mkdtempSync(join(tmpdir(), prefix));
+  ROOTS.push(root);
+  return root;
+}
+
+afterAll(() => {
+  for (const root of ROOTS) rmSync(root, { recursive: true, force: true });
+});
+
 function workspace() {
-  const root = mkdtempSync(join(tmpdir(), "setun-backup-"));
+  const root = tempRoot("setun-backup-");
   const storagePath = join(root, "storage");
   const backupPath = join(root, "backups");
   mkdirSync(join(storagePath, "images"), { recursive: true });
@@ -117,7 +130,7 @@ describe("runBackup", () => {
 
     // A file where a directory should be: `stat` fails with ENOTDIR rather than
     // ENOENT, which is "cannot tell", not "there is nothing to copy".
-    const root = mkdtempSync(join(tmpdir(), "setun-backup-"));
+    const root = tempRoot("setun-backup-");
     writeFileSync(join(root, "storage"), "not a directory");
     const storagePath = join(root, "storage", "tree");
 
