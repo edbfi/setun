@@ -151,10 +151,7 @@ function acceptedName(part) {
  * `stat`, plus one `existsSync` per asked-for encoding on a static file, for
  * each request that asks for an encoding.
  *
- * `server.js` applies it in the front, before forwarding. The front runs only
- * when ORIGIN (or SETUN_APP_ORIGIN) is set; without either the adapter listens
- * directly, and a missing variant answers 500 until the build directory is
- * whole again.
+ * `server.js` applies it in the front, before forwarding.
  *
  * @param {string | null | undefined} accept the request's `Accept-Encoding`
  * @param {string} pathname the request path, still percent-encoded

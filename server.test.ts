@@ -11,7 +11,7 @@ import {
   frontHeaders,
   guardEncodings,
   HOST_HEADER,
-  MISSING_ORIGIN_WARNING,
+  MISSING_ORIGIN_ERROR,
   ORIGIN_ERROR,
   PEER_HEADER,
   PROTOCOL_HEADER,
@@ -24,7 +24,7 @@ import {
  * `server.js`, the production entry and ORIGIN-mapping front (PRD §5).
  *
  * The pure parts are tested directly. Everything that depends on a real listener —
- * the warning, the header rewriting on the wire, shutdown and startup failures — runs
+ * the header rewriting on the wire, shutdown and startup failures — runs
  * `bun ./server.js` as a child process against a stand-in for the adapter-bun build:
  * a small `index.js` written to a temporary SETUN_BUILD_DIR that reads the same
  * environment variables as the adapter, listens where it would, and drains and emits
@@ -263,6 +263,9 @@ const socketDirectories = (temp: string) =>
 
 const count = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 
+/** The start of the other edbfi fronts' warning for a missing ORIGIN, which Setun never logs. */
+const ORIGIN_WARNING = "ORIGIN is not set";
+
 describe("parseOrigin", () => {
   test.each([
     "http://192.168.1.10:3000",
@@ -332,21 +335,29 @@ describe("parseOrigin", () => {
 });
 
 describe("prepare", () => {
-  test("without ORIGIN changes nothing but the body limit, and warns unless PROTOCOL_HEADER is set", () => {
-    const environment: Record<string, string | undefined> = { PORT: "3000" };
-    expect(prepare(environment)).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
-    expect(environment).toEqual({ PORT: "3000", BODY_SIZE_LIMIT: DEFAULT_BODY_SIZE_LIMIT });
+  test("refuses to start without ORIGIN or SETUN_APP_ORIGIN, before creating a socket directory", () => {
+    const before = readdirSync(tmpdir()).filter((entry) => entry.startsWith("setun-"));
+    for (const environment of [
+      {},
+      // A proxy's protocol header does not stand in for the address Setun prints.
+      { PROTOCOL_HEADER: "x-forwarded-proto" },
+      { PROTOCOL_HEADER: "x-forwarded-proto", HOST_HEADER: "x-forwarded-host" },
+      // Blank means unset.
+      { ORIGIN: "" },
+      { ORIGIN: " \t ", SETUN_APP_ORIGIN: "  " },
+    ]) {
+      expect(() => prepare({ ...environment })).toThrow(MISSING_ORIGIN_ERROR);
+    }
+    const after = readdirSync(tmpdir()).filter((entry) => entry.startsWith("setun-"));
+    expect(after).toEqual(before);
+  });
 
-    expect(prepare({ PROTOCOL_HEADER: "x-forwarded-proto" })).toEqual({
-      mode: "direct",
-      warning: null,
-    });
-    expect(prepare({ ORIGIN: "" })).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
-
-    // Blank means unset, and a blank value is not left behind for the app to read.
-    const blank: Record<string, string | undefined> = { ORIGIN: " \t " };
-    expect(prepare(blank)).toEqual({ mode: "direct", warning: MISSING_ORIGIN_WARNING });
-    expect(blank).toEqual({ BODY_SIZE_LIMIT: DEFAULT_BODY_SIZE_LIMIT });
+  test("says in one line that ORIGIN is needed, in the words of the shared contract", () => {
+    expect(MISSING_ORIGIN_ERROR).toBe(
+      "Setun needs its public address: set ORIGIN to the address users open, for example " +
+        "ORIGIN=http://192.168.1.10:3000.",
+    );
+    expect(MISSING_ORIGIN_ERROR).not.toContain("\n");
   });
 
   test("fronts SETUN_APP_ORIGIN when ORIGIN is unset, so one variable suffices", () => {
@@ -354,17 +365,12 @@ describe("prepare", () => {
       SETUN_APP_ORIGIN: " HTTPS://Setun.Example.org:443/ ",
     };
     const plan = prepare(environment);
-    if (plan.mode !== "front") throw new Error("expected the front");
     cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
     expect(plan.origin.origin).toBe("https://setun.example.org");
     expect(environment.ORIGIN).toBe("https://setun.example.org");
     // The operator's own variable is left as it was.
     expect(environment.SETUN_APP_ORIGIN).toBe(" HTTPS://Setun.Example.org:443/ ");
 
-    expect(prepare({ SETUN_APP_ORIGIN: "  " })).toEqual({
-      mode: "direct",
-      warning: MISSING_ORIGIN_WARNING,
-    });
     expect(() => prepare({ SETUN_APP_ORIGIN: "https://setun.example.org/app" })).toThrow(
       ORIGIN_ERROR,
     );
@@ -376,18 +382,9 @@ describe("prepare", () => {
       SETUN_APP_ORIGIN: "https://setun.example.org",
     };
     const plan = prepare(environment);
-    if (plan.mode !== "front") throw new Error("expected the front");
     cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
     expect(plan.origin.origin).toBe("http://192.168.1.10:3000");
     expect(environment.ORIGIN).toBe("http://192.168.1.10:3000");
-  });
-
-  test("warns in the words every edbfi front uses", () => {
-    expect(MISSING_ORIGIN_WARNING).toBe(
-      "ORIGIN is not set: Setun assumes it is served over HTTPS behind a proxy that preserves " +
-        "the Host header. Over plain HTTP, signing in and saving changes will fail. Set ORIGIN to " +
-        "the address users open, for example ORIGIN=http://192.168.1.10:3000.",
-    );
   });
 
   test("with ORIGIN prepares a private socket and the front's headers", () => {
@@ -399,7 +396,6 @@ describe("prepare", () => {
       BODY_SIZE_LIMIT: "2M",
     };
     const plan = prepare(environment);
-    if (plan.mode !== "front") throw new Error("expected the front");
     cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
 
     expect(plan.origin.origin).toBe("http://192.168.1.10:3000");
@@ -432,7 +428,6 @@ describe("prepare", () => {
       PORT: "8080",
     };
     const plan = prepare(environment);
-    if (plan.mode !== "front") throw new Error("expected the front");
     cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
     expect(plan.ownPeerHeader).toBe(false);
     expect(plan.idleTimeout).toBe(30);
@@ -449,7 +444,6 @@ describe("prepare", () => {
       IDLE_TIMEOUT: "20",
     };
     const plan = prepare(environment);
-    if (plan.mode !== "front") throw new Error("expected the front");
     cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
     expect(plan.idleTimeout).toBeUndefined();
     expect(environment.IDLE_TIMEOUT).toBe("20");
@@ -468,24 +462,23 @@ describe("prepare", () => {
     expect(after).toEqual(before);
   });
 
-  test("defaults BODY_SIZE_LIMIT to 2M in both modes, and an operator value wins", () => {
+  test("defaults BODY_SIZE_LIMIT to 2M, and an operator value wins", () => {
     // A pupil restoring an artifact posts its whole file list, up to the 1 MB project cap in
     // src/lib/artifacts/project.ts; the adapter's own 512K default refuses that with 413.
     expect(DEFAULT_BODY_SIZE_LIMIT).toBe("2M");
-    const direct: Record<string, string | undefined> = {};
-    prepare(direct);
-    expect(direct.BODY_SIZE_LIMIT).toBe("2M");
-
-    const fronted: Record<string, string | undefined> = { ORIGIN: "http://a.example" };
-    const plan = prepare(fronted);
-    if (plan.mode !== "front") throw new Error("expected the front");
-    cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
-    expect(fronted.BODY_SIZE_LIMIT).toBe("2M");
-
-    for (const value of ["512K", "10M", "Infinity"]) {
-      const environment: Record<string, string | undefined> = { BODY_SIZE_LIMIT: value };
-      prepare(environment);
-      expect(environment.BODY_SIZE_LIMIT).toBe(value);
+    for (const [value, expected] of [
+      [undefined, "2M"],
+      ["512K", "512K"],
+      ["10M", "10M"],
+      ["Infinity", "Infinity"],
+    ]) {
+      const environment: Record<string, string | undefined> = {
+        ORIGIN: "http://a.example",
+        BODY_SIZE_LIMIT: value,
+      };
+      const plan = prepare(environment);
+      cleanups.push(() => rmSync(plan.directory, { recursive: true, force: true }));
+      expect(environment.BODY_SIZE_LIMIT).toBe(expected);
     }
   });
 
@@ -610,42 +603,51 @@ describe("forwardPath and buildEntry", () => {
 });
 
 describe("bun ./server.js", () => {
-  test("without ORIGIN starts the build directly and warns exactly once", async () => {
-    const server = await start({});
-    const seen = await echo(server.port);
-    expect(seen.env).toMatchObject({ SOCKET_PATH: null, PROTOCOL_HEADER: null, HOST_HEADER: null });
-    await sleep(100);
-    expect(count(server.output(), MISSING_ORIGIN_WARNING)).toBe(1);
-    expect(socketDirectories(server.temp)).toEqual([]);
-  });
+  test.each([
+    ["neither is set", {}],
+    ["neither is set, whatever PROTOCOL_HEADER says", { PROTOCOL_HEADER: "x-forwarded-proto" }],
+    ["both are blank", { ORIGIN: " ", SETUN_APP_ORIGIN: "" }],
+  ])(
+    "refuses to start when %s, before binding and without the warning",
+    async (_, env: Record<string, string>) => {
+      const server = await start(env, { waitFor: "exit" });
+      expect(await server.process.exited).toBe(1);
+      const output = server.output();
+      expect(count(output, MISSING_ORIGIN_ERROR)).toBe(1);
+      expect(output).not.toContain(ORIGIN_WARNING);
+      for (const value of Object.values(env)) if (value.trim()) expect(output).not.toContain(value);
+      // Neither the front nor the build ever listened.
+      expect(output).not.toMatch(/Listening on|standin listening/);
+      expect(socketDirectories(server.temp)).toEqual([]);
+    },
+    15_000,
+  );
 
-  test("fronts SETUN_APP_ORIGIN when ORIGIN is unset, and exports it as ORIGIN", async () => {
-    const port = await freePort();
-    const server = await start({
-      SETUN_APP_ORIGIN: `http://LocalHost:${port}/`,
-      PORT: String(port),
-    });
-    const seen = await echo(server.port);
-    expect(seen.env.SOCKET_PATH).toMatch(/setun-[^/]+\/app\.sock$/);
-    expect(seen.env.ORIGIN).toBe(`http://localhost:${port}`);
-    expect(seen.headers[PROTOCOL_HEADER]).toBe("http");
-    expect(seen.headers[HOST_HEADER]).toBe(`localhost:${port}`);
-    await sleep(100);
-    expect(server.output()).not.toContain(MISSING_ORIGIN_WARNING);
-  });
-
-  test("does not warn when ORIGIN or PROTOCOL_HEADER is set", async () => {
-    const withProtocol = await start({ PROTOCOL_HEADER: "x-forwarded-proto" });
-    await echo(withProtocol.port);
-
-    const port = await freePort();
-    const fronted = await start({ ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port) });
-    await echo(fronted.port);
-
-    await sleep(100);
-    expect(withProtocol.output()).not.toContain(MISSING_ORIGIN_WARNING);
-    expect(fronted.output()).not.toContain(MISSING_ORIGIN_WARNING);
-  });
+  test.each([
+    ["ORIGIN", (port: number) => ({ ORIGIN: `http://LocalHost:${port}/` })],
+    ["SETUN_APP_ORIGIN", (port: number) => ({ SETUN_APP_ORIGIN: `http://LocalHost:${port}/` })],
+    [
+      "both, ORIGIN winning",
+      (port: number) => ({
+        ORIGIN: `http://LocalHost:${port}/`,
+        SETUN_APP_ORIGIN: "https://setun.example.org",
+      }),
+    ],
+  ])(
+    "starts behind the front with %s, exports the canonical ORIGIN and warns of nothing",
+    async (_, env) => {
+      const port = await freePort();
+      const server = await start({ ...env(port), PORT: String(port) });
+      const seen = await echo(server.port);
+      expect(seen.env.SOCKET_PATH).toMatch(/setun-[^/]+\/app\.sock$/);
+      expect(seen.env.ORIGIN).toBe(`http://localhost:${port}`);
+      expect(seen.headers[PROTOCOL_HEADER]).toBe("http");
+      expect(seen.headers[HOST_HEADER]).toBe(`localhost:${port}`);
+      await sleep(100);
+      expect(server.output()).not.toContain(ORIGIN_WARNING);
+      expect(server.output()).not.toContain(MISSING_ORIGIN_ERROR);
+    },
+  );
 
   test("with ORIGIN fronts the build and overwrites the origin and peer headers", async () => {
     const port = await freePort();
@@ -749,15 +751,17 @@ describe("bun ./server.js", () => {
     );
   });
 
-  test("hands the build a 2M body limit unless the operator set one, in both modes", async () => {
-    const direct = await start({});
-    expect((await echo(direct.port)).env.BODY_SIZE_LIMIT).toBe("2M");
-
+  test("hands the build a 2M body limit unless the operator set one", async () => {
     const port = await freePort();
     const fronted = await start({ ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port) });
     expect((await echo(fronted.port)).env.BODY_SIZE_LIMIT).toBe("2M");
 
-    const operator = await start({ BODY_SIZE_LIMIT: "5M" });
+    const other = await freePort();
+    const operator = await start({
+      ORIGIN: `http://127.0.0.1:${other}`,
+      PORT: String(other),
+      BODY_SIZE_LIMIT: "5M",
+    });
     expect((await echo(operator.port)).env.BODY_SIZE_LIMIT).toBe("5M");
   });
 
@@ -1040,6 +1044,7 @@ describe("bun ./server.js", () => {
       const server = await start({ ORIGIN: origin }, { waitFor: "exit" });
       expect(await server.process.exited).not.toBe(0);
       expect(server.output()).toContain(ORIGIN_ERROR);
+      expect(server.output()).not.toContain(MISSING_ORIGIN_ERROR);
       expect(server.output()).not.toContain(secret);
       expect(server.output()).not.toContain("standin listening");
       expect(socketDirectories(server.temp)).toEqual([]);
