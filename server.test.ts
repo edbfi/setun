@@ -73,6 +73,8 @@ async function handle(request) {
     case "/sse": {
       const stream = new ReadableStream({
         async start(controller) {
+          // first: how long the first event waits (a chat turn waiting on the model).
+          await sleep(Number(url.searchParams.get("first") || 0));
           controller.enqueue(new TextEncoder().encode("data: one\n\n"));
           await sleep(Number(url.searchParams.get("gap") || 3000));
           controller.enqueue(new TextEncoder().encode("data: two\n\n"));
@@ -104,6 +106,12 @@ async function handle(request) {
         },
       });
       return new Response(stream, { headers: { "content-type": "text/plain" } });
+    }
+    case "/slow": {
+      // Like a page waiting on the model gateway: reads the body, then answers after ms.
+      const body = await request.text();
+      await sleep(Number(url.searchParams.get("ms") || 3000));
+      return new Response("slow " + body.length);
     }
     case "/big":
       return new Response(big, {
@@ -816,6 +824,92 @@ describe("bun ./server.js", () => {
     const reply = await fetch(`http://127.0.0.1:${server.port}/sse?gap=2500`);
     expect(reply.headers.get("content-type")).toBe("text/event-stream");
     expect(await reply.text()).toBe("data: one\n\ndata: two\n\n");
+  }, 15_000);
+
+  // Bun 1.4.2 runs the idle timer while a handler awaits fetch(): without the fix, a request the
+  // build answered after the idle window got an empty reply (a closed connection).
+  test("answers requests the build takes longer than the client idle timeout to answer", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      CONNECTION_IDLE_TIMEOUT: "1",
+    });
+    const [get, post] = await Promise.all([
+      fetch(`http://127.0.0.1:${server.port}/slow?ms=4500`),
+      fetch(`http://127.0.0.1:${server.port}/slow?ms=4500`, { method: "POST", body: "abc" }),
+    ]);
+    expect([get.status, await get.text()]).toEqual([200, "slow 0"]);
+    expect([post.status, await post.text()]).toEqual([200, "slow 3"]);
+  }, 15_000);
+
+  // A resumed chat turn: the build sends the stream's headers only with its first event.
+  test("keeps an event stream open whose first event comes after the client idle timeout", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      CONNECTION_IDLE_TIMEOUT: "1",
+    });
+    const reply = await fetch(`http://127.0.0.1:${server.port}/sse?first=4500&gap=2500`);
+    expect(reply.headers.get("content-type")).toBe("text/event-stream");
+    expect(await reply.text()).toBe("data: one\n\ndata: two\n\n");
+  }, 20_000);
+
+  /** Sends `raw` on a new connection; the seconds until the server closes it (Infinity: 10 s). */
+  function secondsUntilClosed(port: number, raw: string): Promise<number> {
+    return new Promise((done, fail) => {
+      const started = Date.now();
+      const timer = setTimeout(() => done(Number.POSITIVE_INFINITY), 10_000);
+      void Bun.connect({
+        hostname: "127.0.0.1",
+        port,
+        socket: {
+          open(socket) {
+            socket.write(raw);
+            cleanups.push(() => socket.end());
+          },
+          data() {},
+          close() {
+            clearTimeout(timer);
+            done((Date.now() - started) / 1000);
+          },
+          error(_socket, error) {
+            clearTimeout(timer);
+            fail(error);
+          },
+        },
+      });
+    });
+  }
+
+  test("still closes a client that stalls before its request body is complete", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      CONNECTION_IDLE_TIMEOUT: "1",
+    });
+    const stalled = secondsUntilClosed(
+      server.port,
+      "POST /slow?ms=0 HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 100\r\n\r\nhello",
+    );
+    expect(await stalled).toBeLessThan(8);
+  }, 15_000);
+
+  test("re-arms the client idle timeout once the build has answered", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      CONNECTION_IDLE_TIMEOUT: "1",
+    });
+    // A keep-alive connection that goes idle after a slow answer is closed like any other.
+    const idle = secondsUntilClosed(
+      server.port,
+      "GET /slow?ms=1500 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+    );
+    expect(await idle).toBeLessThan(8);
   }, 15_000);
 
   test("ends an event stream normally when the build breaks it off", async () => {
