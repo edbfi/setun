@@ -1,5 +1,5 @@
 import { redirect } from "@sveltejs/kit";
-import { type Handle, type HandleServerError, sequence } from "@sveltejs/kit/hooks";
+import { type Handle, sequence } from "@sveltejs/kit/hooks";
 import { cookieName, getTextDirection } from "$lib/paraglide/runtime";
 import { paraglideMiddleware } from "$lib/paraglide/server";
 import { resolveEducatorSession } from "$lib/server/auth/educator";
@@ -11,7 +11,8 @@ import {
 import { getDb } from "$lib/server/boot";
 import { studentInterfaceLanguage } from "$lib/server/classroom/settings";
 import { cookieDeletion, localeCookieOptions } from "$lib/server/cookies";
-import { describeCause, log } from "$lib/server/logging";
+import { createHandleError } from "$lib/server/errors";
+import { log } from "$lib/server/logging";
 import { isSetupComplete, isSetupGateExempt, SETUP_PATH } from "$lib/server/setup/state";
 
 /**
@@ -262,35 +263,5 @@ export const handle: Handle = sequence(
   handleLocale,
 );
 
-/**
- * What an unexpected failure tells the browser, and what it tells the log
- * (PRD §16, §21).
- *
- * "Production errors expose no stack traces or infrastructure detail" (§21), and
- * `App.Error` is `{ message: string }` (plus the `status` SvelteKit 3 always adds)
- * for exactly that reason: the shape has no field a detail could travel in even by
- * accident.
- *
- * SvelteKit 3 sends every error here, tagged by `kind`. Expected outcomes are not
- * faults and do not deserve an operator line each, so their safe bodies pass through
- * unchanged: `app` (an `error()` a route threw: a 404, a guard's refusal),
- * `framework` (SvelteKit's own 404, 405, 413 and the like) and `validation`.
- *
- * Only `unknown` is a fault. The operator side gets the route, the method and one
- * redacted line describing the failure — never a stack, and never a body, which on
- * this application would be somebody's prompt (§16).
- */
-export const handleError: HandleServerError = ({ kind, error, event }) => {
-  if (kind !== "unknown") return error;
-
-  log.error("request failed", {
-    route: event.route.id,
-    method: event.request.method,
-    cause: describeCause(error),
-  });
-
-  // Deliberately not the caught error's message, and spelled out rather than left
-  // to SvelteKit's default, so a future change upstream cannot start leaking
-  // through this hook.
-  return { message: "Internal Error" };
-};
+/** What an unexpected failure tells the browser and the log; see `$lib/server/errors`. */
+export const handleError = createHandleError();
