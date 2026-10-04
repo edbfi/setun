@@ -939,6 +939,53 @@ describe("bun ./server.js", () => {
     expect(socketDirectories(server.temp)).toEqual([]);
   }, 20_000);
 
+  test("exits 1 on a second signal while the build is still loading, and cleans up", async () => {
+    const port = await freePort();
+    const server = await start(
+      { ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port), STANDIN_LOAD_DELAY_MS: "4000" },
+      { waitFor: "exit" },
+    );
+    await until(async () => {
+      try {
+        const socket = await Bun.connect({ hostname: "127.0.0.1", port, socket: { data() {} } });
+        socket.end();
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    expect(socketDirectories(server.temp)).toHaveLength(1);
+    server.process.kill("SIGTERM");
+    await sleep(200);
+    server.process.kill("SIGINT");
+    const exited = await Promise.race([server.process.exited, sleep(3_000).then(() => "timeout")]);
+    // As the adapter does for a second signal: give up at once, with status 1.
+    expect(exited).toBe(1);
+    expect(server.output()).not.toContain("standin listening");
+    expect(socketDirectories(server.temp)).toEqual([]);
+  }, 20_000);
+
+  test("removes the socket directory on any exit, not only after a drain", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      SHUTDOWN_TIMEOUT: "20",
+    });
+    // A request that never finishes keeps the drain open; the second signal then makes the
+    // build exit with process.exit(1), as adapter-bun does, so sveltekit:shutdown never fires.
+    const response = await fetch(`http://127.0.0.1:${server.port}/hold`);
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+    await reader.read();
+    expect(socketDirectories(server.temp)).toHaveLength(1);
+    server.process.kill("SIGTERM");
+    await sleep(300);
+    server.process.kill("SIGTERM");
+    expect(await server.process.exited).toBe(1);
+    expect(socketDirectories(server.temp)).toEqual([]);
+    await reader.cancel().catch(() => {});
+  }, 20_000);
+
   test("leaves nothing behind when the build fails to load", async () => {
     const port = await freePort();
     const server = await start(
