@@ -9,6 +9,7 @@ import { getDb } from "$lib/server/boot";
 import { classroomAvailability } from "$lib/server/classroom/enforcement";
 import { resolveClassroomStatus } from "$lib/server/classroom/status";
 import { getConfig } from "$lib/server/config";
+import { cookieDeletion } from "$lib/server/cookies";
 import {
   attachSnapshots,
   listConversationArtifacts,
@@ -275,9 +276,9 @@ export const actions: Actions = {
     redirect(303, `/chat?c=${conversation.id}`);
   },
 
-  logout: async ({ locals, cookies }) => {
+  logout: async ({ locals, cookies, url }) => {
     if (locals.sessionToken) destroySession(getDb(), locals.sessionToken);
-    cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
+    cookies.delete(SESSION_COOKIE_NAME, cookieDeletion(url, "/"));
 
     redirect(303, "/login");
   },

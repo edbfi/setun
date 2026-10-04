@@ -4,6 +4,7 @@ import { attemptStudentLogin } from "$lib/server/auth/login";
 import { SESSION_COOKIE_NAME, STUDENT_SESSION_TTL_DAYS } from "$lib/server/auth/sessions";
 import { getDb } from "$lib/server/boot";
 import { getConfig } from "$lib/server/config";
+import { secureCookie } from "$lib/server/cookies";
 import type { Actions, PageServerLoad } from "./$types";
 
 /**
@@ -71,7 +72,7 @@ export const actions: Actions = {
       sameSite: "lax",
       // Host-only and scoped to this path: the sandbox origin is a different
       // host and can never read it (§7, §14, §21).
-      secure: url.protocol === "https:",
+      secure: secureCookie(url),
       maxAge: STUDENT_SESSION_TTL_DAYS * 24 * 60 * 60,
     });
 

@@ -10,6 +10,7 @@ import {
 } from "$lib/server/auth/sessions";
 import { getDb } from "$lib/server/boot";
 import { studentInterfaceLanguage } from "$lib/server/classroom/settings";
+import { cookieDeletion, localeCookieOptions } from "$lib/server/cookies";
 import { describeCause, log } from "$lib/server/logging";
 import { isSetupComplete, isSetupGateExempt, SETUP_PATH } from "$lib/server/setup/state";
 
@@ -79,7 +80,7 @@ const handleSession: Handle = async ({ event, resolve }) => {
       event.locals.student = resolved.student;
       event.locals.sessionToken = token;
     } else {
-      event.cookies.delete(SESSION_COOKIE_NAME, { path: "/" });
+      event.cookies.delete(SESSION_COOKIE_NAME, cookieDeletion(event.url, "/"));
     }
   }
 
@@ -92,7 +93,7 @@ const handleSession: Handle = async ({ event, resolve }) => {
     if (educator) {
       event.locals.educator = educator;
     } else {
-      event.cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, { path: "/" });
+      event.cookies.delete(EDUCATOR_SESSION_COOKIE_NAME, cookieDeletion(event.url, "/"));
     }
   }
 
@@ -175,12 +176,7 @@ const handleLocale: Handle = ({ event, resolve }) => {
    * It carries a locale and nothing else.
    */
   if (preferred && event.cookies.get(cookieName) !== preferred) {
-    event.cookies.set(cookieName, preferred, {
-      path: "/",
-      httpOnly: false,
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-    });
+    event.cookies.set(cookieName, preferred, localeCookieOptions(event.url));
   }
 
   /**

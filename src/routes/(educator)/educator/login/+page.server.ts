@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { attemptEducatorSignIn } from "$lib/server/auth/educator";
 import { EDUCATOR_SESSION_COOKIE_NAME, EDUCATOR_SESSION_TTL_DAYS } from "$lib/server/auth/sessions";
 import { getDb } from "$lib/server/boot";
+import { secureCookie } from "$lib/server/cookies";
 import type { Actions, PageServerLoad } from "./$types";
 
 /**
@@ -50,7 +51,7 @@ export const actions: Actions = {
       sameSite: "lax",
       // Host-only: the sandbox origin is a different host and can never read it
       // (§7, §14, §21).
-      secure: url.protocol === "https:",
+      secure: secureCookie(url),
       maxAge: EDUCATOR_SESSION_TTL_DAYS * 24 * 60 * 60,
     });
 
