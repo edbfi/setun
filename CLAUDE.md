@@ -83,17 +83,27 @@ actions.
   `docker-compose.yml`. Compose has no `env_file`, so a variable missing there never reaches
   production. MCP credentials are the exception: their names come from `mcp.json`, so
   `$lib/server/credentials` reads them from `process.env`.
-- Plain-HTTP deployments must set `ORIGIN` to the URL browsers use. `bun ./server.js` then fronts
-  the app on a private socket with that origin; without it the app assumes `https` plus `Host`
-  (right only behind a TLS-terminating proxy) and logs a startup warning when `PROTOCOL_HEADER` is
-  unset too. Never derive the origin from `Host`.
+- `ORIGIN` is the public origin, the address people open in the browser; `SETUN_APP_ORIGIN` means
+  the same (one is enough, `ORIGIN` wins). `bun ./server.js` fronts the app on a private socket
+  with it and exports the canonical value as `ORIGIN`; `getConfig().appOrigin` reads `ORIGIN`, then
+  `SETUN_APP_ORIGIN` (`$lib/server/app-origin`), and the `localhost:5173` default is for
+  `bun run dev` only. Plain HTTP needs it; without either, `server.js` logs the startup warning
+  and the app reports the variable as required. Never derive the origin from `Host`. Parsing and
+  the warning text follow the shared contract in `.agents/rules/svelte5-sveltekit-app.md`.
+- `hooks.server.ts` refuses every `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not
+  `event.url.origin` (`$lib/server/request-origin`), whatever the content type. Write from the
+  browser with `fetch` or an enhanced form (both send `Origin`), and in Playwright pass
+  `headers: { origin: APP_ORIGIN }` to every `request.post/put/patch/delete`; never relax the check.
 - Every `cookies.set` and `cookies.delete` states its `Secure` flag through `$lib/server/cookies`
   (`secure: secureCookie(url)`, `cookieDeletion(url, path)`); `cookies.test.ts` fails otherwise.
 - Validate with Valibot: `superValidate` (sveltekit-superforms) for multi-field forms, and
   `v.safeParse` on `formData` for single-id actions. Both appear in
   `src/routes/(educator)/educator/(panel)/models/+page.server.ts`.
 - Runtime image (`Dockerfile`) ships only `build/`, `drizzle/`, `server.js`, `server-guard.js` and
-  `recover-educator.js`. Any other file needed at runtime must be added there.
+  `recover-educator.js`. Any other file needed at runtime must be added there. `.dockerignore`
+  keeps secrets, local state and host build output out of the build context, and the image sets
+  `SHUTDOWN_TIMEOUT=7` to drain inside `docker stop`'s 10 s; `docker.test.ts` checks both.
+  `server.js` defaults `BODY_SIZE_LIMIT` to 2M (an operator value wins).
 
 ## Database changes
 

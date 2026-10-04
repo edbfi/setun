@@ -163,8 +163,8 @@ care:
 
 `SETUN_APP_ORIGIN` and `SETUN_SANDBOX_ORIGIN` must be full public URLs on different hosts. Their
 hostname-only counterparts configure Caddy. Leave both educator seed variables blank to use the
-guided first-run setup. Compose passes `SETUN_APP_ORIGIN` to the app as `ORIGIN` as well (see
-"Public origin" below).
+guided first-run setup. `SETUN_APP_ORIGIN` is also the app's public origin, which Compose passes to
+it as `ORIGIN` (see "Public origin" below).
 
 MCP is optional. If the installation offers no tools, replace the example entry in `mcp.json` with
 an empty `servers` object. Credentials are referenced there by environment-variable name; do not put
@@ -275,23 +275,43 @@ the sign-in. Store and distribute printed and downloaded copies accordingly.
   use Caddy's internal CA as described in the comments in `Caddyfile`.
 - **Backups** contain a consistent SQLite snapshot plus private storage. Fourteen daily snapshots are
   retained by default; copy the backup volume off-host for disaster recovery.
-- **Public origin.** SvelteKit rejects a form post whose `Origin` is not the application's own
-  origin, and SvelteKit 3 has no runtime setting for that origin. The production entry,
-  `bun ./server.js`, supplies one: with `ORIGIN` set (Compose sets it to `SETUN_APP_ORIGIN`), it
-  runs the app on a private socket and tells it that origin on every request. **A plain-HTTP
-  deployment must set `ORIGIN`** to the URL browsers use, for example
-  `ORIGIN=http://192.168.1.10:3000`. Without `ORIGIN` the app takes the origin to be `https` plus
-  the request's `Host`, which is right only behind a TLS-terminating proxy that preserves `Host`;
-  over plain HTTP every sign-in and form post is then refused with 403, and `server.js` logs a
-  warning at startup when neither `ORIGIN` nor `PROTOCOL_HEADER` is set. The origin is never taken
-  from the request's `Host` header. Start production with `bun ./server.js`, never `bun ./build`:
-  that skips the origin handling and the process guard.
+- **Public origin.** Set `ORIGIN` to the address people open in the browser: scheme, host and
+  port only, for example `ORIGIN=http://192.168.1.10:3000`. `SETUN_APP_ORIGIN` means the same, and
+  one of the two is enough; when both are set, `ORIGIN` wins. Compose takes it from
+  `SETUN_APP_ORIGIN` in `.env`. Setun needs it in every deployment:
+  - Over plain HTTP it is required. SvelteKit 3 has no runtime origin setting of its own, so the
+    production entry, `bun ./server.js`, runs the app on a private socket and tells it this origin
+    on every request; without it, signing in and saving changes fail.
+  - Behind an HTTPS reverse proxy that passes the original `Host` (the Compose deployment's Caddy),
+    set the `https://` address. Without any origin SvelteKit would assume exactly that, but Setun
+    also prints the address on access slips and QR codes, so it does not run without one: the
+    server logs a warning at startup and every page answers 500, with the missing variable named
+    in the log. Only `bun run dev` falls back to `http://localhost:5173`.
+  - A value with a path, query, fragment or credentials stops the server at startup with
+    `ORIGIN must be a bare http(s) origin such as http://192.168.1.10:3000 (no path, query,
+    fragment or credentials).` The origin is never taken from the request's `Host` header.
+  - Start production with `bun ./server.js`, never `bun ./build`: that skips the origin handling
+    and the process guard.
+- **Writes from other origins.** Setun refuses any `POST`, `PUT`, `PATCH` or `DELETE` whose
+  `Origin` header is not the public origin above, whatever its content type. Browsers send it on
+  their own; a script that calls Setun's API must send `Origin: <the public origin>` itself.
+- **Behind a proxy.** Set `ADDRESS_HEADER=x-forwarded-for` and `XFF_DEPTH` (the number of proxies
+  in front of Setun, default 1) only when every request passes through them, so the per-address
+  login and rate limits see each pupil's address rather than the proxy's. Compose sets both for its
+  Caddy. `PROTOCOL_HEADER` and `HOST_HEADER` are for deployments without `ORIGIN`; Setun always
+  has an origin, and its front replaces them.
+- **Shutdown and request size.** `SHUTDOWN_TIMEOUT` is how many seconds a stopping server lets
+  open requests, such as a pupil's streaming answer, finish: 30 by default, and 7 in the container
+  image, so that it fits inside the 10 seconds `docker stop` waits. Raise it only together with
+  `docker stop -t` or Compose's `stop_grace_period`. `BODY_SIZE_LIMIT` caps a request body, 2M by
+  default (Compose reads `SETUN_BODY_SIZE_LIMIT`); restoring an artifact posts the whole project,
+  which may be up to 1 MB.
 - **Missing compressed files.** The build ships a `.br` and a `.gz` copy of every static file, and
   the server sends one when the browser accepts it. If one of those copies goes missing on disk
   while the server runs (for example, a new build copied over a running one), the front asks the
   app for the plain file instead, so the page keeps working. Without `ORIGIN` and
   `SETUN_APP_ORIGIN` there is no front, and such a request fails with 500 until the build
-  directory is complete again or the server restarts from a complete build.
+  directory is complete again.
 
 ## Development
 

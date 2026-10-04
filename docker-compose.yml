@@ -32,17 +32,18 @@ services:
       SETUN_CPA_BASE_URL: http://cpa:8317
       SETUN_APP_ORIGIN: ${SETUN_APP_ORIGIN:?set in .env}
       SETUN_SANDBOX_ORIGIN: ${SETUN_SANDBOX_ORIGIN:?set in .env}
-      # The application's public origin, used for SvelteKit's CSRF origin check.
-      # SvelteKit 3 has no runtime setting for it, so `bun ./server.js` reads this:
-      # set, it fronts the app on a private socket and supplies this origin on
-      # every request. Unset, the app would assume https plus the Host header and
-      # log a warning. Always the application origin.
+      # The application's public origin, for SvelteKit's origin check and the
+      # app's own origin check on writes. SvelteKit 3 has no runtime setting for
+      # it, so `bun ./server.js` fronts the app on a private socket and supplies
+      # this origin on every request. server.js would take SETUN_APP_ORIGIN
+      # above on its own; this line states it. Always the application origin.
       ORIGIN: ${SETUN_APP_ORIGIN:?set in .env}
       # An artifact is a small project of files now, and its whole file list is
       # posted when a pupil edits or restores one. The Bun adapter refuses a body
       # over 512 KB by default, which a project of a few large files reaches —
       # so the ceiling is set just above the project cap in
       # src/lib/artifacts/project.ts (1 MB) rather than left to the default.
+      # server.js applies the same 2M when BODY_SIZE_LIMIT is unset.
       BODY_SIZE_LIMIT: ${SETUN_BODY_SIZE_LIMIT:-2M}
       # Every request arrives through Caddy, so the socket's peer address is
       # Caddy's and identical for all of them. Left unset, the per-IP axis of the
