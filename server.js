@@ -13,6 +13,9 @@
  *     directory, and forwards every request to it with headers that state
  *     `ORIGIN`'s scheme and host. Only the front can reach that socket, so only
  *     the front can set those headers, and it overwrites them on every request.
+ *     It also stops a request for a build asset from asking for a
+ *     pre-compressed variant that has gone missing on disk, which the adapter
+ *     would answer with a 500 (`dropMissingEncodings` in `server-guard.js`).
  *
  * Why a front at all: SvelteKit 3 has no runtime `ORIGIN` (adapter-node's
  * variable is gone, and `paths.origin` is fixed at build time), and Kit checks a
@@ -58,7 +61,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { installServerGuard } from "./server-guard.js";
+import { dropMissingEncodings, installServerGuard } from "./server-guard.js";
 
 /** Header names the adapter reads for the origin and the client address, set only here. */
 export const PROTOCOL_HEADER = "x-setun-origin-proto";
@@ -222,6 +225,25 @@ export function frontHeaders(incoming, { origin, ownPeerHeader, peer }) {
 }
 
 /**
+ * For a static asset request, stop asking for a pre-compressed variant that is
+ * missing on disk (see `dropMissingEncodings` in server-guard.js).
+ *
+ * @param {Headers} headers modified in place
+ * @param {string} method
+ * @param {string} path the forwarded path and query
+ * @param {string} clientDir
+ */
+export function guardEncodings(headers, method, path, clientDir) {
+  if (method !== "GET" && method !== "HEAD") return;
+  const replacement = dropMissingEncodings(
+    headers.get("accept-encoding"),
+    path.split("?")[0] ?? "",
+    clientDir,
+  );
+  if (replacement !== null) headers.set("accept-encoding", replacement);
+}
+
+/**
  * The path and query of a request, exactly as Bun received them.
  *
  * Taken from the URL string rather than re-serialized, so an encoded path stays
@@ -262,6 +284,7 @@ export async function serve(
   environment = process.env,
   importServer = () => import(pathToFileURL(buildEntry(environment)).href),
 ) {
+  const clientDir = join(dirname(buildEntry(environment)), "client");
   const plan = prepare(environment);
   if (plan.mode === "direct") {
     if (plan.warning) console.warn(plan.warning);
@@ -294,10 +317,12 @@ export async function serve(
           ownPeerHeader,
           peer: server.requestIP(request)?.address,
         });
+        const path = forwardPath(request.url);
+        guardEncodings(headers, request.method, path, clientDir);
         /** @type {Response} */
         let response;
         try {
-          response = await fetch(`http://localhost${forwardPath(request.url)}`, {
+          response = await fetch(`http://localhost${path}`, {
             method: request.method,
             headers,
             body: request.method === "GET" || request.method === "HEAD" ? null : request.body,

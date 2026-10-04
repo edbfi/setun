@@ -2,9 +2,9 @@
  * Keeping a static-file problem from becoming an outage (PRD §5, §21).
  *
  * Two helpers, both used by `server.js` and both about the same failure: the
- * set of files adapter-node believes it can serve and the set actually on disk
+ * set of files the server believes it can serve and the set actually on disk
  * are allowed to disagree. `installServerGuard` keeps that from ending the
- * process; `dropMissingEncodings` keeps it from stalling the request.
+ * process; `dropMissingEncodings` keeps it from failing the request.
  *
  * They live here rather than in `server.js` so a test can exercise them without
  * starting a server.
@@ -13,41 +13,33 @@
  *
  * Keeping the server alive when a single file read fails.
  *
- * `bun ./build/index.js` is adapter-node's own entry point, and adapter-node
- * serves `build/client` with a static handler that reads pre-compressed
- * variants (`.br`, `.gz`) directly from disk. That handler decides which
- * variants exist once, at startup. If one of those files is not there when the
- * read actually happens, the resulting `ENOENT` reaches nothing that handles it,
- * and the process exits.
+ * The set of files on disk and the set the server believes in diverge whenever
+ * a deployment writes into `build/` under a running server, whenever a copy
+ * lands `.js` before its `.br`, and whenever a build is interrupted. Under
+ * adapter-node a failed read there reached nothing that handled it, and the
+ * process exited: a single unauthenticated `GET` for one asset ended the lesson
+ * for every pupil in the school, and nothing served again until an operator
+ * restarted.
  *
- * A single unauthenticated `GET` for one asset then ends the lesson for every
- * pupil in the school, and nothing serves again until an operator restarts. That
- * is not a hypothetical: the set of files on disk and the set the handler
- * believes in diverge whenever a deployment writes into `build/` under a running
- * server, whenever a copy lands `.js` before its `.br`, and whenever a build is
- * interrupted.
- *
- * Whatever the cause, the response is the same: the request that touched the
- * missing file should fail, and only that request. So this module installs the
- * handler adapter-node does not, narrowly:
+ * `@sveltejs/adapter-bun` serves those files from Bun's native routes, and Bun
+ * answers a failed read with a 500 and keeps serving (reproduced 2026-10-04,
+ * with and without this guard). The guard stays all the same: it costs two
+ * listeners, and it is what keeps any other failed read of one file — one that
+ * reaches the process level from anywhere in the application — from taking the
+ * server down. Narrowly:
  *
  *   - a filesystem error about a specific path is logged and swallowed;
  *   - everything else keeps the old behaviour and exits, because an unexpected
  *     fault may well have left the process in a state where continuing is worse
  *     than restarting.
  *
- * `server.js` installs this and then hands straight over to adapter-node's own
- * entry point, rather than wrapping `build/handler.js` in a server of our own: a
- * wrapper would have to restate adapter-node's socket activation, keep-alive
- * tuning and graceful shutdown, and would silently fall behind the adapter on
- * the next upgrade. This adds two listeners and touches nothing else.
- *
- * Nothing here logs a URL, a body or a header — only the syscall, the error
- * code and the path, which is the same class of detail §16 already permits.
+ * `server.js` installs this before it imports the build. Nothing here logs a
+ * URL, a body or a header — only the syscall, the error code and the path,
+ * which is the same class of detail §16 already permits.
  */
 
 import { existsSync } from "node:fs";
-import { join, normalize } from "node:path";
+import { join, normalize, sep } from "node:path";
 
 /**
  * Error codes that mean "this one file could not be read", and nothing worse.
@@ -119,39 +111,55 @@ export function installServerGuard(target = process) {
 }
 
 /**
- * Pre-compressed encodings adapter-node serves from disk, and the suffix each
- * one is stored under.
+ * Pre-compressed encodings adapter-bun serves, under the names its negotiation
+ * uses, and the suffix each one is stored under. `*` selects them in this
+ * order.
  */
 const ENCODINGS = [
   ["br", ".br"],
   ["gzip", ".gz"],
 ];
 
+/** An `Accept-Encoding` part's lower-cased name, or null when it says `q=0`. */
+function acceptedName(part) {
+  const [name = "", ...params] = part.toLowerCase().split(";");
+  return params.some((param) => /^q=0(\.0*)?$/.test(param.trim())) ? null : name.trim();
+}
+
 /**
  * Ask for a pre-compressed variant only if it is actually on disk.
  *
- * adapter-node's static handler works out which `.br` and `.gz` files exist
- * once, when the server starts. Disk can disagree with that list afterwards — a
- * deployment writing into `build/` under a running server, a copy that lands
- * `.js` before its `.br`, an interrupted build — and the handler then opens a
- * file that is not there. `server-guard.js` keeps that from ending the process,
- * but the request itself is already half-served and simply stops, so the browser
- * waits for a chunk that never arrives and the page stays broken.
+ * adapter-bun records which `.br` and `.gz` files exist when the app is built,
+ * and serves the variant the request's `Accept-Encoding` selects without
+ * checking again. Disk can disagree with that record afterwards — a deployment
+ * writing into `build/` under a running server, a copy that lands `.js` before
+ * its `.br`, an interrupted build — and then every browser, all of which ask
+ * for Brotli, gets a 500 for that asset and the page stays broken (reproduced
+ * 2026-10-04 with adapter-bun 1.0.0; under adapter-node the same case stalled
+ * the request).
  *
- * Checking here costs one `existsSync` on requests that both ask for a
- * compressed encoding and address a build asset, and turns that case into an
- * ordinary uncompressed response. The pupil gets their page.
+ * Returns the header to forward instead, or null to leave it alone. It mirrors
+ * adapter-bun's negotiation exactly: names are compared lower-cased and whole,
+ * a part with `q=0` is ignored, and `*` stands for every encoding. A missing
+ * variant's name is dropped, and `*` is replaced by the names still on disk, so
+ * the request is served compressed where possible and plain otherwise.
  *
  * Only `/_app/` is considered: those are the hashed, immutable build outputs,
- * the only files adapter-node pre-compresses, and the only place this can
- * happen. Anything else is passed through untouched.
+ * where this happens. It costs one `existsSync` per encoding on requests that
+ * both ask for one and address a build asset.
+ *
+ * `server.js` applies it in the front, before forwarding. The front runs only
+ * when ORIGIN is set; without it the adapter listens directly and a missing
+ * variant answers 500 until the build directory is whole again.
+ *
+ * @param {string | null | undefined} accept the request's `Accept-Encoding`
+ * @param {string} pathname the request path, still percent-encoded
+ * @param {string} clientDir the build's `client` directory
+ * @returns {string | null}
  */
-export function dropMissingEncodings(req, clientDir) {
-  const accept = req.headers["accept-encoding"];
-  if (typeof accept !== "string" || accept === "") return;
-
-  const pathname = (req.url ?? "").split("?")[0];
-  if (!pathname.startsWith("/_app/")) return;
+export function dropMissingEncodings(accept, pathname, clientDir) {
+  if (typeof accept !== "string" || accept === "") return null;
+  if (!pathname.startsWith("/_app/")) return null;
 
   let asset;
   try {
@@ -160,40 +168,39 @@ export function dropMissingEncodings(req, clientDir) {
     //
     // Wrapped, because both steps throw on input a client is free to send:
     // `decodeURIComponent` on a malformed escape such as `/_app/%`, and `join`
-    // on a path containing a null byte. This runs inside a `request` listener,
-    // where an exception would reach nothing — and the process guard is
-    // deliberately narrow enough not to catch it. A request we cannot make sense
-    // of is simply left alone for the static handler to reject as it always has.
+    // on a path containing a null byte. A request we cannot make sense of is
+    // simply left alone for the adapter to answer as it would.
     asset = normalize(join(clientDir, decodeURIComponent(pathname)));
   } catch {
-    return;
+    return null;
   }
 
-  if (!asset.startsWith(clientDir)) return;
+  if (!asset.startsWith(clientDir + sep)) return null;
 
-  // Match the way adapter-node's static handler reads this header, or the two
-  // disagree and the request reaches the missing file anyway. That handler tests
-  // the whole header value for a case-insensitive substring — `/(br|brotli)/i`
-  // for Brotli, `.includes("gzip")` for gzip — so `BR` and `x-gzip` both select a
-  // pre-compressed variant there.
-  //
-  // Hence: lower case on both sides, and substring rather than prefix. Dropping a
-  // part is only useful if no occurrence of the token survives anywhere in what
-  // is left, which is exactly what the handler will look at.
-  const normalized = accept.toLowerCase();
-
-  const missing = ENCODINGS.filter(
-    ([token, suffix]) => normalized.includes(token) && !existsSync(asset + suffix),
-  ).map(([token]) => token);
-
-  if (missing.length === 0) return;
-
-  const kept = accept
+  const parts = accept
     .split(",")
     .map((part) => part.trim())
-    .filter((part) => part !== "" && !missing.some((token) => part.toLowerCase().includes(token)));
+    .filter((part) => part !== "");
+  const accepted = new Set(parts.map(acceptedName).filter((name) => name !== null));
+  const wildcard = accepted.has("*");
 
-  // An empty header would be rejected outright, so fall back to the encoding
-  // every client understands rather than leaving nothing behind.
-  req.headers["accept-encoding"] = kept.length > 0 ? kept.join(", ") : "identity";
+  const missing = ENCODINGS.filter(
+    ([token, suffix]) => (accepted.has(token) || wildcard) && !existsSync(asset + suffix),
+  ).map(([token]) => token);
+
+  if (missing.length === 0) return null;
+
+  const kept = parts.filter((part) => {
+    const name = acceptedName(part);
+    return name === null || (!missing.includes(name) && name !== "*");
+  });
+  if (wildcard) {
+    for (const [token] of ENCODINGS) {
+      if (!missing.includes(token) && !accepted.has(token)) kept.push(token);
+    }
+  }
+
+  // An empty header would mean "anything", so say plainly that only the
+  // uncompressed file will do.
+  return kept.length > 0 ? kept.join(", ") : "identity";
 }

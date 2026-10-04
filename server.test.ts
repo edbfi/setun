@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +7,7 @@ import {
   buildEntry,
   forwardPath,
   frontHeaders,
+  guardEncodings,
   HOST_HEADER,
   MISSING_ORIGIN_WARNING,
   PEER_HEADER,
@@ -433,6 +434,29 @@ describe("frontHeaders", () => {
     );
     expect(headers.has(PEER_HEADER)).toBe(false);
     expect(headers.get("x-forwarded-for")).toBe("203.0.113.9, 198.51.100.7");
+  });
+});
+
+describe("guardEncodings", () => {
+  test("drops a missing pre-compressed variant from a build asset request", () => {
+    const client = scratch();
+    const chunks = join(client, "_app", "immutable", "chunks");
+    mkdirSync(chunks, { recursive: true });
+    writeFileSync(join(chunks, "a.js"), "a");
+    writeFileSync(join(chunks, "a.js.gz"), "gz");
+
+    const get = new Headers({ "accept-encoding": "gzip, deflate, br" });
+    guardEncodings(get, "GET", "/_app/immutable/chunks/a.js?v=1", client);
+    expect(get.get("accept-encoding")).toBe("gzip, deflate");
+
+    const head = new Headers({ "accept-encoding": "br" });
+    guardEncodings(head, "HEAD", "/_app/immutable/chunks/a.js", client);
+    expect(head.get("accept-encoding")).toBe("identity");
+
+    // Not a static-asset request: left alone.
+    const post = new Headers({ "accept-encoding": "br" });
+    guardEncodings(post, "POST", "/_app/immutable/chunks/a.js", client);
+    expect(post.get("accept-encoding")).toBe("br");
   });
 });
 
