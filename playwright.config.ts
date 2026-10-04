@@ -116,6 +116,9 @@ export default defineConfig({
       command: `rm -rf ${E2E_DATABASE_PATH.replace(/\/[^/]+$/, "")} && bun --bun vite build && bun ./server.js`,
       port: APP_PORT,
       reuseExistingServer: !process.env.CI,
+      // SIGTERM (not Playwright's default SIGKILL) lets server.js drain and
+      // remove its private socket directory.
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
       env: appEnv,
     },
     {
@@ -153,6 +156,7 @@ export default defineConfig({
        */
       reuseExistingServer: false,
       timeout: 10 * 60 * 1000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
       env: {
         SETUN_E2E_APP_URL: APP_ORIGIN,
         PORT: String(SETUP_PORT),
