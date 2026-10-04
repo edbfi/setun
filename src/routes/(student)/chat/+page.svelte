@@ -494,13 +494,10 @@ async function deleteConversation(conversationId: string): Promise<void> {
     // Nothing left to show on this page; the load falls back to the newest
     // conversation the pupil still has, or to an empty composer if none remain.
     //
-    // `reset: false` is SvelteKit 3's spelling of the old `noScroll: true`, and
-    // it also leaves focus alone (Kit 2 reset it). Measured on both versions
-    // the result is the same: the window never scrolls (the transcript is its
-    // own scroller, back at the top for the conversation now shown), and the
-    // focused confirm button leaves with the drawer, which hands focus back to
-    // its opener, the Conversations button. Reported to the owner as a possible
-    // behaviour change to decide; none was measured.
+    // `reset: false` keeps scroll, as `noScroll: true` did, and leaves focus to
+    // the page: the focused confirm button leaves with the drawer, and the
+    // drawer returns focus to its opener, the Conversations button. The window
+    // itself never scrolls here; the transcript is its own scroller.
     await goto("/chat", { refreshAll: true, reset: false });
     return;
   }
