@@ -158,7 +158,6 @@ const handleLocale: Handle = ({ event, resolve }) => {
   const preferred = student ? studentInterfaceLanguage(getDb(), student) : null;
 
   const request = preferred ? withLocaleCookie(event.request, preferred) : event.request;
-  event.request = request;
 
   /**
    * Tell the browser which locale won, whenever the pupil's preference differs
@@ -184,16 +183,23 @@ const handleLocale: Handle = ({ event, resolve }) => {
     });
   }
 
-  return paraglideMiddleware(request, ({ request: localised, locale }) => {
-    event.request = localised;
-
-    return resolve(event, {
-      transformPageChunk: ({ html }) =>
-        html
-          .replace("%paraglide.lang%", locale)
-          .replace("%paraglide.dir%", getTextDirection(locale)),
-    });
-  });
+  /**
+   * The rest of the request sees the localised request, never the original: the rebuilt
+   * request above carries the body, so an action reading the original would find it consumed.
+   * `RequestEvent` is read-only in SvelteKit 3, so the request travels in a copy of the event,
+   * which is also what SvelteKit's own `sequence` hands from one handle to the next.
+   */
+  return paraglideMiddleware(request, ({ request: localised, locale }) =>
+    resolve(
+      { ...event, request: localised },
+      {
+        transformPageChunk: ({ html }) =>
+          html
+            .replace("%paraglide.lang%", locale)
+            .replace("%paraglide.dir%", getTextDirection(locale)),
+      },
+    ),
+  );
 };
 
 /**
@@ -265,17 +271,21 @@ export const handle: Handle = sequence(
  * (PRD §16, §21).
  *
  * "Production errors expose no stack traces or infrastructure detail" (§21), and
- * `App.Error` is `{ message: string }` for exactly that reason: the shape has no
- * field a detail could travel in even by accident.
+ * `App.Error` is `{ message: string }` (plus the `status` SvelteKit 3 always adds)
+ * for exactly that reason: the shape has no field a detail could travel in even by
+ * accident.
  *
- * The operator side gets the route, the request id SvelteKit generated, and one
- * redacted line describing the failure — never a stack, and never a body, which
- * on this application would be somebody's prompt (§16).
+ * SvelteKit 3 sends every error here, tagged by `kind`. Expected outcomes are not
+ * faults and do not deserve an operator line each, so their safe bodies pass through
+ * unchanged: `app` (an `error()` a route threw: a 404, a guard's refusal),
+ * `framework` (SvelteKit's own 404, 405, 413 and the like) and `validation`.
+ *
+ * Only `unknown` is a fault. The operator side gets the route, the method and one
+ * redacted line describing the failure — never a stack, and never a body, which on
+ * this application would be somebody's prompt (§16).
  */
-export const handleError: HandleServerError = ({ error, event, status, message }) => {
-  // Expected HTTP outcomes — a 404 from `error()`, a guard's refusal — are not
-  // faults and do not deserve an operator line each.
-  if (status !== 500) return { message };
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+  if (kind !== "unknown") return error;
 
   log.error("request failed", {
     route: event.route.id,
@@ -283,8 +293,8 @@ export const handleError: HandleServerError = ({ error, event, status, message }
     cause: describeCause(error),
   });
 
-  // Deliberately not `message`: SvelteKit's default for a 500 is already
-  // generic, and restating it here means a future change upstream cannot start
-  // leaking through this hook.
+  // Deliberately not the caught error's message, and spelled out rather than left
+  // to SvelteKit's default, so a future change upstream cannot start leaking
+  // through this hook.
   return { message: "Internal Error" };
 };
