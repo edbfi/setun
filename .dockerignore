@@ -1,0 +1,45 @@
+# The build context for Dockerfile. The build stage needs the sources, their
+# configuration and the lockfile (`COPY . .`); the runtime stage takes
+# package.json, bun.lock, server.js and server-guard.js from here and the rest
+# from the build stage. docker.test.ts checks both lists.
+#
+# Left out: secrets and operator files, which must never enter an image layer;
+# local state; and what a local install, build or test run leaves behind, which
+# would be stale in the image (node_modules is even built for another platform).
+
+# Secrets and operator configuration
+.env
+.env.*
+cpa/config.yaml
+mcp.json
+
+# Version control
+.git
+
+# Installed and generated on the host; the image installs and builds its own
+node_modules
+build
+build-sandbox
+.svelte-kit
+src/lib/paraglide
+project.inlang/cache
+vite.config.ts.timestamp-*
+.svelte-check
+
+# Local data: the development database and storage, dev-suite instances
+data
+.devsuite
+dogfood-output
+
+# Test output
+test-results
+playwright-report
+blob-report
+.playwright
+**/__screenshots__
+.vitest-attachments
+
+# Python tooling for the dev suite
+**/.venv
+**/__pycache__
+.ruff_cache
