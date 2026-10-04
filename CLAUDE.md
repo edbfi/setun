@@ -87,9 +87,11 @@ actions.
   the same (one is enough, `ORIGIN` wins). `bun ./server.js` fronts the app on a private socket
   with it and exports the canonical value as `ORIGIN`; `getConfig().appOrigin` reads `ORIGIN`, then
   `SETUN_APP_ORIGIN` (`$lib/server/app-origin`), and the `localhost:5173` default is for
-  `bun run dev` only. Plain HTTP needs it; without either, `server.js` logs the startup warning
-  and the app reports the variable as required. Never derive the origin from `Host`. Parsing and
-  the warning text follow the shared contract in `.agents/rules/svelte5-sveltekit-app.md`.
+  `bun run dev` only. Without either, `server.js` exits before it binds, with one error naming
+  `ORIGIN` (`MISSING_ORIGIN_ERROR`), and logs no warning: Setun's deliberate exception to the
+  shared contract's startup warning, because it prints the origin on access slips and QR codes.
+  Other settings are still validated by the app on first use. Never derive the origin from
+  `Host`. Parsing follows the shared contract in `.agents/rules/svelte5-sveltekit-app.md`.
 - `hooks.server.ts` refuses every `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not
   `event.url.origin` (`$lib/server/request-origin`), whatever the content type. Write from the
   browser with `fetch` or an enhanced form (both send `Origin`), and in Playwright pass

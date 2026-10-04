@@ -69,8 +69,7 @@ export const SETUP_TOKEN_PATH = `${SETUP_ROOT}/bootstrap-token`;
 const appEnv = {
   PORT: String(APP_PORT),
   // SvelteKit's CSRF origin check compares against this, through the front in
-  // server.js. Unset, the app assumes https and rejects every form POST arriving
-  // over http — which is what a browser sends here.
+  // server.js, which does not start without it (or SETUN_APP_ORIGIN below).
   ORIGIN: APP_ORIGIN,
   SETUN_DATABASE_PATH: E2E_DATABASE_PATH,
   SETUN_STORAGE_PATH: E2E_STORAGE_PATH,

@@ -279,14 +279,15 @@ the sign-in. Store and distribute printed and downloaded copies accordingly.
   port only, for example `ORIGIN=http://192.168.1.10:3000`. `SETUN_APP_ORIGIN` means the same, and
   one of the two is enough; when both are set, `ORIGIN` wins. Compose takes it from
   `SETUN_APP_ORIGIN` in `.env`. Setun needs it in every deployment:
-  - Over plain HTTP it is required. SvelteKit 3 has no runtime origin setting of its own, so the
-    production entry, `bun ./server.js`, runs the app on a private socket and tells it this origin
-    on every request; without it, signing in and saving changes fail.
+  - Over plain HTTP, set the `http://` address. SvelteKit 3 has no runtime origin setting of its
+    own, so the production entry, `bun ./server.js`, runs the app on a private socket and tells it
+    this origin on every request.
   - Behind an HTTPS reverse proxy that passes the original `Host` (the Compose deployment's Caddy),
-    set the `https://` address. Without any origin SvelteKit would assume exactly that, but Setun
-    also prints the address on access slips and QR codes, so it does not run without one: the
-    server logs a warning at startup and every page answers 500, with the missing variable named
-    in the log. Only `bun run dev` falls back to `http://localhost:5173`.
+    set the `https://` address. Setun prints it on access slips, QR codes and the first-run banner.
+  - With neither `ORIGIN` nor `SETUN_APP_ORIGIN` set, the server stops at startup, before it
+    listens, with `Setun needs its public address: set ORIGIN to the address users open, for
+    example ORIGIN=http://192.168.1.10:3000.` Only `bun run dev` falls back to
+    `http://localhost:5173`.
   - A value with a path, query, fragment or credentials stops the server at startup with
     `ORIGIN must be a bare http(s) origin such as http://192.168.1.10:3000 (no path, query,
     fragment or credentials).` The origin is never taken from the request's `Host` header.
@@ -309,9 +310,7 @@ the sign-in. Store and distribute printed and downloaded copies accordingly.
 - **Missing compressed files.** The build ships a `.br` and a `.gz` copy of every static file, and
   the server sends one when the browser accepts it. If one of those copies goes missing on disk
   while the server runs (for example, a new build copied over a running one), the front asks the
-  app for the plain file instead, so the page keeps working. Without `ORIGIN` and
-  `SETUN_APP_ORIGIN` there is no front, and such a request fails with 500 until the build
-  directory is complete again.
+  app for the plain file instead, so the page keeps working.
 
 ## Development
 
