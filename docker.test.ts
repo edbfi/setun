@@ -99,3 +99,22 @@ describe(".dockerignore", () => {
       expect(excluded(source)).toBe(false);
   });
 });
+
+describe("the image's shutdown budget", () => {
+  test("drains within `docker stop`'s default 10 s instead of being killed mid-drain", () => {
+    const dockerfile = readFileSync(join(ROOT, "Dockerfile"), "utf8");
+    const runtime = dockerfile.slice(dockerfile.indexOf("AS runtime"));
+    const value = /^ENV SHUTDOWN_TIMEOUT=(\d+)$/m.exec(runtime)?.[1];
+    expect(value).toBeDefined();
+    // The front's drain ends at SHUTDOWN_TIMEOUT; what follows (closing, removing the socket
+    // directory, exiting) needs well under the rest of the 10 s.
+    expect(Number(value)).toBeGreaterThan(0);
+    expect(Number(value)).toBeLessThanOrEqual(7);
+  });
+
+  test("Compose neither shortens the stop budget nor overrides the image's value", () => {
+    const compose = readFileSync(join(ROOT, "docker-compose.yml"), "utf8");
+    expect(compose).not.toContain("stop_grace_period");
+    expect(compose).not.toMatch(/^\s+SHUTDOWN_TIMEOUT:/m);
+  });
+});
