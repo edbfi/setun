@@ -446,13 +446,25 @@ export async function serve(
   // A second signal before then exits with status 1, as the adapter does for a
   // second signal. These handlers stay registered, so a signal never falls
   // through to the default handler, which would skip the cleanup on exit.
+  //
+  // SIGHUP (the terminal of a direct run was closed) shuts down the same way.
+  // The adapter does not handle it, so it reaches the adapter as SIGTERM, once
+  // the build has loaded. Only the first SIGHUP counts, and a SIGHUP never
+  // counts as a second signal: `bun run start` passes the terminal's hangup on,
+  // so it arrives twice, which would otherwise exit at once without the drain.
   let loaded = false;
   /** @type {NodeJS.Signals | undefined} */
   let earlySignal;
   /** @param {NodeJS.Signals} signal */
+  const adapterSignal = (signal) => (signal === "SIGHUP" ? "SIGTERM" : signal);
+  /** @param {NodeJS.Signals} signal */
   const onSignal = (signal) => {
+    if (signal === "SIGHUP" && publicDrain) return;
     startDrain();
-    if (loaded) return;
+    if (loaded) {
+      if (signal === "SIGHUP") process.kill(process.pid, "SIGTERM");
+      return;
+    }
     if (earlySignal) process.exit(1);
     earlySignal = signal;
   };
@@ -477,6 +489,7 @@ export async function serve(
   };
   process.on("SIGTERM", onSignal);
   process.on("SIGINT", onSignal);
+  process.on("SIGHUP", onSignal);
   process.once("sveltekit:shutdown", onShutdown);
   // Every exit removes the socket directory, including the adapter's
   // process.exit(1) on a second signal, which never emits sveltekit:shutdown
@@ -488,6 +501,7 @@ export async function serve(
   } catch (error) {
     process.off("SIGTERM", onSignal);
     process.off("SIGINT", onSignal);
+    process.off("SIGHUP", onSignal);
     process.off("sveltekit:shutdown", onShutdown);
     process.off("exit", removeSocketDirectory);
     await listener.stop(true);
@@ -496,7 +510,7 @@ export async function serve(
   }
   loaded = true;
   markReady();
-  if (earlySignal) process.kill(process.pid, earlySignal);
+  if (earlySignal) process.kill(process.pid, adapterSignal(earlySignal));
 
   console.log(`Listening on ${listener.url} for ${origin.origin}`);
 }
