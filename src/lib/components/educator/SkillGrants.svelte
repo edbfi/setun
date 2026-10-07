@@ -77,10 +77,10 @@ const field = "h-8 rounded-md border border-input bg-background px-2 text-xs tex
               type="submit"
               disabled={!skill.enabled}
               class={[
-  button,
-  { "bg-primary text-primary-foreground hover:bg-primary/90": skill.classWide },
-  "disabled:opacity-50",
-]}
+                button,
+                { "bg-primary text-primary-foreground hover:bg-primary/90": skill.classWide },
+                "disabled:opacity-50",
+              ]}
             >
               {skill.classWide ? m.educator_skill_grant_remove() : m.educator_skill_grant_class()}
             </button>

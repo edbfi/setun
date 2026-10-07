@@ -57,7 +57,9 @@ const open = $derived(confirming !== null);
               class:bg-destructive={!alias.dataProtection}
               class:text-destructive-foreground={!alias.dataProtection}
             >
-              {alias.dataProtection ? m.educator_alias_dpa_badge() : m.educator_alias_no_dpa_badge()}
+              {alias.dataProtection
+                ? m.educator_alias_dpa_badge()
+                : m.educator_alias_no_dpa_badge()}
             </span>
           </div>
 
@@ -85,8 +87,8 @@ const open = $derived(confirming !== null);
             <button
               type="button"
               onclick={() => {
-  confirming = alias;
-}}
+                confirming = alias;
+              }}
               class="h-8 rounded-md border border-destructive px-3 text-xs font-medium text-destructive hover:bg-destructive hover:text-destructive-foreground"
             >
               {m.educator_allowlist_allow()}
@@ -101,8 +103,8 @@ const open = $derived(confirming !== null);
 <Dialog.Root
   {open}
   onOpenChange={(next) => {
-  if (!next) confirming = null;
-}}
+    if (!next) confirming = null;
+  }}
 >
   <Dialog.Content class="max-w-lg">
     <Dialog.Header>
@@ -114,8 +116,8 @@ const open = $derived(confirming !== null);
       <button
         type="button"
         onclick={() => {
-  confirming = null;
-}}
+          confirming = null;
+        }}
         class="h-9 rounded-md border border-input px-3 text-sm font-medium text-foreground hover:bg-secondary"
       >
         {m.educator_no_dpa_confirm_cancel()}
@@ -125,11 +127,11 @@ const open = $derived(confirming !== null);
         method="POST"
         action="?/allowAlias"
         use:enhance={() => {
-  return async ({ update }) => {
-    confirming = null;
-    await update();
-  };
-}}
+          return async ({ update }) => {
+            confirming = null;
+            await update();
+          };
+        }}
       >
         <input type="hidden" name="modelAliasId" value={confirming?.id ?? ""}>
         <!-- The recorded acknowledgement §16 asks for, verified server-side. -->

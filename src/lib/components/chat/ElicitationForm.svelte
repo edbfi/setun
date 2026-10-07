@@ -99,8 +99,10 @@ const field = "rounded-md border border-input bg-background px-3 text-sm text-fo
               type={spec.type === "number" ? "number" : "text"}
               value={values[spec.name]}
               oninput={(event) =>
-  (values[spec.name] =
-    spec.type === "number" ? Number(event.currentTarget.value) : event.currentTarget.value)}
+                (values[spec.name] =
+                  spec.type === "number"
+                    ? Number(event.currentTarget.value)
+                    : event.currentTarget.value)}
               class="h-11 {field}"
             >
           {/if}

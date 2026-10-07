@@ -123,10 +123,10 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
               value={mediaType}
               checked={$form.attachmentTypes.includes(mediaType)}
               onchange={(event) => {
-  $form.attachmentTypes = event.currentTarget.checked
-    ? [...$form.attachmentTypes, mediaType]
-    : $form.attachmentTypes.filter((type) => type !== mediaType);
-}}
+                $form.attachmentTypes = event.currentTarget.checked
+                  ? [...$form.attachmentTypes, mediaType]
+                  : $form.attachmentTypes.filter((type) => type !== mediaType);
+              }}
               class="size-4"
             >
             <span class="text-sm text-foreground">{ATTACHMENT_TYPE_LABELS[mediaType]()}</span>
@@ -144,8 +144,8 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           min="1"
           value={Math.round($form.attachmentImageMaxBytes / MB)}
           oninput={(event) => {
-  $form.attachmentImageMaxBytes = Math.max(1, Number(event.currentTarget.value)) * MB;
-}}
+            $form.attachmentImageMaxBytes = Math.max(1, Number(event.currentTarget.value)) * MB;
+          }}
           class="h-9 {field}"
         >
         <input type="hidden" name="attachmentImageMaxBytes" value={$form.attachmentImageMaxBytes}>
@@ -159,8 +159,8 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
           min="1"
           value={Math.round($form.attachmentTextMaxBytes / KB)}
           oninput={(event) => {
-  $form.attachmentTextMaxBytes = Math.max(1, Number(event.currentTarget.value)) * KB;
-}}
+            $form.attachmentTextMaxBytes = Math.max(1, Number(event.currentTarget.value)) * KB;
+          }}
           class="h-9 {field}"
         >
         <input type="hidden" name="attachmentTextMaxBytes" value={$form.attachmentTextMaxBytes}>

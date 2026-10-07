@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -109,21 +109,6 @@
             "noHeaderScope": "off"
           }
         }
-      }
-    },
-    {
-      "includes": [
-        "src/routes/(educator)/educator/(panel)/models/+page.svelte",
-        "src/lib/components/ui/ThemeControl.svelte",
-        "src/lib/components/artifacts/ArtifactPanel.svelte",
-        "src/lib/components/artifacts/FileTree.svelte",
-        "src/lib/components/artifacts/ArtifactIndex.svelte",
-        "src/lib/components/chat/ConversationDrawer.svelte",
-        "src/lib/components/workspace/WorkspaceSwitcher.svelte",
-        "src/lib/components/educator/AccessSlipPage.svelte"
-      ],
-      "formatter": {
-        "enabled": false
       }
     }
   ]

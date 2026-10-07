@@ -103,7 +103,14 @@ const SLIP_HEIGHT = 69.25;
           <rect x="14.6" y="19.6" width="2.8" height="6.4" rx="1.4" />
         </g>
       </g>
-      <text x="15" y="10.6" fill="#111" font-family="Helvetica, Arial, sans-serif" font-size="4.3" font-weight="700">
+      <text
+        x="15"
+        y="10.6"
+        fill="#111"
+        font-family="Helvetica, Arial, sans-serif"
+        font-size="4.3"
+        font-weight="700"
+      >
         Setun
       </text>
       <text
@@ -113,7 +120,9 @@ const SLIP_HEIGHT = 69.25;
         text-anchor="end"
         font-family="Helvetica, Arial, sans-serif"
         font-size={classroomSize}
-      >{classroomName}</text>
+      >
+        {classroomName}
+      </text>
 
       <text
         data-slip-label
@@ -123,7 +132,9 @@ const SLIP_HEIGHT = 69.25;
         font-family="Helvetica, Arial, sans-serif"
         font-size={nicknameSize}
         font-weight="700"
-      >{card.label}</text>
+      >
+        {card.label}
+      </text>
       <text
         data-slip-code
         x="5"
@@ -133,7 +144,9 @@ const SLIP_HEIGHT = 69.25;
         font-size={codeSize}
         font-weight="700"
         letter-spacing="0.12"
-      >{card.code}</text>
+      >
+        {card.code}
+      </text>
 
       <text
         x="5"
@@ -160,7 +173,9 @@ const SLIP_HEIGHT = 69.25;
         font-family="Helvetica, Arial, sans-serif"
         font-size={addressSize}
         font-weight="700"
-      >{loginAddress}</text>
+      >
+        {loginAddress}
+      </text>
       <text
         x="5"
         y="65"

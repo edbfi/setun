@@ -377,11 +377,9 @@ Its maintained scope remains `src/`, `sandbox/`, and root JavaScript, TypeScript
 JSON files. Generated Paraglide files and build output are excluded. Run
 `bun run lint` to check or `bun run format` to apply formatting and safe fixes.
 
-Experimental HTML support enables Svelte markup checks and formatting. Narrow
-compatibility overrides preserve:
+Experimental HTML support enables Svelte markup checks and formatting; every
+component is formatted. Narrow lint compatibility overrides preserve:
 
-- Eight components whose `{@const}` declarations Biome 2.5.14 formats into invalid
-  Svelte. Formatting is disabled for those files; lint and import organization remain enabled.
 - Custom tree, radio-button, separator and grouped controls with intentional ARIA roles.
 - The elicitation label whose native control is inside a Svelte conditional.
 - Component `scope` props, which are unrelated to HTML table-header `scope`, and

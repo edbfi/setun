@@ -126,9 +126,9 @@ const action =
     <h2 class="text-sm font-medium text-foreground">{m.creations_title()}</h2>
     <p class="text-sm text-muted-foreground">
       {m.student_creations_count({
-  artifacts: data.creations.artifacts,
-  images: data.creations.images,
-})}
+        artifacts: data.creations.artifacts,
+        images: data.creations.images,
+      })}
     </p>
     <a href="/creations" class="self-start text-xs text-primary underline underline-offset-2">
       {m.student_open_creations()}
@@ -186,13 +186,13 @@ const action =
       method="POST"
       action="?/language"
       use:enhance={() =>
-  async ({ result, update }) => {
-    if (result.type === "success" || result.type === "redirect") {
-      window.location.reload();
-      return;
-    }
-    await update();
-  }}
+        async ({ result, update }) => {
+          if (result.type === "success" || result.type === "redirect") {
+            window.location.reload();
+            return;
+          }
+          await update();
+        }}
       class="flex flex-wrap items-end gap-2"
     >
       <select name="language" value={data.student.interfaceLanguage ?? ""} class={field}>

@@ -103,8 +103,8 @@ const field = "h-9 rounded-md border border-input bg-background px-2 text-sm tex
             class={field}
             value={toClock(window.startMinute)}
             onchange={(event) => {
-  window.startMinute = toMinutes(event.currentTarget.value);
-}}
+              window.startMinute = toMinutes(event.currentTarget.value);
+            }}
           >
         </label>
 
@@ -115,8 +115,8 @@ const field = "h-9 rounded-md border border-input bg-background px-2 text-sm tex
             class={field}
             value={toClock(window.endMinute)}
             onchange={(event) => {
-  window.endMinute = toMinutes(event.currentTarget.value);
-}}
+              window.endMinute = toMinutes(event.currentTarget.value);
+            }}
           >
         </label>
 

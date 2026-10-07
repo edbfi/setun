@@ -57,13 +57,13 @@ const changes = $derived(
   aria-current={active ? "true" : undefined}
   data-artifact-card={artifact.artifactId}
   class={[
-  "group/card my-2 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-  "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
-  active
-    ? "border-primary/40 bg-primary/5"
-    : "border-border bg-card hover:border-primary/30 hover:bg-secondary",
-]}
+    "group/card my-2 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
+    active
+      ? "border-primary/40 bg-primary/5"
+      : "border-border bg-card hover:border-primary/30 hover:bg-secondary",
+  ]}
 >
   <ArtifactTrit status={artifact.buildStatus ?? null} />
 
@@ -85,9 +85,9 @@ const changes = $derived(
   <span
     aria-hidden="true"
     class={[
-  "shrink-0 text-xs font-medium",
-  active ? "text-primary" : "text-muted-foreground group-hover/card:text-foreground",
-]}
+      "shrink-0 text-xs font-medium",
+      active ? "text-primary" : "text-muted-foreground group-hover/card:text-foreground",
+    ]}
   >
     {active ? m.artifact_showing() : m.artifact_open()}
   </span>

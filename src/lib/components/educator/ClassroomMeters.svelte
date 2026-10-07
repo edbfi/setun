@@ -80,9 +80,9 @@ const cost = $derived(
     </div>
     <p class="text-xs text-muted-foreground">
       {m.allowance_used({
-  used: numbers.format(overview.usedTokens),
-  limit: numbers.format(overview.capTokens),
-})}
+        used: numbers.format(overview.usedTokens),
+        limit: numbers.format(overview.capTokens),
+      })}
       {#if cost}
         · {cost}
       {/if}
