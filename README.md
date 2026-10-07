@@ -335,7 +335,7 @@ bunx biome ci         # formatting and linting
 bun test              # server logic and rune modules
 bun run test:component # Chromium components and Vite server tests
 bunx playwright test  # end-to-end flows
-bun run check:python  # locked Ruff, format, strict types, syntax
+bun run check:python  # locked Ruff, format, strict types, syntax, dev-suite tests
 ```
 
 Install Chromium once with `bunx playwright install chromium` if it is not already available.
