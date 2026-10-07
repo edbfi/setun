@@ -7,7 +7,8 @@ installed. `scripts/lib` is the import root, so imports are absolute (`from devs
 
 - Run `bun run check:python` from the repository root. It runs Ruff lint and format checks
   (`scripts/ruff.toml`), basedpyright in `recommended` mode, and `compileall`, all pinned by
-  `scripts/uv.lock`. It must end with 0 errors and 0 warnings.
+  `scripts/uv.lock`, then the `unittest` suite in `scripts/lib/devsuite/tests/` (it starts
+  `bun`). It must end with 0 errors and 0 warnings.
 - Leave `scripts/lib/basedpyrightconfig.json` as it is. `scripts/check-python.py` asserts
   its exact keys and fails on any change. Fix the diagnostic instead. If an untyped third-party call
   really can't be fixed, suppress that one line with `# pyright: ignore[ruleName]` and a

@@ -28,9 +28,12 @@ class Service:
 
 def app_service(level: str, port: int, *, built: bool) -> Service:
     if built:
-        # The adapter-bun build, through server.js, exactly as a deployment runs it. It takes its
-        # port and origin from the environment rather than the command line.
-        return Service(name="app", argv=["bun", "run", "start"], port=port)
+        # The adapter-bun build, through server.js, exactly as a deployment runs it: `bun
+        # ./server.js` itself, as the Docker image does, not `bun run start`. Stopping signals the
+        # whole process group, and `bun run` forwards that SIGTERM to server.js as well, so the
+        # adapter sees a second signal and exits 1 at once instead of draining. It takes its port
+        # and origin from the environment rather than the command line.
+        return Service(name="app", argv=["bun", "./server.js"], port=port)
 
     return Service(
         name="app",
