@@ -1073,19 +1073,7 @@ describe("bun ./server.js", () => {
     );
     // The public port is bound before the build loads: wait for a TCP connect (an HTTP
     // request would be held until the build is ready), then signal mid-load.
-    await until(async () => {
-      try {
-        const socket = await Bun.connect({
-          hostname: "127.0.0.1",
-          port,
-          socket: { data() {} },
-        });
-        socket.end();
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    await until(() => accepts(port));
     expect(server.output()).not.toContain("standin listening");
     server.process.kill("SIGTERM");
     const exited = await Promise.race([server.process.exited, sleep(8_000).then(() => "timeout")]);
@@ -1099,15 +1087,7 @@ describe("bun ./server.js", () => {
       { ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port), STANDIN_LOAD_DELAY_MS: "4000" },
       { waitFor: "exit" },
     );
-    await until(async () => {
-      try {
-        const socket = await Bun.connect({ hostname: "127.0.0.1", port, socket: { data() {} } });
-        socket.end();
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    await until(() => accepts(port));
     expect(socketDirectories(server.temp)).toHaveLength(1);
     server.process.kill("SIGTERM");
     await sleep(200);
