@@ -473,8 +473,9 @@ $effect(() => {
           <p class="truncate text-sm font-semibold tracking-tight text-card-foreground">{title}</p>
           <!-- Identity is always the mono face, so code-things read as code-things. -->
           <p class="truncate font-mono text-xs tabular-nums text-muted-foreground">
-            {m.artifact_id_label()}={artifactKey} · {workspace.language ??
-              artifact.language} · v{artifact.latest.revision}{workspace.paths.length > 1
+            {m.artifact_id_label()}={artifactKey}
+            · {workspace.language ?? artifact.language} · v{artifact.latest.revision}{workspace
+              .paths.length > 1
               ? ` · ${m.artifact_files_count({ count: workspace.paths.length })}`
               : ""}
           </p>
@@ -677,7 +678,8 @@ $effect(() => {
               -->
               <div
                 class="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-2 py-1"
-                role="group" aria-label={m.artifact_diff_file_label()}
+                role="group"
+                aria-label={m.artifact_diff_file_label()}
               >
                 {#each selected.files as file (file.path)}
                   <button
@@ -717,7 +719,8 @@ $effect(() => {
                       {m.artifact_history_retry()}
                     </button>
                   </div>
-                {:else if selectedSnapshot === null || (previous !== null && previousSnapshot === null)}
+                {:else if selectedSnapshot === null ||
+                  (previous !== null && previousSnapshot === null)}
                   <p role="status" class="p-3 text-xs text-muted-foreground">
                     {m.artifact_history_loading()}
                   </p>

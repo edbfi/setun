@@ -72,9 +72,9 @@ function costOf(student: RosterEntry): string | null {
                 class:text-muted-foreground={!student.exhausted}
               >
                 {m.allowance_used({
-  used: numbers.format(student.usedTokens),
-  limit: numbers.format(student.limitTokens),
-})}
+                  used: numbers.format(student.usedTokens),
+                  limit: numbers.format(student.limitTokens),
+                })}
               </span>
               {#if costOf(student)}
                 <span class="text-[0.6875rem] text-muted-foreground">{costOf(student)}</span>

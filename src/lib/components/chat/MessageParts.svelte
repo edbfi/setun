@@ -225,7 +225,9 @@ const failed = $derived(
       -->
       <ThinkingBlock
         text={part.text}
-        live={streaming && index === parts.length - 1 && (thinkingTimings[index]?.settledAt ?? null) === null}
+        live={streaming &&
+          index === parts.length - 1 &&
+          (thinkingTimings[index]?.settledAt ?? null) === null}
         startedAt={thinkingTimings[index]?.startedAt ?? thinkingStartedAt}
         settledAt={thinkingTimings[index]?.settledAt ?? thinkingSettledAt}
       />
@@ -271,8 +273,8 @@ const failed = $derived(
     >
       <span class="truncate">
         {m.artifact_edit_part_label({
-  title: part.title ?? m.artifact_untitled({ language: part.language }),
-})}
+          title: part.title ?? m.artifact_untitled({ language: part.language }),
+        })}
       </span>
     </span>
   {:else if part.type === "turn-notice"}

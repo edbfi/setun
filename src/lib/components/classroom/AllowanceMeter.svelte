@@ -52,9 +52,9 @@ const cost = $derived(
          to shrink below its own nowrap width, so `truncate` never clips. -->
     <span class="min-w-0 truncate whitespace-nowrap text-xs text-muted-foreground">
       {m.allowance_used({
-  used: numbers.format(allowance.usedTokens),
-  limit: numbers.format(allowance.limitTokens),
-})}
+        used: numbers.format(allowance.usedTokens),
+        limit: numbers.format(allowance.limitTokens),
+      })}
     </span>
   </div>
 

@@ -89,10 +89,10 @@ const enhanceClassroomRotation: SubmitFunction = () => {
         type="submit"
         disabled={data.activeStudentCount === 0 || rotatingClassroom}
         onclick={(event) => {
-  if (!window.confirm(m.educator_slip_bulk_confirm({ count: data.activeStudentCount }))) {
-    event.preventDefault();
-  }
-}}
+          if (!window.confirm(m.educator_slip_bulk_confirm({ count: data.activeStudentCount }))) {
+            event.preventDefault();
+          }
+        }}
         class="h-9 rounded-md border border-input px-4 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50"
       >
         {m.educator_slip_bulk_submit({ count: data.activeStudentCount })}

@@ -41,10 +41,10 @@ const matches = $derived(confirmName.trim() === classroomName);
 
   <p class="text-xs font-medium text-foreground tabular-nums">
     {m.educator_delete_classroom_counts({
-  students: numbers.format(scope.students),
-  conversations: numbers.format(scope.conversations),
-  creations: numbers.format(scope.creations),
-})}
+      students: numbers.format(scope.students),
+      conversations: numbers.format(scope.conversations),
+      creations: numbers.format(scope.creations),
+    })}
   </p>
 
   {#if mismatch}

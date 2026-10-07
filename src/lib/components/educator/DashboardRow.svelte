@@ -82,9 +82,9 @@ const percent = $derived(
 
   <span class="text-xs text-muted-foreground tabular-nums">
     {m.educator_active_of({
-  active: numbers.format(overview.activeStudents),
-  total: numbers.format(overview.studentCount),
-})}
+      active: numbers.format(overview.activeStudents),
+      total: numbers.format(overview.studentCount),
+    })}
   </span>
 
   <span

@@ -18,8 +18,8 @@ let {
   bind:ref
   data-slot="dialog-overlay"
   class={cn(
-  "bg-black/40 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 isolate z-50",
-  className,
-)}
+    "bg-black/40 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 isolate z-50",
+    className,
+  )}
   {...restProps}
 />

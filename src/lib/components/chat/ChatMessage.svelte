@@ -61,11 +61,11 @@ const action =
 >
   <div
     class={[
-  "text-[0.9375rem] leading-[1.65]",
-  isUser
-    ? "max-w-[85%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/10 px-3.5 py-2.5 text-foreground"
-    : "w-full text-foreground",
-]}
+      "text-[0.9375rem] leading-[1.65]",
+      isUser
+        ? "max-w-[85%] rounded-2xl rounded-br-md border border-primary/20 bg-primary/10 px-3.5 py-2.5 text-foreground"
+        : "w-full text-foreground",
+    ]}
   >
     <MessageParts
       parts={message.parts}

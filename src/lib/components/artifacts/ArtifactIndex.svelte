@@ -29,7 +29,8 @@ let { items, openId, onselect }: Props = $props();
   <ul class="min-h-0 flex-1 overflow-y-auto p-2">
     {#each items as item (item.id)}
       {@const title = item.title ?? m.artifact_untitled({ language: item.language })}
-      {@const key = item.key ?? effectiveArtifactKey({ language: item.language, id: item.id, key: null })}
+      {@const key =
+        item.key ?? effectiveArtifactKey({ language: item.language, id: item.id, key: null })}
       <li>
         <button
           type="button"
@@ -50,7 +51,8 @@ let { items, openId, onselect }: Props = $props();
             <span class="block truncate text-sm font-medium">{title}</span>
             <!-- Identity is always the mono face, so code-things read as code-things. -->
             <span class="block truncate font-mono text-xs tabular-nums text-muted-foreground">
-              {m.artifact_id_label()}={key} · {item.language} · v{item.latest.revision}
+              {m.artifact_id_label()}={key}
+              · {item.language} · v{item.latest.revision}
             </span>
           </span>
         </button>

@@ -90,16 +90,16 @@ const check = "flex items-center gap-2 text-sm text-foreground";
             use:enhance={submitRow}
             class="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
           >
-            <input type="hidden" name="aliasId" value={alias.id} />
+            <input type="hidden" name="aliasId" value={alias.id}>
 
             <label class="flex flex-col gap-1">
               <span class="text-xs text-muted-foreground">{m.educator_alias_name_label()}</span>
-              <input name="name" value={alias.name} class={field} required />
+              <input name="name" value={alias.name} class={field} required>
             </label>
 
             <label class="flex flex-col gap-1">
               <span class="text-xs text-muted-foreground">{m.educator_alias_gateway_label()}</span>
-              <input name="gatewayModelId" value={alias.gatewayModelId} class={field} required />
+              <input name="gatewayModelId" value={alias.gatewayModelId} class={field} required>
             </label>
 
             <label class="flex flex-col gap-1">
@@ -119,7 +119,7 @@ const check = "flex items-center gap-2 text-sm text-foreground";
                 inputmode="decimal"
                 value={alias.inputPricePerMillion ?? ""}
                 class={field}
-              />
+              >
             </label>
 
             <label class="flex flex-col gap-1">
@@ -131,7 +131,7 @@ const check = "flex items-center gap-2 text-sm text-foreground";
                 inputmode="decimal"
                 value={alias.outputPricePerMillion ?? ""}
                 class={field}
-              />
+              >
             </label>
 
             <div class="flex items-end gap-2">
@@ -145,19 +145,15 @@ const check = "flex items-center gap-2 text-sm text-foreground";
 
             <div class="flex flex-wrap gap-x-5 gap-y-1.5 sm:col-span-3">
               <label class={check}>
-                <input type="checkbox" name="available" checked={alias.available} />
+                <input type="checkbox" name="available" checked={alias.available}>
                 {m.educator_alias_available_label()}
               </label>
               <label class={check}>
-                <input type="checkbox" name="dataProtection" checked={alias.dataProtection} />
+                <input type="checkbox" name="dataProtection" checked={alias.dataProtection}>
                 {m.educator_alias_dpa_label()}
               </label>
               <label class={check}>
-                <input
-                  type="checkbox"
-                  name="supportsImageInput"
-                  checked={alias.supportsImageInput}
-                />
+                <input type="checkbox" name="supportsImageInput" checked={alias.supportsImageInput}>
                 {m.educator_alias_image_input_label()}
               </label>
               <label class={check}>
@@ -165,11 +161,11 @@ const check = "flex items-center gap-2 text-sm text-foreground";
                   type="checkbox"
                   name="supportsImageGeneration"
                   checked={alias.supportsImageGeneration}
-                />
+                >
                 {m.educator_alias_image_generation_label()}
               </label>
               <label class={check}>
-                <input type="checkbox" name="isUtility" checked={alias.isUtility} />
+                <input type="checkbox" name="isUtility" checked={alias.isUtility}>
                 {m.educator_alias_utility_label()}
               </label>
             </div>
@@ -189,7 +185,7 @@ const check = "flex items-center gap-2 text-sm text-foreground";
             </span>
 
             <form method="POST" action="?/delete" use:enhance>
-              <input type="hidden" name="aliasId" value={alias.id} />
+              <input type="hidden" name="aliasId" value={alias.id}>
               <button type="submit" class="text-xs text-muted-foreground hover:text-destructive">
                 {m.educator_allowlist_disallow()}
               </button>
@@ -206,13 +202,13 @@ const check = "flex items-center gap-2 text-sm text-foreground";
     <form method="POST" action="?/create" use:enhanceCreate class="flex flex-col gap-3">
       <label class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-foreground">{m.educator_alias_name_label()}</span>
-        <input name="name" bind:value={$form.name} class={field} required />
+        <input name="name" bind:value={$form.name} class={field} required>
         <FieldError message={$errors.name} />
       </label>
 
       <label class="flex flex-col gap-1.5">
         <span class="text-sm font-medium text-foreground">{m.educator_alias_gateway_label()}</span>
-        <input name="gatewayModelId" bind:value={$form.gatewayModelId} class={field} required />
+        <input name="gatewayModelId" bind:value={$form.gatewayModelId} class={field} required>
         <FieldError message={$errors.gatewayModelId} />
       </label>
 
@@ -226,11 +222,11 @@ const check = "flex items-center gap-2 text-sm text-foreground";
 
       <div class="flex flex-wrap gap-x-5 gap-y-1.5">
         <label class={check}>
-          <input type="checkbox" name="available" bind:checked={$form.available} />
+          <input type="checkbox" name="available" bind:checked={$form.available}>
           {m.educator_alias_available_label()}
         </label>
         <label class={check}>
-          <input type="checkbox" name="dataProtection" bind:checked={$form.dataProtection} />
+          <input type="checkbox" name="dataProtection" bind:checked={$form.dataProtection}>
           {m.educator_alias_dpa_label()}
         </label>
       </div>

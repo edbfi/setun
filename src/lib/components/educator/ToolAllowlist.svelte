@@ -87,10 +87,10 @@ const button =
                 type="submit"
                 disabled={!tool.enabled || !server.enabled}
                 class={[
-  button,
-  { "bg-primary text-primary-foreground hover:bg-primary/90": tool.allowed },
-  "disabled:opacity-50",
-]}
+                  button,
+                  { "bg-primary text-primary-foreground hover:bg-primary/90": tool.allowed },
+                  "disabled:opacity-50",
+                ]}
               >
                 {tool.allowed ? m.educator_allowlist_disallow() : m.educator_allowlist_allow()}
               </button>

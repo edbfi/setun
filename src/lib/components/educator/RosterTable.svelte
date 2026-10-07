@@ -97,9 +97,9 @@ const smallButton =
               class:text-muted-foreground={!student.exhausted}
             >
               {m.allowance_used({
-  used: numbers.format(student.usedTokens),
-  limit: numbers.format(student.limitTokens),
-})}
+                used: numbers.format(student.usedTokens),
+                limit: numbers.format(student.limitTokens),
+              })}
             </span>
 
             {#if costOf(student)}
@@ -161,8 +161,10 @@ const smallButton =
                 >
                   <option value="inherit">
                     {m.educator_attachments_inherit({
-  state: student.attachmentsEffective ? m.educator_attachments_on() : m.educator_attachments_off(),
-})}
+                      state: student.attachmentsEffective
+                        ? m.educator_attachments_on()
+                        : m.educator_attachments_off(),
+                    })}
                   </option>
                   <option value="on">{m.educator_attachments_on()}</option>
                   <option value="off">{m.educator_attachments_off()}</option>
@@ -181,10 +183,10 @@ const smallButton =
               <button
                 type="submit"
                 onclick={(event) => {
-  if (!window.confirm(m.educator_slip_rotate_confirm({ label: student.label }))) {
-    event.preventDefault();
-  }
-}}
+                  if (!window.confirm(m.educator_slip_rotate_confirm({ label: student.label }))) {
+                    event.preventDefault();
+                  }
+                }}
                 class={smallButton}
               >
                 {m.educator_slip_create()}
@@ -213,7 +215,9 @@ const smallButton =
                 value={student.status === "active" ? "disabled" : "active"}
               >
               <button type="submit" class={smallButton}>
-                {student.status === "active" ? m.educator_student_disable() : m.educator_student_enable()}
+                {student.status === "active"
+                  ? m.educator_student_disable()
+                  : m.educator_student_enable()}
               </button>
             </form>
 
