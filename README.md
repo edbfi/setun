@@ -363,8 +363,6 @@ Test filenames select their runner:
 - Install `prek` before committing. Hooks enforce Conventional Commits, protect `main`, and scan for
   secrets.
 
-See [`AGENTS.md`](AGENTS.md) for the complete repository rules before contributing.
-
 ## License
 
 Setun is licensed under the [GNU Affero General Public License v3.0](LICENSE).
