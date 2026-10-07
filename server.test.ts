@@ -110,6 +110,7 @@ async function handle(request) {
     case "/slow": {
       // Like a page waiting on the model gateway: reads the body, then answers after ms.
       const body = await request.text();
+      console.log("standin slow request started");
       await sleep(Number(url.searchParams.get("ms") || 3000));
       return new Response("slow " + body.length);
     }
@@ -136,6 +137,7 @@ let stopping = false;
 async function shutdown(reason) {
   if (stopping) return process.exit(1);
   stopping = true;
+  console.log("standin stopping on " + reason);
   const timeout = Number(env.SHUTDOWN_TIMEOUT || 30) * 1000;
   let timer;
   const drained = await Promise.race([
@@ -149,6 +151,8 @@ async function shutdown(reason) {
 }
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+// An app's own shutdown hook, such as a scheduler that stops its timers.
+process.on("sveltekit:shutdown", (reason) => console.log("standin shutdown hook " + reason));
 `;
 
 const cleanups: (() => void)[] = [];
@@ -270,6 +274,17 @@ const socketDirectories = (temp: string) =>
   readdirSync(temp).filter((name) => name.startsWith("setun-"));
 
 const count = (haystack: string, needle: string) => haystack.split(needle).length - 1;
+
+/** Whether the public port accepts a TCP connection (an HTTP request would wait for the build). */
+async function accepts(port: number): Promise<boolean> {
+  try {
+    const socket = await Bun.connect({ hostname: "127.0.0.1", port, socket: { data() {} } });
+    socket.end();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The start of the other edbfi fronts' warning for a missing ORIGIN, which Setun never logs. */
 const ORIGIN_WARNING = "ORIGIN is not set";
@@ -1058,19 +1073,7 @@ describe("bun ./server.js", () => {
     );
     // The public port is bound before the build loads: wait for a TCP connect (an HTTP
     // request would be held until the build is ready), then signal mid-load.
-    await until(async () => {
-      try {
-        const socket = await Bun.connect({
-          hostname: "127.0.0.1",
-          port,
-          socket: { data() {} },
-        });
-        socket.end();
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    await until(() => accepts(port));
     expect(server.output()).not.toContain("standin listening");
     server.process.kill("SIGTERM");
     const exited = await Promise.race([server.process.exited, sleep(8_000).then(() => "timeout")]);
@@ -1084,15 +1087,7 @@ describe("bun ./server.js", () => {
       { ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port), STANDIN_LOAD_DELAY_MS: "4000" },
       { waitFor: "exit" },
     );
-    await until(async () => {
-      try {
-        const socket = await Bun.connect({ hostname: "127.0.0.1", port, socket: { data() {} } });
-        socket.end();
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    await until(() => accepts(port));
     expect(socketDirectories(server.temp)).toHaveLength(1);
     server.process.kill("SIGTERM");
     await sleep(200);
@@ -1103,6 +1098,179 @@ describe("bun ./server.js", () => {
     expect(server.output()).not.toContain("standin listening");
     expect(socketDirectories(server.temp)).toEqual([]);
   }, 20_000);
+
+  // Closing the terminal of a direct run sends SIGHUP, whose default action kills the
+  // process: no drain, no sveltekit:shutdown for the app's own hooks, and the socket directory
+  // stays behind. The stand-in, like adapter-bun, handles only SIGTERM and SIGINT, and logs
+  // "standin stopping on <signal>" when its shutdown starts. Each test waits for the front to
+  // have handled one signal before it sends the next, so the kernel cannot merge the two.
+  test("on SIGHUP drains a request in flight, emits sveltekit:shutdown and exits 0", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      SHUTDOWN_TIMEOUT: "10",
+    });
+    expect(socketDirectories(server.temp)).toHaveLength(1);
+    const pending = fetch(`http://127.0.0.1:${server.port}/slow?ms=1500`).then(
+      async (response) => `${response.status} ${await response.text()}`,
+      (error: unknown) => error,
+    );
+    await until(() => server.output().includes("standin slow request started"));
+    server.process.kill("SIGHUP");
+
+    expect(await pending).toBe("200 slow 0");
+    const exited = await Promise.race([
+      server.process.exited,
+      sleep(8_000).then(() => "still running"),
+    ]);
+    expect(exited).toBe(0);
+    expect(server.process.signalCode).toBeNull();
+    // The hangup reached the build as one SIGTERM.
+    expect(count(server.output(), "standin stopping on")).toBe(1);
+    expect(server.output()).toContain("standin stopping on SIGTERM");
+    expect(server.output()).toContain("standin shutdown hook SIGTERM");
+    expect(socketDirectories(server.temp)).toEqual([]);
+  }, 20_000);
+
+  // `bun run start` passes the terminal's hangup on, so a direct run receives it twice.
+  test("a second SIGHUP during the drain changes nothing", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      SHUTDOWN_TIMEOUT: "10",
+    });
+    const pending = fetch(`http://127.0.0.1:${server.port}/slow?ms=2500`).then(
+      async (response) => `${response.status} ${await response.text()}`,
+      (error: unknown) => error,
+    );
+    await until(() => server.output().includes("standin slow request started"));
+    server.process.kill("SIGHUP");
+    await until(() => server.output().includes("standin stopping on SIGTERM"));
+    server.process.kill("SIGHUP");
+    await sleep(300);
+    expect(server.process.exitCode).toBeNull();
+
+    expect(await pending).toBe("200 slow 0");
+    const exited = await Promise.race([
+      server.process.exited,
+      sleep(8_000).then(() => "still running"),
+    ]);
+    expect(exited).toBe(0);
+    expect(count(server.output(), "standin stopping on")).toBe(1);
+    expect(server.output()).toContain("standin shutdown hook SIGTERM");
+    expect(socketDirectories(server.temp)).toEqual([]);
+  }, 20_000);
+
+  test("ignores a SIGHUP once a SIGTERM has started the shutdown", async () => {
+    const port = await freePort();
+    const server = await start({
+      ORIGIN: `http://127.0.0.1:${port}`,
+      PORT: String(port),
+      SHUTDOWN_TIMEOUT: "10",
+    });
+    const pending = fetch(`http://127.0.0.1:${server.port}/slow?ms=2500`).then(
+      async (response) => `${response.status} ${await response.text()}`,
+      (error: unknown) => error,
+    );
+    await until(() => server.output().includes("standin slow request started"));
+    server.process.kill("SIGTERM");
+    await until(() => server.output().includes("standin stopping on SIGTERM"));
+    server.process.kill("SIGHUP");
+
+    expect(await pending).toBe("200 slow 0");
+    const exited = await Promise.race([
+      server.process.exited,
+      sleep(8_000).then(() => "still running"),
+    ]);
+    expect(exited).toBe(0);
+    expect(count(server.output(), "standin stopping on")).toBe(1);
+    expect(server.output()).toContain("standin shutdown hook SIGTERM");
+    expect(socketDirectories(server.temp)).toEqual([]);
+  }, 20_000);
+
+  test("passes a SIGHUP received while the build is loading on as SIGTERM once it has loaded", async () => {
+    const port = await freePort();
+    const server = await start(
+      {
+        ORIGIN: `http://127.0.0.1:${port}`,
+        PORT: String(port),
+        STANDIN_LOAD_DELAY_MS: "2500",
+      },
+      { waitFor: "exit" },
+    );
+    await until(() => accepts(port));
+    expect(server.output()).not.toContain("standin listening");
+    server.process.kill("SIGHUP");
+    // The front has handled it once it stops accepting connections.
+    await until(async () => !(await accepts(port)));
+    expect(server.output()).not.toContain("standin listening");
+    server.process.kill("SIGHUP");
+
+    const exited = await Promise.race([
+      server.process.exited,
+      sleep(10_000).then(() => "still running"),
+    ]);
+    expect(exited).toBe(0);
+    expect(server.output()).toContain("standin listening");
+    expect(count(server.output(), "standin stopping on")).toBe(1);
+    expect(server.output()).toContain("standin stopping on SIGTERM");
+    expect(server.output()).toContain("standin shutdown hook SIGTERM");
+    expect(socketDirectories(server.temp)).toEqual([]);
+  }, 20_000);
+
+  for (const second of ["SIGTERM", "SIGINT"] as const) {
+    test(`exits 1 on a ${second} after a SIGHUP, and cleans up`, async () => {
+      const port = await freePort();
+      const server = await start({
+        ORIGIN: `http://127.0.0.1:${port}`,
+        PORT: String(port),
+        SHUTDOWN_TIMEOUT: "20",
+      });
+      // A request that never finishes keeps the drain open.
+      const response = await fetch(`http://127.0.0.1:${server.port}/hold`);
+      const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+      await reader.read();
+      server.process.kill("SIGHUP");
+      await until(() => server.output().includes("standin stopping on SIGTERM"));
+      server.process.kill(second);
+
+      const exited = await Promise.race([
+        server.process.exited,
+        sleep(3_000).then(() => "still running"),
+      ]);
+      expect(exited).toBe(1);
+      expect(server.output()).not.toContain("standin drained");
+      expect(socketDirectories(server.temp)).toEqual([]);
+      await reader.cancel().catch(() => {});
+    }, 20_000);
+
+    test(`exits 1 on a ${second} after a SIGHUP while the build is still loading, and cleans up`, async () => {
+      const port = await freePort();
+      const server = await start(
+        {
+          ORIGIN: `http://127.0.0.1:${port}`,
+          PORT: String(port),
+          STANDIN_LOAD_DELAY_MS: "4000",
+        },
+        { waitFor: "exit" },
+      );
+      await until(() => accepts(port));
+      expect(socketDirectories(server.temp)).toHaveLength(1);
+      server.process.kill("SIGHUP");
+      await until(async () => !(await accepts(port)));
+      server.process.kill(second);
+
+      const exited = await Promise.race([
+        server.process.exited,
+        sleep(3_000).then(() => "still running"),
+      ]);
+      expect(exited).toBe(1);
+      expect(server.output()).not.toContain("standin listening");
+      expect(socketDirectories(server.temp)).toEqual([]);
+    }, 20_000);
+  }
 
   test("removes the socket directory on any exit, not only after a drain", async () => {
     const port = await freePort();
