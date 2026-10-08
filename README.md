@@ -96,6 +96,8 @@ reachable only from the app's internal network and has no published host port.
 For local development, install:
 
 - [Bun](https://bun.com) 1.4 or newer
+- Node.js 22.17 or newer (CI uses `.node-version`) for `svelte-kit sync`, svelte-check, Vitest and
+  Playwright
 - Python 3.14 for the development suite
 - [prek](https://prek.j178.dev) for repository hooks
 
@@ -327,7 +329,9 @@ its own database, logs, and production build outputs.
 ### Quality gates
 
 Run the application checks from the package scripts and Python checks with
-`bash scripts/check-python.sh`. Run repository hygiene checks locally with prek.
+`bash scripts/check-python.sh`. Run repository hygiene checks locally with prek;
+`prek run --all-files --hook-stage manual` is the set CI runs. CI also runs the component and
+Playwright suites below and `bun run build && bun run smoke`, a cold production start.
 
 ```sh
 bun run check         # Svelte and TypeScript correctness

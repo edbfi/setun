@@ -1,0 +1,142 @@
+# .pre-commit-config.yaml — pre-commit hooks configuration (prek)
+# Docs: https://prek.j178.dev/configuration/
+# The manual stage is the CI set: CI runs `prek run --all-files --hook-stage manual`.
+
+minimum_prek_version: "0.3.2"
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit, manual]
+
+repos:
+  # Builtin hooks — fast, offline, Rust-native
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^(src/lib/paraglide/|\.svelte-kit/|build/|test-results/|playwright-report/|bun\.lock$)
+      - id: end-of-file-fixer
+        exclude: ^(src/lib/paraglide/|\.svelte-kit/|build/|test-results/|playwright-report/|bun\.lock$)
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        exclude: ^(src/lib/paraglide/|\.svelte-kit/|build/|test-results/|playwright-report/|bun\.lock$)
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: detect-private-key
+      - id: check-json
+        exclude: ^tsconfig\.json$
+      - id: check-toml
+      - id: check-yaml
+      - id: no-commit-to-branch
+        args: [--branch, main]
+        stages: [pre-commit]
+
+  # Conventional Commits — enforce Conventional Commit message format
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: 91ab4bf57e58b32adf1a122681f6ebe164d081c8  # frozen: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # Secret / credential leak guard — fixtures and dotfiles must never carry tokens.
+  # Local only: it scans --staged, so it finds nothing under --all-files.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+        stages: [pre-commit]
+
+  # Project-specific builtin checks — preserve syntax and stack conventions
+  - repo: builtin
+    hooks:
+      - id: check-json5
+        types: [file]
+        files: ^tsconfig\.json$
+
+  # Workflow linters
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: fa412071e4f5d44d44f9e365f4676f9df92456a2  # frozen: v1.30.1
+    hooks:
+      - id: zizmor
+
+  # Shared edbfi CI policy hooks
+  - repo: https://github.com/edbfi/edbfi-ci
+    rev: d07ccc13141d4aee4fa28546f4328f4e48d5363b  # frozen: v0.1.0
+    hooks:
+      - id: privileged-jobs
+      - id: check-peers
+
+  # Local hooks — project-specific quality gates
+  - repo: local
+    hooks:
+      - id: biome
+        name: Format and lint with Biome
+        entry: bunx biome check --write --files-ignore-unknown=true --no-errors-on-unmatched
+        language: system
+        types: [text]
+        files: \.(js|mjs|cjs|ts|jsx|tsx|json|jsonc|css|svelte)$
+        exclude: ^(src/lib/paraglide/|\.svelte-kit/|build/|test-results/|playwright-report/|bun\.lock$)
+      - id: python-ruff
+        name: Python lint
+        entry: uv run --project scripts --frozen ruff check --config scripts/ruff.toml
+        language: system
+        types: [python]
+        files: ^scripts/
+      - id: python-format
+        name: Python format
+        entry: uv run --project scripts --frozen ruff format --check --config scripts/ruff.toml
+        language: system
+        types: [python]
+        files: ^scripts/
+      - id: python-types
+        name: Python types
+        entry: uv run --project scripts --frozen python scripts/check-python.py
+        language: system
+        pass_filenames: false
+        files: ^scripts/
+      - id: svelte-check
+        name: TypeScript and Svelte type check
+        entry: bun run check
+        language: system
+        pass_filenames: false
+        stages: [pre-push, manual]
+      - id: tests
+        name: Run test suite
+        entry: bun test
+        language: system
+        pass_filenames: false
+        stages: [pre-push, manual]
+      - id: biome-migrate
+        name: Migrate Biome configuration
+        entry: bunx --no-install biome migrate --write
+        language: system
+        stages: [manual]
+        pass_filenames: false
+        always_run: true
+      # Fails when the schema and the committed migrations disagree, or when
+      # `drizzle-kit generate` would write a migration that isn't committed.
+      - id: drizzle-drift
+        name: Drizzle migrations match the schema
+        entry: bash -c 'bunx --no-install drizzle-kit check && bunx --no-install drizzle-kit generate && git diff --quiet -- drizzle && test -z "$(git ls-files --others --exclude-standard -- drizzle)"'
+        language: system
+        files: ^(drizzle/|drizzle\.config\.ts$|src/lib/server/db/schema/)
+        pass_filenames: false
+      # Fails when scripts/uv.lock no longer matches scripts/pyproject.toml.
+      - id: uv-lock
+        name: Python lockfile is up to date
+        entry: uv lock --check --project scripts
+        language: system
+        files: ^scripts/(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+      # The full Python gate: the hooks above plus syntax and the dev-suite tests.
+      - id: check-python
+        name: Python checks and dev-suite tests
+        entry: bun run check:python
+        language: system
+        files: ^scripts/
+        pass_filenames: false
+        stages: [pre-push, manual]
