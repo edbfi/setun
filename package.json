@@ -11,6 +11,7 @@
     "preview:sandbox": "bun --bun vite preview --config sandbox/vite.config.ts",
     "preview": "bun --bun vite preview",
     "start": "bun ./server.js",
+    "smoke": "bun run scripts/smoke.ts",
     "recover:educator": "bun ./scripts/recover-educator.ts",
     "prepare": "test -f project.inlang/settings.json || exit 0; paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide && svelte-kit sync",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && bun run check:native",

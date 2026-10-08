@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1003,25 +1004,29 @@ describe("bun ./server.js", () => {
 
   test("force-closes a client that cannot finish within SHUTDOWN_TIMEOUT", async () => {
     const port = await freePort();
+    // The body must outgrow the socket buffers: once they hold all of it, the front has finished
+    // writing and exits before the budget. Linux loopback buffers take most of 8 MiB.
+    const bodyBytes = 64 * 1024 * 1024;
     const server = await start({
       ORIGIN: `http://127.0.0.1:${port}`,
       PORT: String(port),
       SHUTDOWN_TIMEOUT: "5",
+      STANDIN_BIG_BYTES: String(bodyBytes),
     });
-    const curl = Bun.spawn(
-      [
-        "curl",
-        "-sS",
-        "--limit-rate",
-        "64K",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{size_download}",
-        `http://127.0.0.1:${server.port}/big`,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
+    // A slow reader. The byte count is read once the process has exited, not when the response
+    // ends: a client still has the data already in the socket buffers to read at its own pace.
+    let bytes = 0;
+    const request = httpRequest({ host: "127.0.0.1", port: server.port, path: "/big" }, (res) => {
+      res.on("data", (chunk: Buffer) => {
+        bytes += chunk.length;
+        res.pause();
+        setTimeout(() => res.resume(), 200);
+      });
+      res.on("error", () => {});
+    });
+    request.on("error", () => {});
+    request.end();
+    cleanups.push(() => request.destroy());
     await sleep(500);
     const signalled = Date.now();
     server.process.kill("SIGTERM");
@@ -1030,8 +1035,8 @@ describe("bun ./server.js", () => {
     const elapsed = (Date.now() - signalled) / 1000;
     expect(elapsed).toBeGreaterThanOrEqual(4.5);
     expect(elapsed).toBeLessThan(8);
-    await curl.exited;
-    expect(Number(await new Response(curl.stdout).text())).toBeLessThan(8 * 1024 * 1024);
+    expect(bytes).toBeGreaterThan(0);
+    expect(bytes).toBeLessThan(bodyBytes);
     expect(socketDirectories(server.temp)).toEqual([]);
   }, 30_000);
 
