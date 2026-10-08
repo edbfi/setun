@@ -17,7 +17,7 @@
 
 services:
   cpa:
-    image: eceasy/cli-proxy-api:v7.2.140
+    image: eceasy/cli-proxy-api:v8.0.22
     restart: unless-stopped
     # Loopback only. A development gateway that answered on every interface
     # would be a provider credential listening on the office wifi.
@@ -39,7 +39,7 @@ services:
   # does not know the difference. `*.localhost` resolves to loopback without an
   # /etc/hosts entry, so two real origins cost nothing to set up.
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     # Same number inside and out: the port is part of the origin, and an origin
     # that differed between Caddy's view and the browser's would break both the
