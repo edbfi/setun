@@ -176,12 +176,18 @@ secret values in the JSON file.
 
 ```sh
 bun run build:sandbox
+docker compose run --rm --no-deps app touch /data/db/setun.sqlite   # new installation only
 docker compose up -d --build
 docker compose logs app
 ```
 
 The sandbox build is explicit because Caddy serves `build-sandbox/` directly from the host. The app
 itself is built into its container image.
+
+A new installation creates its database file deliberately, once. In production Setun refuses to
+start on a missing database, because that usually means the volume is not mounted, and a fresh
+database would reopen first-run setup on a configured installation. `touch` never changes the
+contents of an existing database.
 
 ### 3. Complete the wizard
 
