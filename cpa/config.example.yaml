@@ -1,4 +1,4 @@
-# CLIProxyAPI configuration — pinned image v7.2.140, unmodified upstream (PRD §9).
+# CLIProxyAPI configuration — the image pinned in docker-compose.yml, unmodified upstream (PRD §9).
 #
 # This is the operator's gateway file, not Setun's: provider accounts (API keys and
 # subscription OAuth logins) are enrolled here and through CPA's own login flows on
