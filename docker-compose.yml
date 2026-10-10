@@ -6,7 +6,8 @@
 #
 # The browser reaches only Caddy. Caddy reaches only the app and the static
 # sandbox files. CPA is reachable exclusively from the app over the internal
-# network and has no published port (§6, §9).
+# network and has no published port (§6, §9); it reaches the providers over its
+# own egress network.
 
 name: setun
 
@@ -84,7 +85,9 @@ services:
       # Copied from cpa/config.example.yaml and filled in by the operator.
       - ./cpa/config.yaml:/CLIProxyAPI/config.yaml
       - cpa-auth:/root/.cli-proxy-api
-    networks: [internal]
+    # `internal` carries the app's requests; `egress` is CPA's own way out to the
+    # AI providers, which an `internal` network cannot give it.
+    networks: [internal, egress]
 
   caddy:
     # Plain proxy — no custom builds, no plugins (§5).
@@ -108,9 +111,12 @@ services:
     depends_on: [app]
 
 networks:
-  # CPA sits here only; nothing on this network is published to the host.
+  # The app's only path to CPA: no route out, and nothing on it is published to the host.
   internal:
     internal: true
+  # CPA's outbound route to the providers. No other service joins it, and nothing on it
+  # is published, so it opens no way in.
+  egress:
   edge:
 
 volumes:
