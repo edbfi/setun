@@ -337,7 +337,9 @@ its own database, logs, and production build outputs.
 Run the application checks from the package scripts and Python checks with
 `bash scripts/check-python.sh`. Run repository hygiene checks locally with prek;
 `prek run --all-files --hook-stage manual` is the set CI runs. CI also runs the component and
-Playwright suites below and `bun run build && bun run smoke`, a cold production start.
+Playwright suites below, `bun run build && bun run smoke`, a cold production start, and
+`bun run smoke:container`, which starts the Compose deployment with dummy settings and checks it
+through Caddy (it needs Docker and the build).
 
 ```sh
 bun run check         # Svelte and TypeScript correctness
