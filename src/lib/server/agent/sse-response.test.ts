@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readEventStream } from "../../chat/sse-client";
-import { OPENING_FRAME, sseResponse, TURN_ID_HEADER } from "./sse-response";
 import type { DoneEvent } from "../gateway/events";
+import { OPENING_FRAME, sseResponse, TURN_ID_HEADER } from "./sse-response";
 import type { BufferedEvent } from "./turn-buffer";
 
 const done: DoneEvent = { type: "done", reason: "stop" };
@@ -12,8 +12,8 @@ describe("sseResponse", () => {
   // shutdown must end as a stream, not as a failed request).
   test("sends the status and the turn id before the first event", async () => {
     let release: () => void = () => {};
-    const firstEvent = new Promise<void>((done) => {
-      release = done;
+    const firstEvent = new Promise<void>((resolve) => {
+      release = resolve;
     });
     async function* events(): AsyncGenerator<BufferedEvent> {
       await firstEvent;
