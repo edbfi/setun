@@ -1,3 +1,4 @@
+import extractorSvelte from "@unocss/extractor-svelte";
 import {
   defineConfig,
   type Preset,
@@ -5,7 +6,6 @@ import {
   transformerDirectives,
   transformerVariantGroup,
 } from "unocss";
-import extractorSvelte from "@unocss/extractor-svelte";
 import presetAnimations from "unocss-preset-animations";
 import { presetShadcn } from "unocss-preset-shadcn";
 
