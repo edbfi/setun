@@ -16,11 +16,20 @@ import type { BufferedEvent } from "./turn-buffer";
  */
 export const TURN_ID_HEADER = "x-setun-turn-id";
 
+/** A comment frame: valid SSE that every client ignores (see `sseResponse`). */
+export const OPENING_FRAME = ": stream open\n\n";
+
 /**
  * Wrap an event generator in a `Response`.
  *
  * The SSE `id:` field carries the sequence number, so a client that reconnects
  * knows exactly what it has already seen and asks for the remainder.
+ *
+ * The stream opens with a comment frame. Bun sends a streamed response's status
+ * and headers only with its first chunk, so without it the client would learn
+ * the turn id (and could stop the turn) only once the model's first event
+ * arrived, and a turn cut off at shutdown before that event would reach the
+ * client as a failed request instead of a stream that ends normally.
  */
 export function sseResponse(
   events: AsyncGenerator<BufferedEvent>,
@@ -30,6 +39,7 @@ export function sseResponse(
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      controller.enqueue(encoder.encode(OPENING_FRAME));
       try {
         for await (const buffered of events) {
           const frame =
