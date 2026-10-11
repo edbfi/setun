@@ -5,6 +5,7 @@ import {
   transformerDirectives,
   transformerVariantGroup,
 } from "unocss";
+import extractorSvelte from "@unocss/extractor-svelte";
 import presetAnimations from "unocss-preset-animations";
 import { presetShadcn } from "unocss-preset-shadcn";
 
@@ -98,6 +99,7 @@ const cleanSlate = {
 };
 
 export default defineConfig({
+  extractors: [extractorSvelte()],
   presets: [
     presetWind4(),
     // Both presets declare `Preset<Theme>` against `unocss/preset-mini`'s Theme,
