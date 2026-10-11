@@ -1,3 +1,4 @@
+import extractorSvelte from "@unocss/extractor-svelte";
 import {
   defineConfig,
   type Preset,
@@ -98,6 +99,7 @@ const cleanSlate = {
 };
 
 export default defineConfig({
+  extractors: [extractorSvelte()],
   presets: [
     presetWind4(),
     // Both presets declare `Preset<Theme>` against `unocss/preset-mini`'s Theme,
