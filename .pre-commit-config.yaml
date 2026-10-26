@@ -75,7 +75,7 @@ repos:
     hooks:
       - id: biome
         name: Format and lint with Biome
-        entry: bunx biome check --write --files-ignore-unknown=true --no-errors-on-unmatched
+        entry: bunx --bun --no-install biome check --write --files-ignore-unknown=true --no-errors-on-unmatched
         language: system
         types: [text]
         files: \.(js|mjs|cjs|ts|jsx|tsx|json|jsonc|css|svelte)$
@@ -100,7 +100,7 @@ repos:
         files: ^scripts/
       - id: svelte-check
         name: TypeScript and Svelte type check
-        entry: bun run check
+        entry: bun run --bun check
         language: system
         pass_filenames: false
         stages: [pre-push, manual]
@@ -112,7 +112,7 @@ repos:
         stages: [pre-push, manual]
       - id: biome-migrate
         name: Migrate Biome configuration
-        entry: bunx --no-install biome migrate --write
+        entry: bunx --bun --no-install biome migrate --write
         language: system
         stages: [manual]
         pass_filenames: false
@@ -121,7 +121,7 @@ repos:
       # `drizzle-kit generate` would write a migration that isn't committed.
       - id: drizzle-drift
         name: Drizzle migrations match the schema
-        entry: bash -c 'bunx --no-install drizzle-kit check && bunx --no-install drizzle-kit generate && git diff --quiet -- drizzle && test -z "$(git ls-files --others --exclude-standard -- drizzle)"'
+        entry: bash -c 'bunx --bun --no-install drizzle-kit check && bunx --bun --no-install drizzle-kit generate && git diff --quiet -- drizzle && test -z "$(git ls-files --others --exclude-standard -- drizzle)"'
         language: system
         files: ^(drizzle/|drizzle\.config\.ts$|src/lib/server/db/schema/)
         pass_filenames: false
@@ -135,7 +135,7 @@ repos:
       # The full Python gate: the hooks above plus syntax and the dev-suite tests.
       - id: check-python
         name: Python checks and dev-suite tests
-        entry: bun run check:python
+        entry: bun run --bun check:python
         language: system
         files: ^scripts/
         pass_filenames: false
