@@ -87,10 +87,7 @@ function onkeydown(event: KeyboardEvent): void {
 }
 </script>
 
-{#snippet nodes(
-  list: readonly FileTreeNode[],
-  depth: number,
-)}
+{#snippet nodes(list: readonly FileTreeNode[], depth: number)}
   {#each list as node (node.path)}
     {#if node.kind === "folder"}
       <li role="none">
