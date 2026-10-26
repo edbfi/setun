@@ -30,6 +30,9 @@
   },
   "linter": {
     "enabled": true,
+    "domains": {
+      "playwright": "none"
+    },
     "rules": {
       "preset": "recommended"
     }
@@ -108,6 +111,14 @@
           "a11y": {
             "noHeaderScope": "off"
           }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.e2e.ts"],
+      "linter": {
+        "domains": {
+          "playwright": "recommended"
         }
       }
     }
