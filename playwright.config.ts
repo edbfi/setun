@@ -125,7 +125,8 @@ export default defineConfig({
       // The artifact host, built and served exactly as Caddy serves it — the
       // same content security policy included, because that policy is what the
       // escape suite is testing (§14, §22).
-      command: "bun run build:sandbox && bun --bun vite preview --config sandbox/vite.config.ts",
+      command:
+        "bun run --bun build:sandbox && bun --bun vite preview --config sandbox/vite.config.ts",
       port: SANDBOX_PORT,
       reuseExistingServer: !process.env.CI,
       env: { SETUN_SANDBOX_PORT: String(SANDBOX_PORT) },

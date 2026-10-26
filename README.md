@@ -96,7 +96,7 @@ reachable only from the app's internal network and has no published host port.
 For local development, install:
 
 - [Bun](https://bun.com) 1.4 or newer
-- Node.js 22.17 or newer (CI uses `.node-version`) for `svelte-kit sync`, svelte-check, Vitest and
+- Node.js 22.17 or newer for `svelte-kit sync`, svelte-check, Vitest and
   Playwright
 - Python 3.14 for the development suite
 - [prek](https://prek.j178.dev) for repository hooks
