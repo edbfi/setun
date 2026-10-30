@@ -17,7 +17,7 @@
     "prepare": "test -f project.inlang/settings.json || exit 0; bun --bun paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide && bun --bun svelte-kit sync",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && bun run --bun check:native",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "lint": "biome ci",
+    "lint": "bun --bun biome ci",
     "format": "biome check --write",
     "test:component": "vitest run --project client && vitest run --project server",
     "test:e2e": "playwright test",
