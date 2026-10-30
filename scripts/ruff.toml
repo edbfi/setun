@@ -1,8 +1,6 @@
 # Lint and format settings for `scripts/lib/devsuite`, the only Python in the
 # repository. Scoped to scripts/ rather than the repository root: Ruff walks up
 # from the file it is checking, so this covers the package and nothing else.
-#
-# See .agents/rules/python-3_14-core.md for the stack these settings come from.
 
 line-length = 100
 target-version = "py314"

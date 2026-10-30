@@ -19,10 +19,9 @@ import sys
 from pathlib import Path
 
 # Checked here, before the package is imported, because the failure it prevents
-# is a SyntaxError from a module three imports deep. The package is written to
-# .agents/rules/python-3_14-core.md: deferred annotations (PEP 649) and
-# parenthesis-free `except` (PEP 758) are both 3.14, and neither degrades — an
-# older interpreter cannot parse the files at all.
+# is a SyntaxError from a module three imports deep. The package uses deferred
+# annotations (PEP 649) and parenthesis-free `except` (PEP 758), both 3.14, and
+# neither degrades — an older interpreter cannot parse the files at all.
 if sys.version_info < (3, 14):  # noqa: UP036 — bootstrap gives older interpreters a clear error.
     raise SystemExit(
         f"the dev suite needs Python 3.14 or newer; this is {platform.python_version()}.\n"

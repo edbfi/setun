@@ -109,7 +109,7 @@ repos:
         stages: [pre-push, manual]
       - id: tests
         name: Run test suite
-        entry: bun test
+        entry: bun run --bun test
         language: system
         pass_filenames: false
         stages: [pre-push, manual]

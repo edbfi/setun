@@ -22,7 +22,7 @@ export default defineConfig({
     UnoCSS(),
     sveltekit({
       preprocess: vitePreprocess(),
-      // Runes are mandatory in application code (see .agents/rules/svelte5-sveltekit-app.md).
+      // Runes are mandatory in application code.
       // Dependencies keep their own mode so non-runes libraries still compile.
       compilerOptions: {
         runes: ({ filename }) =>
