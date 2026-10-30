@@ -8,8 +8,8 @@
   "files": {
     "ignoreUnknown": true,
     "includes": [
-      "src/**",
-      "sandbox/**",
+      "src/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc,css,svelte,html}",
+      "sandbox/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc,css,svelte,html}",
       "*.ts",
       "*.js",
       "*.json",
@@ -19,7 +19,13 @@
       "!!build-sandbox",
       "!!test-results",
       "!!playwright-report",
-      "!**/.svelte-check"
+      "!**/.svelte-check",
+      "!!.agents/skills",
+      "!!.claude",
+      "!!.codex",
+      "!!.impeccable",
+      "!!.opencode",
+      "!!skills-lock.json"
     ]
   },
   "formatter": {
