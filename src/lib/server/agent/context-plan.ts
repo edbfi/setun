@@ -134,7 +134,9 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
     const result = await input.summarise(prior, cut);
     // A summary that reached only part of the cut still covers that part, and is
     // kept: the next turn carries on from where it stopped (§10).
-    const covered = result ? Math.min(result.covered, cut.length) : 0;
+    // Rounded down to an exchange boundary: a stored summary must end just before
+    // a pupil's message, so every path that later starts after it starts with one.
+    const covered = result ? exchangeBoundary(cut, Math.min(result.covered, cut.length)) : 0;
     const coveredThrough = covered > 0 ? cut[covered - 1]?.id : undefined;
 
     if (result && covered > 0) {
@@ -165,6 +167,14 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
   }
 
   return { path: best.path, mode, summary, tokens: best.tokens, fits: best.tokens <= budget };
+}
+
+/** The largest count ≤ `covered` after which the next message is the pupil's, or the end. */
+function exchangeBoundary(cut: readonly PathMessage[], covered: number): number {
+  for (let at = covered; at > 0; at--) {
+    if (at === cut.length || cut[at]?.role === "user") return at;
+  }
+  return 0;
 }
 
 /** Indices of the pupil's messages: where each exchange begins. */

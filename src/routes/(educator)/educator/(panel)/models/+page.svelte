@@ -4,6 +4,7 @@ import { applyAction, enhance } from "$app/forms";
 import { invalidateAll } from "$app/navigation";
 import FieldError from "$lib/components/ui/FieldError.svelte";
 import * as m from "$lib/paraglide/messages";
+import { getLocale } from "$lib/paraglide/runtime";
 import type { PageProps } from "./$types";
 
 /**
@@ -66,6 +67,9 @@ const {
 } = superForm(data.form, {
   resetForm: true,
 });
+
+/** In the interface's language, on the server and in the browser alike. */
+const numbers = $derived(new Intl.NumberFormat(getLocale()));
 
 const field = "h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground";
 const check = "flex items-center gap-2 text-sm text-foreground";
@@ -193,13 +197,13 @@ const check = "flex items-center gap-2 text-sm text-foreground";
             -->
             <p class="text-xs text-muted-foreground" data-context-window={window.source}>
               {window.source === "alias"
-                ? m.educator_alias_context_window_set({ tokens: window.tokens.toLocaleString() })
+                ? m.educator_alias_context_window_set({ tokens: numbers.format(window.tokens) })
                 : window.source === "gateway"
                   ? m.educator_alias_context_window_gateway({
-                      tokens: window.tokens.toLocaleString(),
+                      tokens: numbers.format(window.tokens),
                     })
                   : m.educator_alias_context_window_assumed({
-                      tokens: window.tokens.toLocaleString(),
+                      tokens: numbers.format(window.tokens),
                     })}
               {#if window.learned}
                 {m.educator_alias_context_window_learned()}

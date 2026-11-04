@@ -82,6 +82,15 @@ describe("resolveContextWindow", () => {
     });
   });
 
+  it("does not ask a gateway that just failed again on every turn", async () => {
+    const adapter = gateway(new Error("down"));
+    await resolveContextWindow(adapter, alias(), 1_000);
+    await resolveContextWindow(adapter, alias(), 2_000);
+    expect(adapter.calls).toBe(1);
+    await resolveContextWindow(adapter, alias(), 1_000 + 31_000);
+    expect(adapter.calls).toBe(2);
+  });
+
   it("asks the gateway once per listing, not once per turn", async () => {
     const adapter = gateway([{ id: "gpt-6.1-sol", contextTokens: 400_000 }]);
     await resolveContextWindow(adapter, alias(), 1_000);

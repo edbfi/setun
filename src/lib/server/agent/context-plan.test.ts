@@ -195,6 +195,20 @@ describe("planContext", () => {
     expect(textOf(plan.path)).toContain("4 earlier messages were left out");
   });
 
+  it("ends a partial summary on an exchange boundary, so later paths start with the pupil", async () => {
+    const plan = await planContext({
+      path: conversation(),
+      stored: null,
+      budget: 700,
+      measure,
+      // Reached u1, a1 and u2 — but stopping on a pupil's message would leave
+      // a2 opening the next turn's path.
+      summarise: async () => ({ text: "Halvvejs.", covered: 3 }),
+    });
+
+    expect(plan.summary?.throughMessageId).toBe("a1");
+  });
+
   it("says inside a summary when messages before it were left out", async () => {
     let call = 0;
     const plan = await planContext({

@@ -50,6 +50,9 @@ interface ModelListing {
 
 let listing: ModelListing | null = null;
 let pending: Promise<ModelListing | null> | null = null;
+/** When the last refresh failed, so a gateway that is down is not asked on every turn. */
+let failedAt: number | null = null;
+const RETRY_AFTER_FAILURE_MS = 30_000;
 /** Alias id → a window a refusal proved too generous, and when that was learned. */
 const learned = new Map<string, { readonly tokens: number; readonly at: number }>();
 /** How long a learned ceiling holds before the source's own figure is trusted again. */
@@ -65,14 +68,21 @@ const ratios = new Map<string, number>();
  */
 async function modelListing(adapter: GatewayAdapter, now: number): Promise<ModelListing | null> {
   if (listing && now - listing.at < MODEL_LIST_TTL_MS) return listing;
+  // A refresh that just failed is not retried on every turn: each attempt can
+  // wait out the timeout before the first token, and the gateway is down.
+  if (failedAt !== null && now - failedAt < RETRY_AFTER_FAILURE_MS) return listing;
 
   pending ??= adapter
     .listModels("openai", AbortSignal.timeout(5_000))
     .then((models) => {
       listing = { at: now, models: new Map(models.map((model) => [model.id, model])) };
+      failedAt = null;
       return listing;
     })
-    .catch(() => listing)
+    .catch(() => {
+      failedAt = now;
+      return listing;
+    })
     .finally(() => {
       pending = null;
     });
@@ -83,6 +93,7 @@ async function modelListing(adapter: GatewayAdapter, now: number): Promise<Model
 /** Forget the cached listing, so an alias saved a moment ago is looked up afresh. */
 export function invalidateModelListing(): void {
   listing = null;
+  failedAt = null;
 }
 
 /**
@@ -252,6 +263,7 @@ export function recordCalibration(aliasId: string, raw: number, reportedInput: n
 export function resetContextWindowState(): void {
   listing = null;
   pending = null;
+  failedAt = null;
   learned.clear();
   ratios.clear();
 }

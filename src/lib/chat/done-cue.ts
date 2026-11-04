@@ -7,10 +7,9 @@
  *
  * Neither for a turn that did not deliver an answer — the pupil stopped it, it
  * failed, the server restarted under it, or the conversation no longer fit the
- * model. A pleasant "done" over an error
- * reads as success. A turn cut short by a cap or the model's own length limit
- * still cues: its partial answer is on screen, and the notice says why it
- * stopped.
+ * model. A pleasant "done" over an error reads as success. A turn cut short by
+ * a cap or the model's own length limit still cues: its partial answer is on
+ * screen, and the notice says why it stopped.
  */
 const NO_ANSWER: ReadonlySet<string> = new Set(["aborted", "error", "interrupted", "context-full"]);
 
