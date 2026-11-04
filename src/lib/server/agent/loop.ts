@@ -839,33 +839,44 @@ export function fitTurnGrowth(
   /**
    * Then the latest batch, which shares one allowance: each result is capped on
    * its own as it arrives, and several capped results can still not fit
-   * together. Halve the longest until the step fits, down to a floor that still
-   * says something; past that the provider decides, and an overflow ends the
-   * turn with the notice rather than a guess.
+   * together. The longest is halved — cut from its original text, so the count
+   * of what was left out stays true — until the step fits or every result is
+   * down to a floor that still says something. Past that the provider decides,
+   * and an overflow ends the turn with the notice rather than a guess.
    */
-  for (let round = 0; round < 32 && !fits(); round++) {
-    let longest = -1;
-    for (let at = Math.max(planned, latestBatch + 1); at < messages.length; at++) {
-      const message = messages[at];
-      if (message.role !== "tool" || typeof message.content !== "string") continue;
-      if (longest === -1 || message.content.length > String(messages[longest].content).length) {
-        longest = at;
-      }
-    }
-    if (longest === -1) return;
+  const latest: { at: number; original: string; keep: number; earlier: number }[] = [];
+  for (let at = Math.max(planned, latestBatch + 1); at < messages.length; at++) {
+    const message = messages[at];
+    if (message.role !== "tool" || typeof message.content !== "string") continue;
+    // A result capped as it arrived carries its marker; the count goes on from it.
+    const capped = CAPPED.exec(message.content);
+    const original = capped ? message.content.slice(0, capped.index) : message.content;
+    latest.push({ at, original, keep: original.length, earlier: Number(capped?.[1] ?? 0) });
+  }
 
-    const content = String(messages[longest].content);
-    if (content.length <= LATEST_FLOOR) return;
-    const keep = Math.max(LATEST_FLOOR, Math.floor(content.length / 2));
-    messages[longest] = {
-      ...messages[longest],
-      content: `${content.slice(0, keep)}\n[… ${content.length - keep} more characters left out to fit the model's context]`,
+  while (!fits()) {
+    const longest = latest
+      .filter((result) => result.keep > LATEST_FLOOR)
+      .reduce<(typeof latest)[number] | null>(
+        (best, result) => (best === null || result.keep > best.keep ? result : best),
+        null,
+      );
+    if (!longest) return;
+
+    longest.keep = Math.max(LATEST_FLOOR, Math.floor(longest.keep / 2));
+    const left = longest.original.length - longest.keep + longest.earlier;
+    messages[longest.at] = {
+      ...messages[longest.at],
+      content: `${longest.original.slice(0, longest.keep)}\n[… ${left} more characters left out to fit the model's context]`,
     };
   }
 }
 
 /** The least of a latest tool result the model is still shown. */
 const LATEST_FLOOR = 1_500;
+
+/** The marker `emitResult` leaves on a result it capped, and its count. */
+const CAPPED = /\n\[… (\d+) more characters left out to fit the model's context\]$/;
 
 const SHORTENED = "[Earlier tool result left out to fit the model's context";
 

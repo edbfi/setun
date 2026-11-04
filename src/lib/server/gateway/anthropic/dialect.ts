@@ -10,7 +10,7 @@ import type {
   GeneratedImageBytes,
   ImageRequest,
 } from "../dialect";
-import { GatewayError, streamFailureCode } from "../errors";
+import { GatewayError, refusedUnprocessed, streamFailureCode } from "../errors";
 import type { FinishReason, GatewayEvent } from "../events";
 import { promptTextOf } from "../messages";
 import { resolveUsage } from "../usage";
@@ -199,6 +199,7 @@ export class AnthropicDialect implements GatewayDialectAdapter {
       // which decides how the turn ended. This dialect reports its input tokens
       // in `message_start`, so an early cancellation usually keeps the real
       // figure rather than an estimate.
+      if (refusedUnprocessed(cause, completion, inputTokens)) throw cause;
       yield resolveUsage({
         reported: { inputTokens, outputTokens },
         promptText: promptTextOf(request.messages),

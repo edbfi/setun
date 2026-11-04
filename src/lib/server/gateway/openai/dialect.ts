@@ -11,7 +11,7 @@ import type {
   GeneratedImageBytes,
   ImageRequest,
 } from "../dialect";
-import { GatewayError, streamFailureCode } from "../errors";
+import { GatewayError, refusedUnprocessed, streamFailureCode } from "../errors";
 import type { FinishReason, GatewayEvent } from "../events";
 import { promptTextOf } from "../messages";
 import { resolveUsage } from "../usage";
@@ -308,6 +308,7 @@ export class OpenAiDialect implements GatewayDialectAdapter {
         }
       }
     } catch (cause) {
+      if (refusedUnprocessed(cause, completion + reasoning, reported?.inputTokens)) throw cause;
       yield resolveUsage({
         reported,
         promptText: promptTextOf(request.messages),
@@ -414,6 +415,7 @@ export class OpenAiDialect implements GatewayDialectAdapter {
       // the fault then carries on to the agent loop, which decides how the turn
       // ended. Yielded from here so the trailing figure below stays the only one
       // a completed stream produces.
+      if (refusedUnprocessed(cause, completion, reported?.inputTokens)) throw cause;
       yield resolveUsage({
         reported,
         promptText: promptTextOf(request.messages),

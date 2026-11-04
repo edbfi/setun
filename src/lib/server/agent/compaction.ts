@@ -34,7 +34,7 @@ export const SUMMARY_INSTRUCTIONS = [
   "to follow. Answer with the summary alone, in at most about 300 words.",
 ].join("\n");
 
-/** At most this many model calls to summarise one turn's history. */
+/** At most this many model calls to summarise one turn's history, across every pass. */
 const MAX_CALLS = 4;
 
 export interface SummariserInput {
@@ -46,6 +46,12 @@ export interface SummariserInput {
   readonly maxOutputTokens?: number;
   readonly signal?: AbortSignal;
   readonly dailyBudget?: DailyBudgetLease;
+  /**
+   * The turn's count of summary calls, shared by every planning pass — the
+   * first plan, a harder one, the retry after a refusal — so the cap is per
+   * turn, as it says, and not per pass.
+   */
+  readonly calls?: { count: number };
   /** Where the summariser's own events go: the stage, and what it cost. */
   emit(event: GatewayEvent): void;
 }
@@ -70,7 +76,7 @@ export type Summarise = (
  * for the same calls again and throwing them away again.
  */
 export function createSummariser(input: SummariserInput): Summarise {
-  let calls = 0;
+  const calls = input.calls ?? { count: 0 };
   let announced = false;
   // Room for the transcript in one request: most of the budget, leaving the
   // instructions, the previous summary and the answer their space.
@@ -81,8 +87,8 @@ export function createSummariser(input: SummariserInput): Summarise {
     let covered = 0;
 
     for (const chunk of chunksOf(messages, maxChars)) {
-      if (calls >= MAX_CALLS) break;
-      calls++;
+      if (calls.count >= MAX_CALLS) break;
+      calls.count++;
 
       if (!announced) {
         announced = true;
@@ -155,6 +161,8 @@ async function summariseOnce(
   let settled = false;
   let reached = false;
   let exhausted = false;
+  /** The provider stopped at its own output ceiling: an unfinished summary. */
+  let cut = false;
 
   const settle = (event: Extract<GatewayEvent, { type: "usage" }>) => {
     if (settled) return;
@@ -175,7 +183,10 @@ async function summariseOnce(
       reached = true;
       if (event.type === "text-delta") text += event.text;
       if (event.type === "thinking-delta") reasoning += event.text;
-      if (event.type === "usage") settle(event);
+      if (event.type === "usage") {
+        if (event.finishReason === "length") cut = true;
+        settle(event);
+      }
 
       if (allocation && estimateTokens(text + reasoning) >= allocation.outputTokens) {
         exhausted = true;
@@ -199,7 +210,10 @@ async function summariseOnce(
     else input.dailyBudget?.settle(0);
   }
 
-  // A summary cut off by the allowance is half a summary: paid for, not kept.
+  // A summary cut off — by the allowance, or by the provider's own output
+  // ceiling — is half a summary: paid for, and not kept, because the planner
+  // would otherwise replace the messages it covers with an unfinished sentence
+  // for good. The chunks completed before it stand.
   const summary = text.trim();
-  return !exhausted && summary.length > 0 ? summary : null;
+  return !exhausted && !cut && summary.length > 0 ? summary : null;
 }

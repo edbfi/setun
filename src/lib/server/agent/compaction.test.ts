@@ -12,7 +12,7 @@ import { fitTurnGrowth, runTurn } from "./loop";
  * gateways that record what they were asked and count what they produced.
  */
 
-function fakeGateway(chunks: string[]) {
+function fakeGateway(chunks: string[], finishReason?: "length" | "stop") {
   const requests: ChatRequest[] = [];
   let produced = 0;
   let aborted = false;
@@ -28,7 +28,13 @@ function fakeGateway(chunks: string[]) {
         produced++;
         yield { type: "text-delta", text };
       }
-      yield { type: "usage", inputTokens: 50, outputTokens: produced * 5, estimated: false };
+      yield {
+        type: "usage",
+        inputTokens: 50,
+        outputTokens: produced * 5,
+        estimated: false,
+        ...(finishReason ? { finishReason } : {}),
+      };
     },
   };
   return {
@@ -80,6 +86,34 @@ describe("createSummariser", () => {
     expect(settled[0]).toBeGreaterThan(0);
   });
 
+  it("keeps no summary the provider cut off at its own output ceiling", async () => {
+    const gateway = fakeGateway(["The pupil requires "], "length");
+    const summarise = createSummariser({
+      adapter: gateway.adapter,
+      alias: { id: "a", dialect: "openai", gatewayModelId: "m" },
+      budget: 10_000,
+      emit: () => {},
+    });
+
+    expect(await summarise(null, messages)).toBeNull();
+  });
+
+  it("caps summary calls per turn, across every pass that shares the count", async () => {
+    const gateway = fakeGateway(["Kort."]);
+    const calls = { count: 0 };
+    const make = () =>
+      createSummariser({
+        adapter: gateway.adapter,
+        alias: { id: "a", dialect: "openai", gatewayModelId: "m" },
+        budget: 10_000,
+        calls,
+        emit: () => {},
+      });
+
+    for (let pass = 0; pass < 6; pass++) await make()(null, messages);
+    expect(gateway.requests).toHaveLength(4);
+  });
+
   it("sends the output ceiling the plan reserved, and says what it covers", async () => {
     const gateway = fakeGateway(["Eleven siger hej."]);
     const summarise = createSummariser({
@@ -112,6 +146,43 @@ describe("runTurn", () => {
 });
 
 describe("fitTurnGrowth", () => {
+  it("fits a large batch, each result still saying something and saying truly how much is gone", () => {
+    // Twenty results already capped as they arrived, against a 13,000-token budget.
+    const capped = `${"r".repeat(7_800)}\n[… 2200 more characters left out to fit the model's context]`;
+    const sent: GatewayMessage[] = [
+      { role: "system", content: "s" },
+      { role: "user", content: "Søg tyve ting" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: Array.from({ length: 20 }, (_, n) => ({
+          id: `${n}`,
+          name: "search",
+          arguments: "{}",
+        })),
+      },
+      ...Array.from({ length: 20 }, (_, n) => ({
+        role: "tool" as const,
+        toolCallId: `${n}`,
+        content: capped,
+      })),
+    ];
+
+    fitTurnGrowth(sent, 2, [], { inputTokens: 13_000, aliasId: "fit-test-large" });
+
+    const results = sent
+      .filter((message) => message.role === "tool")
+      .map((message) => String(message.content));
+    const total = results.reduce((sum, text) => sum + text.length, 0);
+    expect(total / 3).toBeLessThan(13_000);
+    for (const text of results) {
+      const kept = text.indexOf("\n[…");
+      const said = Number(/\[… (\d+) more/.exec(text)?.[1]);
+      // What is shown plus what it says was left out is the whole result.
+      expect(kept + said).toBe(10_000);
+    }
+  });
+
   it("makes several large results of the latest batch fit together", () => {
     const sent: GatewayMessage[] = [
       { role: "system", content: "s" },

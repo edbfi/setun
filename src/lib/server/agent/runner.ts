@@ -138,13 +138,16 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
     };
 
     // Fit the conversation to the model before the first request, and once more,
-    // harder, if the provider refuses it for length anyway (§10).
+    // harder, if the provider refuses it for length anyway (§10). One count of
+    // summary calls for the whole turn, however many passes that takes.
+    const summaryCalls = { count: 0 };
     let plan = await planTurnContext({
       input,
       window: await resolveContextWindow(input.adapter, input.alias),
       dailyBudget,
       signal,
       emit,
+      summaryCalls,
       hard: false,
     });
     // Known not to fit: compact harder now rather than send it to be refused.
@@ -155,6 +158,7 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
         dailyBudget,
         signal,
         emit,
+        summaryCalls,
         hard: true,
       });
     }
@@ -197,10 +201,16 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
         // Refused for length before a word of the answer: held back, not shown,
         // and asked again once with a harder compaction. Past that, or once the
         // answer has begun, the pupil is told instead.
+        //
+        // Only when the plan said it fit: then the refusal is news about the
+        // window, worth learning and worth one more try. A request the estimate
+        // already put over budget — a pasted book, say — was sent on the chance
+        // the estimate was generous, and its refusal teaches nothing.
         if (
           event.type === "done" &&
           event.reason === "context-full" &&
           attempt === 0 &&
+          plan.fits &&
           parts.every((part) => part.type === "context-compacted")
         ) {
           retry = true;
@@ -236,6 +246,7 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
         dailyBudget,
         signal,
         emit,
+        summaryCalls,
         hard: true,
       });
     }
@@ -541,6 +552,7 @@ async function planTurnContext(args: {
   dailyBudget?: DailyBudgetLease;
   signal: AbortSignal;
   emit: (event: GatewayEvent) => void;
+  summaryCalls: { count: number };
   hard: boolean;
 }): Promise<PlannedContext> {
   const { input, window } = args;
@@ -597,6 +609,7 @@ async function planTurnContext(args: {
       maxOutputTokens,
       signal: args.signal,
       dailyBudget: args.dailyBudget,
+      calls: args.summaryCalls,
       emit: args.emit,
     }),
     hard: args.hard,

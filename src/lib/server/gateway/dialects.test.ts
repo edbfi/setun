@@ -887,6 +887,22 @@ describe("error mapping", () => {
     });
   });
 
+  it("does not price a request a stream refused for length before producing anything", async () => {
+    const { adapter } = responsesAdapter([
+      responseEvent("response.failed", {
+        response: { error: { message: "Your input exceeds the context window of this model." } },
+      }),
+    ]);
+    const seen: GatewayEvent[] = [];
+
+    await expect(
+      (async () => {
+        for await (const event of adapter.streamChat("openai", request)) seen.push(event);
+      })(),
+    ).rejects.toMatchObject({ code: "context-overflow" });
+    expect(seen.filter((event) => event.type === "usage")).toEqual([]);
+  });
+
   it("maps a transport failure to unavailable", async () => {
     const { adapter } = adapterOver(() => {
       throw new TypeError("connect ECONNREFUSED 172.20.0.3:8317");

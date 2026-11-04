@@ -9,7 +9,7 @@ import { createTestDatabase, seedTestFixtures } from "../db/testing";
 import { GatewayAdapter } from "../gateway/adapter";
 import { type StubFetchCall, streamingResponse, stubFetch } from "../gateway/testing";
 import { SUMMARY_INSTRUCTIONS } from "./compaction";
-import { resetContextWindowState } from "./context-window";
+import { resetContextWindowState, resolveContextWindow } from "./context-window";
 import { executeTurn } from "./runner";
 import { readBufferedEvents } from "./turn-buffer";
 
@@ -205,6 +205,34 @@ describe("a conversation that outgrows the model", () => {
       type: "turn-notice",
       notice: "context-full",
     });
+  });
+
+  it("neither retries nor learns from refusing a prompt already known not to fit", async () => {
+    const scaffold = longConversation(0);
+    // A pasted book: the prompt alone is over budget, and cannot be compacted.
+    const book = "kapitel ".repeat(4_000);
+    scaffold.path[scaffold.path.length - 1] = {
+      ...scaffold.path[scaffold.path.length - 1],
+      parts: [{ type: "text", text: book }],
+    };
+    let answerCalls = 0;
+
+    await run(scaffold, (call) => {
+      if (isSummary(call)) return chat("x");
+      answerCalls++;
+      return overflow();
+    });
+
+    expect(answerCalls).toBe(1);
+    expect(answerOf(scaffold.conversation.id)?.parts).toContainEqual({
+      type: "turn-notice",
+      notice: "context-full",
+    });
+    const window = await resolveContextWindow(
+      { listModels: async () => [] } as unknown as GatewayAdapter,
+      { ...fixtures.alias, contextWindowTokens: 6_000 },
+    );
+    expect(window.learned).toBe(false);
   });
 
   it("leaves a conversation that fits exactly as it was", async () => {

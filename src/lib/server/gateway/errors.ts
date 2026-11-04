@@ -99,6 +99,26 @@ export function failureCodeForStatus(status: number, detail = ""): GatewayFailur
 }
 
 /**
+ * Whether a stream failure was a refusal for length before anything was made.
+ *
+ * Such a request was never processed, and pricing it at the estimated prompt
+ * would charge the pupil for a refusal — then charge them again for the retry
+ * the agent loop makes after compacting (§10).
+ */
+export function refusedUnprocessed(
+  cause: unknown,
+  produced: string,
+  reportedInput: number | undefined,
+): boolean {
+  return (
+    cause instanceof GatewayError &&
+    cause.code === "context-overflow" &&
+    produced.length === 0 &&
+    !reportedInput
+  );
+}
+
+/**
  * The code for a failure a stream reported mid-flight, with no status.
  *
  * The Responses transport and Anthropic's both report a refused request as an

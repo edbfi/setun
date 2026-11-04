@@ -1,4 +1,5 @@
 import type * as v from "valibot";
+import { forgetAlias } from "../agent/context-window";
 import { establishEducator } from "../auth/educator";
 import { type ProvisionedStudent, provisionStudents } from "../auth/provisioning";
 import { createSession, type IssuedSession } from "../auth/sessions";
@@ -83,6 +84,8 @@ export function saveAlias(
 ): ModelAlias {
   const values = { ...input.values, isUtility: false };
 
+  // A re-saved alias may name another model: nothing learned about the old one holds.
+  if (input.progress.aliasId) forgetAlias(input.progress.aliasId);
   const alias = input.progress.aliasId
     ? updateAlias(db, { aliasId: input.progress.aliasId, values })
     : createAlias(db, values);
