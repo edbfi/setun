@@ -33,7 +33,7 @@ import {
 } from "$lib/state/conversation.svelte";
 import { effectiveDoneSound, getDoneSound } from "$lib/state/done-sound.svelte";
 import { attachmentRefusalMessage, imageRefusalMessage, refusalMessage } from "$lib/state/refusals";
-import type { TurnFinished } from "$lib/state/streaming-turn.svelte";
+import type { StreamingTurn, TurnFinished } from "$lib/state/streaming-turn.svelte";
 import { getThinking } from "$lib/state/thinking.svelte";
 import { type SplitAxis, watchSplitAxis } from "$lib/workspace/axis";
 import type { PageProps } from "./$types";
@@ -80,19 +80,22 @@ const showThinking = $derived(effectiveThinking(data.thinkingVisibility, thinkin
 const doneSound = getDoneSound();
 const soundOn = $derived(effectiveDoneSound(data.doneSound, doneSound.preference));
 let unseenDone = $state(false);
-let cued: TurnFinished | null = null;
+/** Endings already cued: each answer chimes once, in whichever conversation it finished. */
+const cued = new WeakSet<TurnFinished>();
 
 $effect(() => {
-  const finished = conversation.turn.finished;
-  if (!finished || finished === cued) return;
-  cued = finished;
+  for (const turn of conversation.turns) {
+    const finished = turn.finished;
+    if (!finished || cued.has(finished)) continue;
+    cued.add(finished);
 
-  const cue = doneCue(finished.reason, {
-    soundOn: untrack(() => soundOn),
-    hidden: document.hidden,
-  });
-  if (cue.chime) playDoneChime();
-  if (cue.badge) unseenDone = true;
+    const cue = doneCue(finished.reason, {
+      soundOn: untrack(() => soundOn),
+      hidden: document.hidden,
+    });
+    if (cue.chime) playDoneChime();
+    if (cue.badge) unseenDone = true;
+  }
 });
 
 $effect(() => {
@@ -155,8 +158,11 @@ $effect(() => {
  */
 const status = $derived(classroom.status ?? data.status);
 
-/** Guard: a turn we already consumed or are consuming. */
-let consumedTurnId = $state<string | null>(null);
+/**
+ * Turns this tab has read or is reading, so a data refresh naming one as still
+ * streaming does not start a second reader on it (§10).
+ */
+const consumedTurnIds = new Set<string>();
 
 // The push channel keeps the room's state current, so a pupil sees a lock land
 // rather than discovering it by being refused. Enforcement never depends on it:
@@ -167,8 +173,9 @@ $effect(() => classroom.connect());
 // Re-seed from the server whenever the loaded conversation changes.
 $effect(() => {
   const nextId = data.conversation?.id ?? null;
-  // "Done" belongs to the conversation whose answer it finished.
-  if (untrack(() => conversation.id) !== nextId) conversation.turn.finished = null;
+  // "Done" belongs to the visit that saw it: leaving the conversation drops it.
+  const previous = untrack(() => conversation.id);
+  if (previous !== null && previous !== nextId) untrack(() => conversation.leave(previous));
   conversation.id = nextId;
   conversation.title = data.conversation?.title ?? null;
   conversation.replaceMessages(data.messages);
@@ -193,51 +200,68 @@ $effect(() => {
   untrack(() => artifacts.replace(next, conversationId));
 });
 
-// A turn was still streaming when this tab loaded: replay the buffer and tail
-// the live turn — the same endpoint whether it is live or already finished (§10).
+// Turns still streaming when this tab loaded — here or in another of the
+// pupil's conversations: replay each buffer and tail the live turn, the same
+// endpoint whether it is live or already finished (§10). One running elsewhere
+// is followed too, so it can say when it needs the pupil and chime when done.
 //
-// `consumedTurnId` breaks the invalidateAll → data refresh → re-fire loop: once
-// we've begun consuming a turn, the effect does not start a second consumer even
-// though `data.resumeTurnId` may return the same value after invalidateAll.
+// `consumedTurnIds` breaks the invalidateAll → data refresh → re-fire loop: a
+// refresh names a turn as streaming until it ends, and it is read only once.
 $effect(() => {
-  const turnId = data.resumeTurnId;
-  if (!turnId || turnId === consumedTurnId || conversation.turn.streaming) return;
+  for (const active of data.activeTurns) {
+    if (consumedTurnIds.has(active.id)) continue;
+    const turn = untrack(() => conversation.turnFor(active.conversationId));
+    // Already being read — a send from this tab whose id has not arrived yet.
+    if (untrack(() => turn.streaming)) continue;
 
-  consumedTurnId = turnId;
-  conversation.turn.resume(turnId, -1, data.conversation?.id ?? null);
-  void consume(`/api/turns/${turnId}/events?after=-1`, { method: "GET" });
+    consumedTurnIds.add(active.id);
+    turn.resume(active.id, -1, active.conversationId);
+    void consume(turn, `/api/turns/${active.id}/events?after=-1`, { method: "GET" });
+  }
 });
 
 /**
- * The conversation a live turn is answering in, when the pupil is in another (§10).
+ * The answers being written in the pupil's other conversations (§10).
  *
- * Named by its title where it has one, so the line says where the work is.
+ * Named by title where there is one, so each line says where the work is, and
+ * whether it is waiting on the pupil there.
  */
-const elsewhere = $derived.by(() => {
-  const id = conversation.turnElsewhere;
-  if (!id) return null;
-  const title = data.conversations.find((item) => item.id === id)?.title?.trim();
-  return { id, title: title || m.chat_untitled_conversation() };
-});
+const elsewhere = $derived(
+  conversation.turnsElsewhere.map(({ conversationId, turn }) => {
+    const title = data.conversations.find((item) => item.id === conversationId)?.title?.trim();
+    return {
+      id: conversationId,
+      title: title || m.chat_untitled_conversation(),
+      waiting: turn.waiting,
+    };
+  }),
+);
 
-/** Active fetch controller — cancelled when the student presses Stop. */
-let consumeController: AbortController | null = null;
+/** Each answer's fetch controller — cancelled when the student presses its Stop. */
+const controllers = new Map<StreamingTurn, AbortController>();
 
 // Stop was pressed before the response delivered the turn id. We cannot abort a
 // turn we cannot name — and the turn is already running on the server the moment
 // the POST handler starts it — so we do not cancel the fetch yet: we record the
 // intent and issue the abort the instant the id header arrives.
-let abortRequested = false;
+const abortRequested = new Set<StreamingTurn>();
 
-/** Read an SSE endpoint into the streaming-turn container. */
-async function consume(url: string, init: RequestInit): Promise<void> {
-  consumeController = new AbortController();
+/** Read an SSE endpoint into one conversation's streaming-turn container. */
+async function consume(turn: StreamingTurn, url: string, init: RequestInit): Promise<void> {
+  const controller = new AbortController();
+  controllers.set(turn, controller);
   try {
-    const response = await fetch(url, { ...init, signal: consumeController.signal });
+    const response = await fetch(url, { ...init, signal: controller.signal });
 
     if (response.status === 409) {
-      refusal = m.chat_turn_in_flight();
-      conversation.turn.detach();
+      // An answer is already being written here, or the pupil has as many
+      // going as the classroom allows (§10).
+      const body = await response.json().catch(() => null);
+      refusal =
+        body?.error === "turn-limit"
+          ? m.chat_turn_limit({ count: body.limit ?? data.maxConcurrentTurns })
+          : m.chat_turn_in_flight();
+      turn.detach();
       return;
     }
     if (response.status === 403) {
@@ -246,54 +270,54 @@ async function consume(url: string, init: RequestInit): Promise<void> {
       // from a code: no server string is ever shown to a pupil (§8, §10, §21).
       const body = await response.json().catch(() => null);
       refusal = refusalMessage(body?.error);
-      conversation.turn.detach();
+      turn.detach();
       await invalidateAll();
       return;
     }
     if (!response.ok) {
-      conversation.turn.apply({ type: "error", message: "unavailable" }, Number.MAX_SAFE_INTEGER);
-      conversation.turn.detach();
+      turn.apply({ type: "error", message: "unavailable" }, Number.MAX_SAFE_INTEGER);
+      turn.detach();
       return;
     }
 
     // Extract the real turn ID so abort can target it (replaces the "pending" placeholder).
     const headerTurnId = response.headers.get("x-setun-turn-id");
     if (headerTurnId) {
-      conversation.turn.turnId = headerTurnId;
+      turn.turnId = headerTurnId;
       // This tab is already reading the turn. Once the pupil has opened another
       // conversation and come back, the page data names it as resumable — and
       // without this the resume effect would read it a second time the moment
       // it ends, replaying the whole answer (§10).
-      consumedTurnId = headerTurnId;
+      consumedTurnIds.add(headerTurnId);
       // Stop was pressed while the id was still "pending": now that we can name
       // the turn, tell the server to stop it and drop the local stream. Without
       // this the detached server turn would run to completion and the
       // invalidateAll below would resume it.
-      if (abortRequested) {
-        abortRequested = false;
+      if (abortRequested.has(turn)) {
+        abortRequested.delete(turn);
         // Await the abort before returning: the finally below runs
         // invalidateAll, and if the server had not yet marked the turn stopped
         // the reload would report it as resumable and the resume effect would
         // reconnect to the very turn we just stopped.
         await fetch(`/api/turns/${headerTurnId}/abort`, { method: "POST" });
-        consumeController?.abort();
+        controller.abort();
         return;
       }
     }
 
-    for await (const { seq, event } of readEventStream(response, consumeController.signal)) {
-      conversation.turn.apply(event, seq);
+    for await (const { seq, event } of readEventStream(response, controller.signal)) {
+      turn.apply(event, seq);
     }
   } catch {
     // The connection dropped or was aborted. The turn keeps running on the
     // server and stays resumable, so this is not an error the student needs
     // to see (§10).
-    conversation.turn.detach();
+    turn.detach();
   } finally {
-    consumeController = null;
+    if (controllers.get(turn) === controller) controllers.delete(turn);
     // Pick up the persisted assistant message, the generated title and the new
     // active leaf in one round trip.
-    conversation.turn.clear();
+    turn.clear();
     await invalidateAll();
   }
 }
@@ -367,11 +391,16 @@ async function mintConversation(): Promise<string | null> {
 
 async function send(): Promise<void> {
   refusal = null;
-  // One turn in flight per pupil, across every conversation (§10). Checked here
-  // as well as on the server: the live turn is still filling this tab's state,
-  // and beginning another would overwrite it mid-stream. The draft stays put.
+  // One answer per conversation, and the classroom's limit across all of them
+  // (§10). Checked here as well as on the server: this conversation's answer is
+  // still filling its state, and beginning another would overwrite it
+  // mid-stream. The draft stays put.
   if (conversation.turn.streaming) {
     refusal = m.chat_turn_in_flight();
+    return;
+  }
+  if (conversation.streamingCount >= data.maxConcurrentTurns) {
+    refusal = m.chat_turn_limit({ count: data.maxConcurrentTurns });
     return;
   }
   // Inside the click, where the browser allows sound to be started (§20).
@@ -393,10 +422,11 @@ async function send(): Promise<void> {
       mediaType: file.mediaType,
     })),
   );
-  abortRequested = false;
-  conversation.turn.begin("pending", conversationId);
+  const turn = conversation.turnFor(conversationId);
+  abortRequested.delete(turn);
+  turn.begin("pending", conversationId);
 
-  await consume("/api/messages", {
+  await consume(turn, "/api/messages", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -532,8 +562,8 @@ async function generateImage(): Promise<void> {
  */
 async function switchBranch(messageId: string): Promise<void> {
   const conversationId = conversation.id;
-  // Only the conversation the turn answers in is about to move its leaf.
-  if (!conversationId || (conversation.turn.streaming && conversation.turnHere)) return;
+  // Only a conversation with an answer being written is about to move its leaf.
+  if (!conversationId || conversation.turn.streaming) return;
 
   const response = await fetch(`/api/conversations/${conversationId}`, {
     method: "POST",
@@ -660,13 +690,16 @@ async function keepGoing(): Promise<void> {
   await respond({ requestId: warning.requestId, kind: "continue", proceed: true });
 }
 
+/** Stop the answer in the conversation on screen; any running elsewhere carry on. */
 async function abort(): Promise<void> {
-  const turnId = conversation.turn.turnId;
+  const turn = conversation.turn;
+  if (!turn.streaming) return;
+  const turnId = turn.turnId;
 
   // The id has arrived: tell the server to stop, then drop the local stream.
   if (turnId && turnId !== "pending") {
-    abortRequested = false;
-    consumeController?.abort();
+    abortRequested.delete(turn);
+    controllers.get(turn)?.abort();
     await fetch(`/api/turns/${turnId}/abort`, { method: "POST" });
     return;
   }
@@ -676,7 +709,7 @@ async function abort(): Promise<void> {
   // and let the fetch continue; `consume` fires the abort the moment the id
   // header lands. Cancelling the fetch here would lose the header and orphan a
   // turn that is already running server-side — the bug this replaces.
-  abortRequested = true;
+  abortRequested.add(turn);
 }
 </script>
 
@@ -803,67 +836,65 @@ async function abort(): Promise<void> {
               conversation rather than as a dialog: on a 640-pixel screen a modal
               covers the answer the pupil is deciding about (§11, §20).
 
-              Only in the conversation the turn answers: a question about a
-              tool in another thread, asked under this one, answers nothing the
-              pupil can see. The status line below the transcript points there.
+              This conversation's own answer only: a question about a tool in
+              another thread, asked under this one, answers nothing the pupil
+              can see. The status lines below the transcript point there.
             -->
-            {#if conversation.turnHere}
-              {#if conversation.turn.permission}
-                {#key conversation.turn.permission.toolCallId}
-                  <PermissionPrompt
-                    permission={conversation.turn.permission}
-                    onrespond={(approved) =>
-                      respond({
-                        requestId: conversation.turn.permission?.toolCallId,
-                        kind: "permission",
-                        approved,
-                      })}
-                  />
-                {/key}
-              {/if}
-
-              {#if conversation.turn.elicitation}
-                {#key conversation.turn.elicitation.toolCallId}
-                  <ElicitationForm
-                    elicitation={conversation.turn.elicitation}
-                    onrespond={(answer) =>
-                      respond({
-                        requestId: conversation.turn.elicitation?.toolCallId,
-                        kind: "elicitation",
-                        ...answer,
-                      })}
-                  />
-                {/key}
-              {/if}
-
-              {#if conversation.turn.continuePrompt}
-                {#key conversation.turn.continuePrompt.requestId}
-                  <ContinuePrompt
-                    prompt={conversation.turn.continuePrompt}
-                    onrespond={(proceed) => {
-                      if (proceed) conversation.turn.acknowledgeWarning();
-                      void respond({
-                        requestId: conversation.turn.continuePrompt?.requestId,
-                        kind: "continue",
-                        proceed,
-                      });
-                    }}
-                  />
-                {/key}
-              {/if}
-
-              {#if conversation.turn.budgetWarning}
-                <!--
-                Shown while the answer keeps arriving: the allowance is the
-                pupil's day, and a response in flight is never cut for it (§10).
-              -->
-                <BudgetWarning
-                  warning={conversation.turn.budgetWarning}
-                  streaming={conversation.turn.streaming && !conversation.turn.continuePrompt}
-                  onkeepgoing={keepGoing}
-                  onstop={abort}
+            {#if conversation.turn.permission}
+              {#key conversation.turn.permission.toolCallId}
+                <PermissionPrompt
+                  permission={conversation.turn.permission}
+                  onrespond={(approved) =>
+                    respond({
+                      requestId: conversation.turn.permission?.toolCallId,
+                      kind: "permission",
+                      approved,
+                    })}
                 />
-              {/if}
+              {/key}
+            {/if}
+
+            {#if conversation.turn.elicitation}
+              {#key conversation.turn.elicitation.toolCallId}
+                <ElicitationForm
+                  elicitation={conversation.turn.elicitation}
+                  onrespond={(answer) =>
+                    respond({
+                      requestId: conversation.turn.elicitation?.toolCallId,
+                      kind: "elicitation",
+                      ...answer,
+                    })}
+                />
+              {/key}
+            {/if}
+
+            {#if conversation.turn.continuePrompt}
+              {#key conversation.turn.continuePrompt.requestId}
+                <ContinuePrompt
+                  prompt={conversation.turn.continuePrompt}
+                  onrespond={(proceed) => {
+                    if (proceed) conversation.turn.acknowledgeWarning();
+                    void respond({
+                      requestId: conversation.turn.continuePrompt?.requestId,
+                      kind: "continue",
+                      proceed,
+                    });
+                  }}
+                />
+              {/key}
+            {/if}
+
+            {#if conversation.turn.budgetWarning}
+              <!--
+              Shown while the answer keeps arriving: the allowance is the
+              pupil's day, and a response in flight is never cut for it (§10).
+            -->
+              <BudgetWarning
+                warning={conversation.turn.budgetWarning}
+                streaming={conversation.turn.streaming && !conversation.turn.continuePrompt}
+                onkeepgoing={keepGoing}
+                onstop={abort}
+              />
             {/if}
 
             {#if generating}
@@ -874,13 +905,13 @@ async function abort(): Promise<void> {
           {/snippet}
         </Transcript>
 
-        {#if elsewhere}
+        {#each elsewhere as other (other.id)}
           <!--
-            The answer still being written in another conversation (§10). It
-            keeps going while the pupil reads or starts something else here, and
-            this is the one way back to it.
+            An answer still being written in another conversation (§10). It
+            keeps going while the pupil reads or asks something else here, and
+            this is the way back to it — and says when it is waiting there.
           -->
-          <div class="shrink-0 px-3 pt-2" data-turn-elsewhere={elsewhere.id}>
+          <div class="shrink-0 px-3 pt-2" data-turn-elsewhere={other.id}>
             <p
               class="mx-auto flex max-w-2xl items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-xs text-secondary-foreground"
               role="status"
@@ -890,19 +921,19 @@ async function abort(): Promise<void> {
                 aria-hidden="true"
               ></span>
               <span class="min-w-0 flex-1 truncate">
-                {conversation.turn.waiting
-                  ? m.chat_turn_elsewhere_waiting({ title: elsewhere.title })
-                  : m.chat_turn_elsewhere({ title: elsewhere.title })}
+                {other.waiting
+                  ? m.chat_turn_elsewhere_waiting({ title: other.title })
+                  : m.chat_turn_elsewhere({ title: other.title })}
               </span>
               <a
-                href="/chat?c={elsewhere.id}"
+                href="/chat?c={other.id}"
                 class="shrink-0 font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {m.chat_turn_elsewhere_open()}
               </a>
             </p>
           </div>
-        {/if}
+        {/each}
 
         {#if refusal}
           <!--
@@ -928,7 +959,7 @@ async function abort(): Promise<void> {
         <Composer
           bind:this={composerRef}
           {composer}
-          streaming={(conversation.turn.streaming && conversation.turnHere) || generating}
+          streaming={conversation.turn.streaming || generating}
           attachmentsEnabled={data.attachmentsEnabled}
           imageModeAvailable={data.imageModeAvailable}
           modelName={data.aliases.length > 1 ? (activeAlias?.name ?? null) : null}

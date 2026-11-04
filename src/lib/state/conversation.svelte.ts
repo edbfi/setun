@@ -1,3 +1,4 @@
+import { SvelteMap } from "svelte/reactivity";
 import type { ArtifactLanguage, BuildStatus } from "$lib/artifacts/types";
 import type { MessagePart } from "$lib/server/db/schema";
 import { StreamingTurn } from "./streaming-turn.svelte";
@@ -74,9 +75,24 @@ export class ConversationState {
   id = $state<string | null>(null);
   title = $state<string | null>(null);
   messages = $state<ChatMessage[]>([]);
-  readonly turn = new StreamingTurn();
+  /**
+   * Every answer this tab follows, by the conversation it answers in (§10).
+   *
+   * A pupil may have more than one being written — one per conversation — and
+   * each keeps running, and keeps its own prompts and Stop, while the pupil is
+   * somewhere else.
+   */
+  readonly #turns = new SvelteMap<string, StreamingTurn>();
+  /** What a conversation with no answer of its own reads. Never written to. */
+  readonly #none: StreamingTurn;
+  readonly #now: () => number;
 
-  constructor(input?: { id: string; title: string | null; messages: ChatMessage[] }) {
+  constructor(
+    input?: { id: string; title: string | null; messages: ChatMessage[] },
+    now: () => number = Date.now,
+  ) {
+    this.#now = now;
+    this.#none = new StreamingTurn(now);
     if (input) {
       this.id = input.id;
       this.title = input.title;
@@ -89,23 +105,49 @@ export class ConversationState {
   }
 
   /**
-   * Whether the live turn belongs to the conversation on screen (§10).
+   * The answer in the conversation on screen — idle when it has none.
    *
-   * A turn keeps running when the pupil opens another conversation; it is drawn,
-   * and its prompts and Stop button offered, only in the one it answers.
+   * Read-only by convention: anything that starts or resumes an answer asks
+   * `turnFor` for the conversation it belongs to.
    */
-  get turnHere(): boolean {
-    return this.turn.conversationId === null || this.turn.conversationId === this.id;
+  get turn(): StreamingTurn {
+    return (this.id !== null && this.#turns.get(this.id)) || this.#none;
+  }
+
+  /** The answer in a conversation, made the first time one starts there. */
+  turnFor(conversationId: string): StreamingTurn {
+    let turn = this.#turns.get(conversationId);
+    if (!turn) {
+      turn = new StreamingTurn(this.#now);
+      this.#turns.set(conversationId, turn);
+    }
+    return turn;
+  }
+
+  /** Every answer this tab has followed, finished or not. */
+  get turns(): StreamingTurn[] {
+    return [...this.#turns.values()];
   }
 
   /**
-   * The conversation a live turn is running in, when that is not this one.
-   *
-   * Null when nothing is running, or when it is running here.
+   * The pupil left a conversation: "Done" under its last answer was for that
+   * visit, and is not shown again on the next.
    */
-  get turnElsewhere(): string | null {
-    if (!this.turn.streaming || this.turnHere) return null;
-    return this.turn.conversationId;
+  leave(conversationId: string): void {
+    const turn = this.#turns.get(conversationId);
+    if (turn && !turn.streaming) turn.finished = null;
+  }
+
+  /** How many answers are being written now, across every conversation. */
+  get streamingCount(): number {
+    return this.turns.filter((turn) => turn.streaming).length;
+  }
+
+  /** Answers being written in other conversations than the one on screen, by conversation. */
+  get turnsElsewhere(): { readonly conversationId: string; readonly turn: StreamingTurn }[] {
+    return [...this.#turns.entries()]
+      .filter(([conversationId, turn]) => turn.streaming && conversationId !== this.id)
+      .map(([conversationId, turn]) => ({ conversationId, turn }));
   }
 
   /** True while a turn is streaming or its text is still on screen unpersisted. */

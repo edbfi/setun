@@ -5,7 +5,7 @@ import * as m from "../src/lib/paraglide/messages";
 import { E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
 import { openDrawer, startConversation } from "./support/chat";
 import { clearLoginWindow } from "./support/login-window";
-import { ARTIFACT_MARKER, ARTIFACT_REPLY, SLOW_MARKER } from "./support/stub-gateway";
+import { ARTIFACT_MARKER, ARTIFACT_REPLY, LONG_MARKER, SLOW_MARKER } from "./support/stub-gateway";
 
 /**
  * A long answer keeps going while the pupil opens another conversation (PRD §10).
@@ -13,8 +13,9 @@ import { ARTIFACT_MARKER, ARTIFACT_REPLY, SLOW_MARKER } from "./support/stub-gat
  * Reported from a classroom: "New conversation" during a long answer seemed to
  * do nothing. The URL moved, but the running answer was drawn into the new,
  * empty conversation and held its composer — so the pupil was looking at the
- * same answer and could not start anything. One turn is in flight per pupil,
- * and it belongs to the conversation it answers.
+ * same answer and could not start anything. An answer belongs to the
+ * conversation it answers, and a pupil may have as many going at once as the
+ * classroom allows — one per conversation.
  */
 
 const run = promisify(execFile);
@@ -64,12 +65,8 @@ test("a new conversation opens while an answer keeps running in the old one", as
   await expect(live).toHaveCount(0);
   await expect(page.locator(`[data-turn-elsewhere="${first}"]`)).toBeVisible();
 
-  // The composer is free to type in; a second answer waits for the first, and
-  // the draft is kept rather than lost.
-  await composer.fill("Et nyt spørgsmål");
-  await page.getByRole("button", { name: m.chat_send() }).click();
-  await expect(page.getByText(m.chat_turn_in_flight())).toBeVisible();
-  await expect(composer).toHaveValue("Et nyt spørgsmål");
+  // The composer here is free: nothing is running in this conversation.
+  await expect(composer).toBeEditable();
 
   // And the way back finds the answer still arriving where it belongs —
   // without this tab ever reconnecting to read the same turn a second time.
@@ -89,4 +86,73 @@ test("a new conversation opens while an answer keeps running in the old one", as
   expect(reconnects).toEqual([]);
   const closing = ARTIFACT_REPLY.split("\n").at(-1) ?? "";
   await expect(page.locator('article[data-role="assistant"]').getByText(closing)).toHaveCount(1);
+});
+
+/** Start a new conversation from the drawer and wait to be on it. */
+async function newConversation(page: Page): Promise<string> {
+  const previous = page.url();
+  await openDrawer(page);
+  await page
+    .locator('form[action="?/create"]')
+    .getByRole("button", { name: m.chat_new_conversation() })
+    .click();
+  await expect(page).not.toHaveURL(previous);
+  await expect(page).toHaveURL(/c=/);
+  return new URL(page.url()).searchParams.get("c") ?? "";
+}
+
+test("two answers run at once in two conversations, and a third waits for the limit", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signIn(page);
+  await startConversation(page);
+  const first = new URL(page.url()).searchParams.get("c");
+
+  const composer = page.getByRole("textbox", { name: m.chat_composer_label() });
+  const send = page.getByRole("button", { name: m.chat_send() });
+  const live = page.locator('article[data-role="assistant"][data-streaming="true"]');
+
+  // A long answer, slow enough to still be running when the test is done with it.
+  await composer.fill(`${SLOW_MARKER} ${LONG_MARKER} en lang forklaring`);
+  await send.click();
+  await expect(live).toBeVisible({ timeout: 20_000 });
+
+  // A second, in a second conversation, while the first goes on.
+  const second = await newConversation(page);
+  await composer.fill(`${SLOW_MARKER} ${LONG_MARKER} en anden forklaring`);
+  await send.click();
+  await expect(live).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(`[data-turn-elsewhere="${first}"]`)).toBeVisible();
+
+  // A third is past the classroom's default of two: refused, the draft kept.
+  await newConversation(page);
+  await composer.fill("Et tredje spørgsmål");
+  await send.click();
+  await expect(page.getByText(m.chat_turn_limit({ count: 2 }))).toBeVisible();
+  await expect(composer).toHaveValue("Et tredje spørgsmål");
+  await expect(page.locator("[data-turn-elsewhere]")).toHaveCount(2);
+
+  // Each answer is still where it belongs, and Stop stops only that one —
+  // without this tab ever reconnecting to read either a second time.
+  const reconnects: string[] = [];
+  page.on("request", (request) => {
+    if (/\/api\/turns\/[^/]+\/events/.test(request.url())) reconnects.push(request.url());
+  });
+
+  await page.locator(`[data-turn-elsewhere="${first}"]`).getByRole("link").click();
+  await expect(page).toHaveURL(new RegExp(`c=${first}`));
+  await expect(live).toBeVisible();
+  await expect(page.locator("[data-turn-elsewhere]")).toHaveCount(1);
+  await page.getByRole("button", { name: m.chat_stop() }).click();
+  await expect(live).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator(`[data-turn-elsewhere="${second}"]`)).toBeVisible();
+
+  await page.locator(`[data-turn-elsewhere="${second}"]`).getByRole("link").click();
+  await expect(page).toHaveURL(new RegExp(`c=${second}`));
+  await expect(live).toBeVisible();
+  await page.getByRole("button", { name: m.chat_stop() }).click();
+  await expect(live).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator("[data-turn-elsewhere]")).toHaveCount(0);
+  expect(reconnects).toEqual([]);
 });

@@ -1,6 +1,6 @@
 import { error, json } from "@sveltejs/kit";
 import * as v from "valibot";
-import { assertNoTurnInFlight, TurnInFlightError } from "$lib/server/agent/concurrency";
+import { assertNoTurnInConversation, TurnInFlightError } from "$lib/server/agent/concurrency";
 import { requireStudentApi } from "$lib/server/auth/guards";
 import { getDb } from "$lib/server/boot";
 import {
@@ -53,7 +53,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   if (!owned) error(404, "Not found");
 
   try {
-    assertNoTurnInFlight(db, student.id);
+    assertNoTurnInConversation(db, { studentId: student.id, conversationId: owned.id });
   } catch (cause) {
     if (cause instanceof TurnInFlightError) {
       return json({ error: "turn-in-flight", activeTurnId: cause.activeTurnId }, { status: 409 });

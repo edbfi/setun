@@ -95,11 +95,10 @@ export class StreamingTurn {
   /**
    * The conversation this turn answers in (§10).
    *
-   * One turn is in flight per pupil across all their conversations, and it keeps
-   * running when the pupil opens another one. Without this the live answer was
-   * drawn into whichever conversation was on screen — so "New conversation"
-   * during a long answer seemed to go nowhere. Null when it is not known, which
-   * shows the turn wherever the pupil is, as before.
+   * A turn keeps running when the pupil opens another conversation, and a
+   * pupil may have one going in each of several. Without this the live answer
+   * was drawn into whichever conversation was on screen — so "New
+   * conversation" during a long answer seemed to go nowhere. Null once cleared.
    */
   conversationId = $state<string | null>(null);
   /** Last sequence number applied — the cursor a resume continues from (§10). */

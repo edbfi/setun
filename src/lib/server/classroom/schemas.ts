@@ -239,6 +239,8 @@ export const ClassroomPolicySchema = v.object({
   thinkingVisibility: v.picklist(THINKING_VISIBILITIES),
   /** Whether an answer finishing chimes by default; each pupil may override it (§20). */
   doneSound: v.picklist(DONE_SOUNDS),
+  /** Answers one pupil may have being written at once (§10). */
+  maxConcurrentTurns: whole(1, 3),
   sessionPolicy: v.picklist(SESSION_POLICIES),
   sessionSlidingDays: whole(1, 365),
   conversationRetentionDays: whole(1, 3_650),

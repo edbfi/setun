@@ -320,6 +320,34 @@ test("a removed pupil leaves the roster, and a disabled one cannot sign in (§16
   await expect(page.getByRole("link", { name: m.educator_hide_removed() })).toBeVisible();
 });
 
+test("the educator sets how many answers a pupil may have running at once (§10)", async ({
+  page,
+}) => {
+  await signIn(page);
+
+  await page.getByLabel(m.educator_classroom_name_label()).fill(`E2E concurrency ${Date.now()}`);
+  await page.getByRole("button", { name: m.educator_create_classroom() }).click();
+  await expect(page).toHaveURL(/\/educator\/classrooms\//);
+  await page.getByRole("link", { name: m.educator_nav_settings() }).click();
+
+  const limit = page.getByLabel(m.educator_concurrent_turns_label());
+  // Two by default: a second conversation while a long build runs.
+  await expect(limit).toHaveValue("2");
+
+  await limit.selectOption("1");
+  const saved = page.waitForResponse(
+    (response) => response.url().includes("savePolicy") && response.request().method() === "POST",
+  );
+  await page
+    .locator('form[action="?/savePolicy"]')
+    .getByRole("button", { name: m.educator_save() })
+    .click();
+  expect((await saved).ok()).toBe(true);
+
+  await page.reload();
+  await expect(page.getByLabel(m.educator_concurrent_turns_label())).toHaveValue("1");
+});
+
 test("deleting a classroom restores the dashboard title", async ({ page }) => {
   await signIn(page);
 

@@ -157,7 +157,7 @@ function jumpToLatest(): void {
 // Keep the newest content in view as it streams — but only for a pupil who is
 // already there.
 $effect(() => {
-  if (conversation.turnHere) conversation.turn.text;
+  conversation.turn.text;
   conversation.messages.length;
   if (!pinned) return;
 
@@ -289,10 +289,8 @@ $effect(() => {
         />
       {/each}
 
-      {#if conversation.turnHere}
-        <!-- A turn running in another conversation is not drawn into this one (§10). -->
-        <StreamingMessage turn={conversation.turn} {showThinking} {resolveArtifact} />
-      {/if}
+      <!-- This conversation's own answer: one running in another is not drawn here (§10). -->
+      <StreamingMessage turn={conversation.turn} {showThinking} {resolveArtifact} />
 
       {#if finished}
         <!--

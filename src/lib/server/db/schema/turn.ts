@@ -19,8 +19,8 @@ export type TurnStatus = (typeof TURN_STATUSES)[number];
  * §19 describes tables in prose and does not enumerate this one, but §10 makes
  * it necessary: every event is buffered to the database as it streams so resume
  * replays from one source of truth, a restart marks in-flight turns interrupted
- * at boot, and "one turn in flight per student, across all of their
- * conversations" needs somewhere to be true. Deriving that from message rows
+ * at boot, and the limit on answers in flight — one per conversation, the
+ * classroom's `maxConcurrentTurns` per pupil — needs somewhere to be true. Deriving that from message rows
  * cannot express a turn that produced no message yet.
  */
 export const turn = sqliteTable(
@@ -30,7 +30,7 @@ export const turn = sqliteTable(
     conversationId: text()
       .notNull()
       .references(() => conversation.id, { onDelete: "cascade" }),
-    /** Denormalised from the conversation so the single-in-flight check is one indexed read (§10). */
+    /** Denormalised from the conversation so the in-flight check is one indexed read (§10). */
     studentId: text()
       .notNull()
       .references(() => student.id, { onDelete: "cascade" }),
