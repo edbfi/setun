@@ -111,7 +111,12 @@ export interface RunTurnInput {
    * between steps — and names the alias whose size estimates each step's
    * reported usage calibrates. Absent, the loop sends what it has, as before.
    */
-  readonly contextBudget?: { readonly inputTokens: number; readonly aliasId: string };
+  readonly contextBudget?: {
+    readonly inputTokens: number;
+    readonly aliasId: string;
+    /** The output ceiling the plan reserved, sent so the provider sees the same. */
+    readonly maxOutputTokens?: number;
+  };
   /** Aborting the turn cancels the upstream request and any running tool (§10). */
   readonly signal?: AbortSignal;
   /** Injectable clock, so the wall-clock cap is testable without waiting. */
@@ -545,6 +550,9 @@ async function* runStep(args: {
       model: input.model,
       messages,
       ...(args.definitions.length > 0 ? { tools: args.definitions } : {}),
+      ...(input.contextBudget?.maxOutputTokens
+        ? { maxOutputTokens: input.contextBudget.maxOutputTokens }
+        : {}),
       signal: args.signal,
     })) {
       reachedUpstream = true;
@@ -614,8 +622,12 @@ async function* runStep(args: {
      *
      * A budget stop breaks out normally and settles below; only this path was
      * losing the figure.
+     *
+     * A request refused for length produced nothing and was not processed, so
+     * it is not charged as if it had been — the retry that follows will be.
      */
-    if (!sawUsage && reachedUpstream) {
+    const refused = cause instanceof GatewayError && cause.code === "context-overflow";
+    if (!sawUsage && reachedUpstream && !(refused && text + reasoning === "")) {
       const usage = resolveUsage({ promptText, completionText: text + reasoning });
       budget.settleStepTokens(usage.inputTokens + usage.outputTokens);
       input.dailyBudget?.settle(usage.inputTokens + usage.outputTokens);
@@ -802,18 +814,20 @@ function* emitResult(
  * runner chose — and never the latest batch, which the next step is about to
  * read. A result keeps its place beside its call; only its text gives way.
  */
-function fitTurnGrowth(
+export function fitTurnGrowth(
   messages: GatewayMessage[],
   planned: number,
   definitions: ReturnType<ToolSet["definitions"]>,
   context: NonNullable<RunTurnInput["contextBudget"]>,
 ): void {
+  const fits = () => requestTokens(context.aliasId, messages, definitions) <= context.inputTokens;
   const latestBatch = messages.findLastIndex(
     (message) => message.role === "assistant" && (message.toolCalls?.length ?? 0) > 0,
   );
 
+  // Older results first: the next step is about the latest ones.
   for (let at = planned; at < latestBatch; at++) {
-    if (requestTokens(context.aliasId, messages, definitions) <= context.inputTokens) return;
+    if (fits()) return;
 
     const message = messages[at];
     if (message.role !== "tool" || typeof message.content !== "string") continue;
@@ -821,7 +835,37 @@ function fitTurnGrowth(
 
     messages[at] = { ...message, content: `${SHORTENED} (${message.content.length} characters)]` };
   }
+
+  /**
+   * Then the latest batch, which shares one allowance: each result is capped on
+   * its own as it arrives, and several capped results can still not fit
+   * together. Halve the longest until the step fits, down to a floor that still
+   * says something; past that the provider decides, and an overflow ends the
+   * turn with the notice rather than a guess.
+   */
+  for (let round = 0; round < 32 && !fits(); round++) {
+    let longest = -1;
+    for (let at = Math.max(planned, latestBatch + 1); at < messages.length; at++) {
+      const message = messages[at];
+      if (message.role !== "tool" || typeof message.content !== "string") continue;
+      if (longest === -1 || message.content.length > String(messages[longest].content).length) {
+        longest = at;
+      }
+    }
+    if (longest === -1) return;
+
+    const content = String(messages[longest].content);
+    if (content.length <= LATEST_FLOOR) return;
+    const keep = Math.max(LATEST_FLOOR, Math.floor(content.length / 2));
+    messages[longest] = {
+      ...messages[longest],
+      content: `${content.slice(0, keep)}\n[… ${content.length - keep} more characters left out to fit the model's context]`,
+    };
+  }
 }
+
+/** The least of a latest tool result the model is still shown. */
+const LATEST_FLOOR = 1_500;
 
 const SHORTENED = "[Earlier tool result left out to fit the model's context";
 

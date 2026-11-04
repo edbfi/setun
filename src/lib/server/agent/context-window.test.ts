@@ -4,6 +4,7 @@ import type { GatewayModel } from "../gateway/dialect";
 import {
   calibrationRatio,
   DEFAULT_CONTEXT_TOKENS,
+  forgetAlias,
   inputBudget,
   learnContextCeiling,
   outputReserve,
@@ -12,6 +13,7 @@ import {
   requestTokens,
   resetContextWindowState,
   resolveContextWindow,
+  sentOutputCeiling,
 } from "./context-window";
 
 /**
@@ -91,14 +93,38 @@ describe("resolveContextWindow", () => {
 
   it("lowers the window after a refusal, and only ever lowers it", async () => {
     const adapter = gateway([{ id: "gpt-6.1-sol", contextTokens: 400_000 }]);
-    learnContextCeiling("alias-1", 200_000);
-    learnContextCeiling("alias-1", 300_000);
+    learnContextCeiling("alias-1", 200_000, 300_000, 1_000);
+    learnContextCeiling("alias-1", 300_000, 300_000, 1_000);
 
-    expect(await resolveContextWindow(adapter, alias())).toMatchObject({
+    expect(await resolveContextWindow(adapter, alias(), 2_000)).toMatchObject({
       tokens: 170_000,
       source: "gateway",
       learned: true,
     });
+    // An hour later the gateway's own figure stands again.
+    expect(await resolveContextWindow(adapter, alias(), 1_000 + 61 * 60_000)).toMatchObject({
+      tokens: 400_000,
+      learned: false,
+    });
+  });
+
+  it("learns nothing from a refusal far smaller than what was planned", async () => {
+    // Two photos refused by a proxy's byte limit, in a fresh conversation.
+    learnContextCeiling("alias-1", 4_000, 300_000);
+    expect(
+      await resolveContextWindow(gateway([{ id: "gpt-6.1-sol", contextTokens: 400_000 }]), alias()),
+    ).toMatchObject({ tokens: 400_000, learned: false });
+  });
+
+  it("forgets what it learned about an alias once the alias is saved", async () => {
+    learnContextCeiling("alias-1", 200_000, 300_000);
+    recordCalibration("alias-1", 1_000, 2_000);
+    forgetAlias("alias-1");
+
+    expect(calibrationRatio("alias-1")).toBe(1);
+    expect(
+      await resolveContextWindow(gateway([{ id: "gpt-6.1-sol", contextTokens: 400_000 }]), alias()),
+    ).toMatchObject({ learned: false });
   });
 });
 
@@ -107,6 +133,16 @@ describe("budgets", () => {
     const window = { tokens: 200_000, source: "gateway" as const, learned: false };
     // An opaque alias gets the dialect's conservative 4,096.
     expect(outputReserve(window, "anthropic", "house-model")).toBe(4_096);
+    expect(sentOutputCeiling(window, "anthropic", "house-model")).toBe(4_096);
+
+    // A Claude-named model in a small window: the reserve is halved, and the
+    // same figure is what gets sent — never the dialect's 32,000.
+    const small = { tokens: 32_000, source: "default" as const, learned: false };
+    expect(outputReserve(small, "anthropic", "claude-sonnet-4-x")).toBe(16_000);
+    expect(sentOutputCeiling(small, "anthropic", "claude-sonnet-4-x")).toBe(16_000);
+
+    // Elsewhere nothing is sent: a cap would cut a reasoning model short.
+    expect(sentOutputCeiling(small, "openai", "m")).toBeUndefined();
   });
 
   it("holds back a share of the window elsewhere, bounded by the reported output ceiling", () => {

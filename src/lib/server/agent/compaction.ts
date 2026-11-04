@@ -3,7 +3,7 @@ import type { GatewayAdapter } from "../gateway/adapter";
 import type { GatewayMessage } from "../gateway/dialect";
 import type { GatewayEvent } from "../gateway/events";
 import { promptTextOf } from "../gateway/messages";
-import { resolveUsage } from "../gateway/usage";
+import { estimateTokens, resolveUsage } from "../gateway/usage";
 import type { DailyBudgetLease } from "./budgets";
 import { type PathMessage, renderTranscript } from "./context-plan";
 import { CHARS_PER_ESTIMATED_TOKEN, requestTokens } from "./context-window";
@@ -42,16 +42,34 @@ export interface SummariserInput {
   readonly alias: Pick<ModelAlias, "id" | "dialect" | "gatewayModelId">;
   /** The input budget of the model, which bounds each summary request too. */
   readonly budget: number;
+  /** The output ceiling to send, where the dialect needs one to match the plan. */
+  readonly maxOutputTokens?: number;
   readonly signal?: AbortSignal;
   readonly dailyBudget?: DailyBudgetLease;
   /** Where the summariser's own events go: the stage, and what it cost. */
   emit(event: GatewayEvent): void;
 }
 
-/** A `summarise` for the planner, bound to one turn. */
-export function createSummariser(
-  input: SummariserInput,
-): (previous: string | null, messages: readonly PathMessage[]) => Promise<string | null> {
+/** A summary, and how many of the given messages it covers — from the start. */
+export interface Summary {
+  readonly text: string;
+  readonly covered: number;
+}
+
+export type Summarise = (
+  previous: string | null,
+  messages: readonly PathMessage[],
+) => Promise<Summary | null>;
+
+/**
+ * A `summarise` for the planner, bound to one turn.
+ *
+ * A history longer than `MAX_CALLS` requests is summarised as far as the calls
+ * reach, and that much is kept: the planner stores the summary against the last
+ * message it covers, so the next turn carries on from there instead of paying
+ * for the same calls again and throwing them away again.
+ */
+export function createSummariser(input: SummariserInput): Summarise {
   let calls = 0;
   let announced = false;
   // Room for the transcript in one request: most of the budget, leaving the
@@ -60,9 +78,10 @@ export function createSummariser(
 
   return async (previous, messages) => {
     let summary = previous;
+    let covered = 0;
 
     for (const chunk of chunksOf(messages, maxChars)) {
-      if (calls >= MAX_CALLS) return null;
+      if (calls >= MAX_CALLS) break;
       calls++;
 
       if (!announced) {
@@ -71,11 +90,12 @@ export function createSummariser(
       }
 
       const next = await summariseOnce(input, summary, renderTranscript(chunk, maxChars));
-      if (!next) return null;
+      if (!next) break;
       summary = next;
+      covered += chunk.length;
     }
 
-    return summary;
+    return covered > 0 && summary ? { text: summary, covered } : null;
   };
 }
 
@@ -122,9 +142,19 @@ async function summariseOnce(
   const allocation = input.dailyBudget?.reserve(promptTokens);
   if (allocation && "stop" in allocation) return null;
 
+  // Linked to the turn's signal, and cancelled on its own when the day's
+  // allowance runs out mid-summary: the summary is bound by the same hard
+  // ceilings as the answer it makes room for (§10).
+  const upstream = new AbortController();
+  const relay = () => upstream.abort();
+  if (input.signal?.aborted) upstream.abort();
+  else input.signal?.addEventListener("abort", relay, { once: true });
+
   let text = "";
+  let reasoning = "";
   let settled = false;
   let reached = false;
+  let exhausted = false;
 
   const settle = (event: Extract<GatewayEvent, { type: "usage" }>) => {
     if (settled) return;
@@ -132,31 +162,44 @@ async function summariseOnce(
     input.dailyBudget?.settle(event.inputTokens + event.outputTokens);
     input.emit(event);
   };
+  const spent = () =>
+    resolveUsage({ promptText: promptTextOf(messages), completionText: text + reasoning });
 
   try {
     for await (const event of input.adapter.streamChat(input.alias.dialect, {
       model: input.alias.gatewayModelId,
       messages,
-      signal: input.signal,
+      signal: upstream.signal,
+      ...(input.maxOutputTokens ? { maxOutputTokens: input.maxOutputTokens } : {}),
     })) {
       reached = true;
       if (event.type === "text-delta") text += event.text;
+      if (event.type === "thinking-delta") reasoning += event.text;
       if (event.type === "usage") settle(event);
+
+      if (allocation && estimateTokens(text + reasoning) >= allocation.outputTokens) {
+        exhausted = true;
+        upstream.abort();
+        break;
+      }
     }
   } catch {
-    if (reached) settle(resolveUsage({ promptText: promptTextOf(messages), completionText: text }));
-    else if (!settled) input.dailyBudget?.settle(0);
     // A pupil pressing Stop stops the summary too, and the turn that follows
     // ends at once on the same signal; any other failure is a summary the
-    // planner does without.
+    // planner does without. What was produced was still spent.
+    if (reached) settle(spent());
+    else if (!settled) input.dailyBudget?.settle(0);
     return null;
+  } finally {
+    input.signal?.removeEventListener("abort", relay);
   }
 
   if (!settled) {
-    if (reached) settle(resolveUsage({ promptText: promptTextOf(messages), completionText: text }));
+    if (reached) settle(spent());
     else input.dailyBudget?.settle(0);
   }
 
+  // A summary cut off by the allowance is half a summary: paid for, not kept.
   const summary = text.trim();
-  return summary.length > 0 ? summary : null;
+  return !exhausted && summary.length > 0 ? summary : null;
 }

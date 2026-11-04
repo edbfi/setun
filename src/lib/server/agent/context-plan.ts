@@ -56,8 +56,14 @@ export interface PlanInput {
   readonly budget: number;
   /** The size of the whole request built from a path, as the provider will count it. */
   measure(path: readonly PathMessage[]): number;
-  /** A summary of `messages` that folds in `previous`, or null when none can be had. */
-  summarise(previous: string | null, messages: readonly PathMessage[]): Promise<string | null>;
+  /**
+   * A summary of `messages` that folds in `previous`, with how many of them —
+   * from the start — it covers; null when none can be had at all.
+   */
+  summarise(
+    previous: string | null,
+    messages: readonly PathMessage[],
+  ): Promise<{ readonly text: string; readonly covered: number } | null>;
   /**
    * After the provider refused a request for length: compact even below the
    * usual trigger, and further than usual.
@@ -125,17 +131,25 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
     if (keepFrom <= start) continue;
 
     const cut = body.slice(start, keepFrom);
-    const text = await input.summarise(prior, cut);
-    const coveredThrough = cut.at(-1)?.id;
+    const result = await input.summarise(prior, cut);
+    // A summary that reached only part of the cut still covers that part, and is
+    // kept: the next turn carries on from where it stopped (§10).
+    const covered = result ? Math.min(result.covered, cut.length) : 0;
+    const coveredThrough = covered > 0 ? cut[covered - 1]?.id : undefined;
 
-    if (text) {
-      prior = text;
+    if (result && covered > 0) {
+      // Messages left out before this summary are not in it, and the summary is
+      // what later turns read in their place — so it says so.
+      prior =
+        omitted > 0
+          ? `(Some earlier messages could not be summarised and are missing here.)\n${result.text}`
+          : result.text;
+      omitted = 0;
       mode = "summarised";
-      summary = coveredThrough ? { throughMessageId: coveredThrough, text } : summary;
-    } else {
-      omitted += cut.length;
-      if (mode !== "summarised") mode = "omitted";
+      summary = coveredThrough ? { throughMessageId: coveredThrough, text: prior } : summary;
     }
+    omitted += cut.length - covered;
+    if (mode !== "summarised" && omitted > 0) mode = "omitted";
     start = keepFrom;
 
     let candidate = compose(body.slice(start));

@@ -52,7 +52,9 @@ function conversation(): PathMessage[] {
   return path;
 }
 
-const summariseTo = (text: string | null) => async () => text;
+const summariseTo =
+  (text: string | null) => async (_previous: string | null, messages: readonly PathMessage[]) =>
+    text === null ? null : { text, covered: messages.length };
 
 describe("planContext", () => {
   it("sends the path as it is while it fits", async () => {
@@ -109,7 +111,7 @@ describe("planContext", () => {
       measure,
       summarise: async (_previous, messages) => {
         summarised = messages;
-        return "The pupil is building a quiz.";
+        return { text: "The pupil is building a quiz.", covered: messages.length };
       },
     });
 
@@ -178,6 +180,38 @@ describe("planContext", () => {
     expect(plan.path.at(-1)?.id).toBe("u6");
   });
 
+  it("keeps a summary that reached only part of the history, stored where it stopped", async () => {
+    const plan = await planContext({
+      path: conversation(),
+      stored: null,
+      budget: 700,
+      measure,
+      // The calls ran out after the first four messages of the eight to cut.
+      summarise: async () => ({ text: "Halvvejs.", covered: 4 }),
+    });
+
+    expect(plan.summary).toEqual({ throughMessageId: "a2", text: "Halvvejs." });
+    expect(textOf(plan.path)).toContain("Halvvejs.");
+    expect(textOf(plan.path)).toContain("4 earlier messages were left out");
+  });
+
+  it("says inside a summary when messages before it were left out", async () => {
+    let call = 0;
+    const plan = await planContext({
+      path: conversation(),
+      stored: null,
+      budget: 300,
+      measure,
+      summarise: async (_previous, messages) => {
+        call++;
+        return call === 1 ? null : { text: "Kun det sidste.", covered: messages.length };
+      },
+    });
+
+    expect(plan.summary?.text).toContain("could not be summarised");
+    expect(plan.summary?.text).toContain("Kun det sidste.");
+  });
+
   it("goes as far as the current prompt when the last two exchanges are too much", async () => {
     const calls: string[][] = [];
     const plan = await planContext({
@@ -187,7 +221,7 @@ describe("planContext", () => {
       measure,
       summarise: async (previous, messages) => {
         calls.push(messages.map((message) => message.id ?? ""));
-        return previous ? `${previous} More.` : "Summary.";
+        return { text: previous ? `${previous} More.` : "Summary.", covered: messages.length };
       },
     });
 

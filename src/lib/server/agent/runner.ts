@@ -36,6 +36,7 @@ import {
   learnContextCeiling,
   requestTokens,
   resolveContextWindow,
+  sentOutputCeiling,
 } from "./context-window";
 import { claimDailyBudget } from "./daily-budget";
 import { turnInteractions } from "./interactions";
@@ -146,6 +147,17 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
       emit,
       hard: false,
     });
+    // Known not to fit: compact harder now rather than send it to be refused.
+    if (!plan.fits) {
+      plan = await planTurnContext({
+        input,
+        window: await resolveContextWindow(input.adapter, input.alias),
+        dailyBudget,
+        signal,
+        emit,
+        hard: true,
+      });
+    }
 
     for (let attempt = 0; ; attempt++) {
       let retry = false;
@@ -158,7 +170,11 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
         attachmentPayloads: input.attachmentPayloads,
         promptLayers: input.promptLayers,
         artifacts: plan.artifacts,
-        contextBudget: { inputTokens: plan.budget, aliasId: input.alias.id },
+        contextBudget: {
+          inputTokens: plan.budget,
+          aliasId: input.alias.id,
+          maxOutputTokens: plan.maxOutputTokens,
+        },
         budgets: input.budgets,
         consumed: input.consumed,
         dailyBudget,
@@ -211,8 +227,9 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
 
       if (!retry) break;
 
-      // The provider knows the window better than the estimate did.
-      learnContextCeiling(input.alias.id, plan.tokens);
+      // The provider knows the window better than the estimate did — when the
+      // request was big enough for its refusal to be about the window at all.
+      learnContextCeiling(input.alias.id, plan.tokens, plan.budget);
       plan = await planTurnContext({
         input,
         window: await resolveContextWindow(input.adapter, input.alias),
@@ -504,6 +521,10 @@ interface PlannedContext {
   readonly budget: number;
   /** The planned request's measured size. */
   readonly tokens: number;
+  /** False when even the hardest plan is over budget by the estimate. */
+  readonly fits: boolean;
+  /** The output ceiling to send, so the provider sees the reserve the plan assumed. */
+  readonly maxOutputTokens?: number;
 }
 
 /**
@@ -524,6 +545,11 @@ async function planTurnContext(args: {
 }): Promise<PlannedContext> {
   const { input, window } = args;
   const budget = inputBudget(window, input.alias.dialect, input.alias.gatewayModelId);
+  const maxOutputTokens = sentOutputCeiling(
+    window,
+    input.alias.dialect,
+    input.alias.gatewayModelId,
+  );
   const definitions = input.tools && input.toolContext ? input.tools.definitions() : [];
   // Carried sources share the budget with everything else: a project the path
   // no longer holds must not, on its own, be what overflows a small window.
@@ -568,6 +594,7 @@ async function planTurnContext(args: {
       adapter: input.adapter,
       alias: input.alias,
       budget,
+      maxOutputTokens,
       signal: args.signal,
       dailyBudget: args.dailyBudget,
       emit: args.emit,
@@ -582,5 +609,12 @@ async function planTurnContext(args: {
     args.emit({ type: "context-compacted", mode: plan.mode });
   }
 
-  return { path: plan.path, artifacts: artifactsFor(plan.path), budget, tokens: plan.tokens };
+  return {
+    path: plan.path,
+    artifacts: artifactsFor(plan.path),
+    budget,
+    tokens: plan.tokens,
+    fits: plan.fits,
+    maxOutputTokens,
+  };
 }

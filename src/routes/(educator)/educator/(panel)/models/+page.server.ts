@@ -3,7 +3,11 @@ import { fail, setError, superValidate } from "sveltekit-superforms";
 import { valibot } from "sveltekit-superforms/adapters";
 import * as v from "valibot";
 import * as m from "$lib/paraglide/messages";
-import { invalidateModelListing, resolveContextWindow } from "$lib/server/agent/context-window";
+import {
+  forgetAlias,
+  invalidateModelListing,
+  resolveContextWindow,
+} from "$lib/server/agent/context-window";
 import { requireEducatorPage } from "$lib/server/auth/guards";
 import { getDb, getGatewayAdapter } from "$lib/server/boot";
 import { AliasSchema } from "$lib/server/classroom/schemas";
@@ -111,6 +115,7 @@ export const actions: Actions = {
 
     invalidateModelListing();
     try {
+      forgetAlias(id.output.aliasId);
       updateAlias(getDb(), {
         aliasId: id.output.aliasId,
         values: { ...form.data, isUtility: false },

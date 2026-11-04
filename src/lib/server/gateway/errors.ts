@@ -81,12 +81,12 @@ const CONTEXT_OVERFLOW =
  *
  * 401 and 403 are credentials and 429 is a rate limit — OpenAI's
  * tokens-per-minute message reads "Request too large … tokens" — so none of
- * them is ever an overflow, whatever the text. 413 is "payload too large",
- * which for a chat request is the same thing said by a proxy.
+ * them is ever an overflow, whatever the text. Nor is a bare 413: that is a
+ * proxy's limit on bytes, which two phone photos reach long before any model's
+ * window, and compacting the history does nothing for it.
  */
 export function isContextOverflow(status: number | undefined, detail: string): boolean {
   if (status === 401 || status === 403 || status === 429) return false;
-  if (status === 413) return true;
   return CONTEXT_OVERFLOW.test(detail);
 }
 

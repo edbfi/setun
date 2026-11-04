@@ -846,7 +846,6 @@ describe("error mapping", () => {
       body: '{"error":{"message":"The input token count (1100021) exceeds the maximum number of tokens allowed (1048576)."}}',
     },
     { status: 400, body: "Input is too long for requested model." },
-    { status: 413, body: "Request Entity Too Large" },
   ];
 
   for (const { status, body } of overflows) {
@@ -872,6 +871,8 @@ describe("error mapping", () => {
     );
     expect(isContextOverflow(400, "max_tokens: Input should be a valid integer")).toBe(false);
     expect(isContextOverflow(401, "maximum context length")).toBe(false);
+    // A proxy's byte limit: two photos reach it long before any model's window.
+    expect(isContextOverflow(413, "Request Entity Too Large")).toBe(false);
   });
 
   it("reads an overflow reported inside a Responses stream", async () => {

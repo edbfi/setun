@@ -9,8 +9,9 @@ import { baseModelId } from "../gateway/health";
  *
  * Any model can sit behind any alias, so nothing here interprets a model's
  * name. The window comes from what the operator stated, then from what the
- * gateway reports, then from a conservative default — and is lowered for a
- * while by any request the provider actually refused for length.
+ * gateway reports, then from a conservative default — and is lowered for an
+ * hour by a request the provider refused for length, when that request was big
+ * enough for the refusal to say something about the window.
  *
  * Sizes are estimated without a tokenizer: one per model would be a large
  * dependency on a small server, and none would cover every model CPA fronts.
@@ -49,8 +50,10 @@ interface ModelListing {
 
 let listing: ModelListing | null = null;
 let pending: Promise<ModelListing | null> | null = null;
-/** Alias id → a window a refusal proved too generous. */
-const learned = new Map<string, number>();
+/** Alias id → a window a refusal proved too generous, and when that was learned. */
+const learned = new Map<string, { readonly tokens: number; readonly at: number }>();
+/** How long a learned ceiling holds before the source's own figure is trusted again. */
+const LEARNED_TTL_MS = 60 * 60_000;
 /** Alias id → reported input tokens per estimated token. */
 const ratios = new Map<string, number>();
 
@@ -82,6 +85,17 @@ export function invalidateModelListing(): void {
   listing = null;
 }
 
+/**
+ * Forget what was learned about an alias: its lowered ceiling and its ratio.
+ *
+ * Saved by an educator, an alias may name another model or state its window
+ * outright, and nothing learned about the old one is evidence about the new.
+ */
+export function forgetAlias(aliasId: string): void {
+  learned.delete(aliasId);
+  ratios.delete(aliasId);
+}
+
 /** The window an alias's model can read, and where that figure came from. */
 export async function resolveContextWindow(
   adapter: GatewayAdapter,
@@ -99,7 +113,8 @@ export async function resolveContextWindow(
       ? { tokens: model.contextTokens, source: "gateway" }
       : { tokens: DEFAULT_CONTEXT_TOKENS, source: "default" };
 
-  const ceiling = learned.get(alias.id);
+  const held = learned.get(alias.id);
+  const ceiling = held && now - held.at < LEARNED_TTL_MS ? held.tokens : undefined;
   const output = model?.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {};
 
   return ceiling && ceiling < base.tokens
@@ -110,22 +125,37 @@ export async function resolveContextWindow(
 /**
  * Remember that a request of about this size was refused for length.
  *
- * Lowered to 85 % of the estimate, because the estimate is what was wrong. Only
- * ever lowered: a larger refused request says nothing a smaller one did not.
+ * Only from a request that was a plausible share of what it was planned
+ * against: a refusal of something far smaller than the budget is about
+ * something else — the request's bytes, a provider's own limit on images —
+ * and learning a window from it would squeeze every conversation on the alias.
+ *
+ * Lowered to 85 % of the estimate, because the estimate is what was wrong; only
+ * ever lowered while it holds, and held for an hour.
  */
-export function learnContextCeiling(aliasId: string, refusedAtTokens: number): void {
+export function learnContextCeiling(
+  aliasId: string,
+  refusedAtTokens: number,
+  plannedBudget: number,
+  now = Date.now(),
+): void {
+  if (refusedAtTokens < plannedBudget * 0.5) return;
+
   const ceiling = Math.max(2_048, Math.floor(refusedAtTokens * 0.85));
   const previous = learned.get(aliasId);
-  if (previous === undefined || ceiling < previous) learned.set(aliasId, ceiling);
+  const live = previous && now - previous.at < LEARNED_TTL_MS ? previous.tokens : undefined;
+  if (live === undefined || ceiling < live) learned.set(aliasId, { tokens: ceiling, at: now });
 }
 
 /**
  * What to hold back for the answer (§10).
  *
  * Anthropic always sends a `max_tokens`, and refuses a request whose input and
- * `max_tokens` together exceed the window — so for that dialect the reserve is
- * exactly what is sent. For the others it is a share of the window, bounded by
- * the output ceiling the gateway reports, with room for reasoning tokens.
+ * `max_tokens` together exceed the window — so for that dialect this figure is
+ * also what is sent (`sentOutputCeiling`), never the dialect's own default. For
+ * the others it is a share of the window, bounded by the output ceiling the
+ * gateway reports, with room for reasoning tokens; nothing is sent, because a
+ * cap there would cut a reasoning model's answer short.
  */
 export function outputReserve(window: ContextWindow, dialect: DialectName, model: string): number {
   if (dialect === "anthropic")
@@ -135,6 +165,15 @@ export function outputReserve(window: ContextWindow, dialect: DialectName, model
     Math.floor(window.tokens / 4),
     32_000,
   );
+}
+
+/** The `maxOutputTokens` to send so that the reserve is what the provider sees. */
+export function sentOutputCeiling(
+  window: ContextWindow,
+  dialect: DialectName,
+  model: string,
+): number | undefined {
+  return dialect === "anthropic" ? outputReserve(window, dialect, model) : undefined;
 }
 
 /** How many tokens of input a request may hold, after the answer and a margin. */
