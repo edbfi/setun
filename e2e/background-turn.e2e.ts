@@ -5,7 +5,7 @@ import * as m from "../src/lib/paraglide/messages";
 import { E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
 import { openDrawer, startConversation } from "./support/chat";
 import { clearLoginWindow } from "./support/login-window";
-import { LONG_MARKER, SLOW_MARKER } from "./support/stub-gateway";
+import { ARTIFACT_REPLY, ARTIFACT_MARKER, SLOW_MARKER } from "./support/stub-gateway";
 
 /**
  * A long answer keeps going while the pupil opens another conversation (PRD §10).
@@ -46,7 +46,8 @@ test("a new conversation opens while an answer keeps running in the old one", as
   const first = new URL(page.url()).searchParams.get("c");
 
   const composer = page.getByRole("textbox", { name: m.chat_composer_label() });
-  await composer.fill(`${SLOW_MARKER} ${LONG_MARKER} fortæl en lang historie`);
+  // Slow enough to leave and come back during, short enough to see it finish.
+  await composer.fill(`${SLOW_MARKER} ${ARTIFACT_MARKER} lav en klikker`);
   await page.getByRole("button", { name: m.chat_send() }).click();
   const live = page.locator('article[data-role="assistant"][data-streaming="true"]');
   await expect(live).toBeVisible({ timeout: 20_000 });
@@ -70,9 +71,23 @@ test("a new conversation opens while an answer keeps running in the old one", as
   await expect(page.getByText(m.chat_turn_in_flight())).toBeVisible();
   await expect(composer).toHaveValue("Et nyt spørgsmål");
 
-  // And the way back finds the answer still arriving where it belongs.
+  // And the way back finds the answer still arriving where it belongs —
+  // without this tab ever reconnecting to read the same turn a second time.
+  const reconnects: string[] = [];
+  page.on("request", (request) => {
+    if (/\/api\/turns\/[^/]+\/events/.test(request.url())) reconnects.push(request.url());
+  });
   await page.getByRole("link", { name: m.chat_turn_elsewhere_open() }).click();
   await expect(page).toHaveURL(new RegExp(`c=${first}`));
-  await expect(page.locator('article[data-role="assistant"]').last()).toBeVisible();
+  await expect(live).toBeVisible();
   await expect(page.locator("[data-turn-elsewhere]")).toHaveCount(0);
+
+  // Let it finish: the answer lands once, and is not replayed.
+  await expect(live).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.locator('[data-turn-stage="done"]')).toBeVisible();
+  await page.waitForTimeout(1_500);
+  expect(reconnects).toEqual([]);
+  await expect(
+    page.locator('article[data-role="assistant"]').getByText(ARTIFACT_REPLY.split("\n").at(-1) ?? ""),
+  ).toHaveCount(1);
 });

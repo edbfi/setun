@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ConversationState } from "./conversation.svelte";
 import { StreamingTurn } from "./streaming-turn.svelte";
 
 /**
@@ -297,5 +298,51 @@ describe("StreamingTurn — thinking", () => {
       { type: "context-compacted", mode: "summarised" },
       { type: "text", text: "Svar" },
     ]);
+  });
+});
+
+/**
+ * A turn belongs to the conversation it answers (§10).
+ *
+ * It keeps running when the pupil opens another one, and is drawn, asked about
+ * and stopped only in its own.
+ */
+describe("StreamingTurn — the conversation it answers", () => {
+  it("carries its conversation from begin or resume to its finish, and drops it on clear", () => {
+    const turn = new StreamingTurn();
+    turn.begin("turn-1", "conv-a");
+    expect(turn.conversationId).toBe("conv-a");
+
+    turn.apply({ type: "done", reason: "stop" }, 0);
+    expect(turn.finished?.conversationId).toBe("conv-a");
+
+    turn.clear();
+    expect(turn.conversationId).toBeNull();
+    // "Done" outlives the live message, for the conversation it answered.
+    expect(turn.finished?.conversationId).toBe("conv-a");
+
+    turn.resume("turn-2", -1, "conv-b");
+    expect(turn.conversationId).toBe("conv-b");
+  });
+
+  it("is here in its own conversation and elsewhere in any other", () => {
+    const conversation = new ConversationState({ id: "conv-a", title: null, messages: [] });
+    conversation.turn.begin("turn-1", "conv-a");
+    expect(conversation.turnHere).toBe(true);
+    expect(conversation.turnElsewhere).toBeNull();
+
+    conversation.id = "conv-b";
+    expect(conversation.turnHere).toBe(false);
+    expect(conversation.turnElsewhere).toBe("conv-a");
+
+    // Finished: nothing is running anywhere.
+    conversation.turn.apply({ type: "done", reason: "stop" }, 0);
+    expect(conversation.turnElsewhere).toBeNull();
+  });
+
+  it("is shown wherever the pupil is when its conversation is not known", () => {
+    const conversation = new ConversationState({ id: "conv-b", title: null, messages: [] });
+    conversation.turn.begin("turn-1");
+    expect(conversation.turnHere).toBe(true);
   });
 });
