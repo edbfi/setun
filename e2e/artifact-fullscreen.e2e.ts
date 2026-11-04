@@ -91,6 +91,14 @@ test("the artifact goes full screen from the panel, and comes back", async ({ pa
     timeout: 20_000,
   });
 
+  // The real frames, not the test host: both levels grant pointer lock, and
+  // still not same-origin — the sandbox flags intersect (§14).
+  const outer = page.locator(`iframe[title="${m.artifact_frame_title()}"]`);
+  await expect(outer).toHaveAttribute("sandbox", "allow-scripts allow-pointer-lock");
+  await expect(
+    page.frameLocator(`iframe[title="${m.artifact_frame_title()}"]`).locator("#stage"),
+  ).toHaveAttribute("sandbox", "allow-scripts allow-pointer-lock");
+
   await page.getByRole("button", { name: m.artifact_fullscreen_enter() }).click();
   await expect
     .poll(() => page.evaluate(() => document.fullscreenElement?.hasAttribute("data-artifact-stage")))

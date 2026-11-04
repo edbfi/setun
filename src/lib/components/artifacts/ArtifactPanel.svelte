@@ -107,9 +107,14 @@ $effect(() => {
   return () => document.removeEventListener("fullscreenchange", sync);
 });
 
-// Leaving the preview, or the artifact, leaves full screen with it.
+// Leaving the preview, or the artifact, leaves full screen with it — including
+// when that happens by itself, as when a new build opens while a game is full
+// screen. Read here so the cleanup runs on either change, not only on unmount;
+// a hidden stage left in full screen would hide its own exit button too.
 $effect(() => {
   const element = stage;
+  void tab;
+  void artifact?.id;
   return () => {
     if (element && document.fullscreenElement === element) void document.exitFullscreen();
   };
