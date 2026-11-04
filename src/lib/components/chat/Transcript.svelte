@@ -1,5 +1,6 @@
 <script lang="ts">
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
+import Check from "@lucide/svelte/icons/check";
 import type { Snippet } from "svelte";
 import { tick, untrack } from "svelte";
 import { readTranscriptPosition, writeTranscriptPosition } from "$lib/chat/viewport";
@@ -35,7 +36,7 @@ interface Props {
   /** Which artifact the build surface is showing, so its card can say so (§13). */
   activeArtifactId?: string | null;
   /** The conversation's artifact a fence's id names, for a write with no revision of its own (§13). */
-  resolveArtifact?: (key: string) => string | null;
+  resolveArtifact?: (key: string) => { readonly id: string; readonly title: string | null } | null;
   /** Whether the model's reasoning is rendered, once policy and preference agree (§20). */
   showThinking?: boolean;
   /** The first-visit surface: shown only while the thread is genuinely empty. */
@@ -110,6 +111,20 @@ $effect(() => {
 });
 
 /** The newest slice of the active path — the rest is behind "show earlier" (§20). */
+/**
+ * How the last turn ended, once its answer is the last message (§20).
+ *
+ * Only then: while the turn streams the live row says what is happening, and a
+ * pupil who has since sent another message is waiting on that one.
+ */
+const finished = $derived(
+  !conversation.turn.streaming &&
+    conversation.turn.isEmpty &&
+    conversation.lastMessage?.role === "assistant"
+    ? conversation.turn.finished
+    : null,
+);
+
 const visibleMessages = $derived(
   conversation.messages.length > windowSize
     ? conversation.messages.slice(-windowSize)
@@ -272,7 +287,25 @@ $effect(() => {
         />
       {/each}
 
-      <StreamingMessage turn={conversation.turn} {showThinking} />
+      <StreamingMessage turn={conversation.turn} {showThinking} {resolveArtifact} />
+
+      {#if finished}
+        <!--
+          The last stage, under the answer it finished: the live row is gone
+          with the live message, and "done" is the one stage a pupil waiting on
+          an answer most wants to see. Static — nothing here moves — and gone
+          as soon as the next turn begins.
+        -->
+        <p
+          class="-mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
+          data-turn-stage="done"
+        >
+          <Check class="size-3.5 text-primary" aria-hidden="true" />
+          {finished.reason === "stop"
+            ? m.chat_stage_done({ seconds: Math.round(finished.elapsedMs / 1000) })
+            : m.chat_stage_stopped({ seconds: Math.round(finished.elapsedMs / 1000) })}
+        </p>
+      {/if}
 
       {@render footer?.()}
     </div>

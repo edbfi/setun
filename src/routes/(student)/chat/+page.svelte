@@ -65,6 +65,12 @@ const artifacts = new ArtifactWorkspace();
 const thinking = getThinking();
 const showThinking = $derived(effectiveThinking(data.thinkingVisibility, thinking.preference));
 
+/** The conversation's artifact an id names, for cards with no revision of their own (§13). */
+function resolveArtifact(key: string): { id: string; title: string | null } | null {
+  const item = artifacts.items.find((candidate) => candidate.key === key);
+  return item ? { id: item.id, title: item.title } : null;
+}
+
 let refusal = $state<string | null>(null);
 /** The conversation list, which is an overlay rather than a permanent column (§20). */
 let drawerOpen = $state(false);
@@ -122,7 +128,10 @@ $effect(() => classroom.connect());
 
 // Re-seed from the server whenever the loaded conversation changes.
 $effect(() => {
-  conversation.id = data.conversation?.id ?? null;
+  const nextId = data.conversation?.id ?? null;
+  // "Done" belongs to the conversation whose answer it finished.
+  if (untrack(() => conversation.id) !== nextId) conversation.turn.finished = null;
+  conversation.id = nextId;
   conversation.title = data.conversation?.title ?? null;
   conversation.replaceMessages(data.messages);
   composer.attach(data.conversation?.id ?? null);
@@ -710,7 +719,7 @@ async function abort(): Promise<void> {
           onregenerate={regenerate}
           onswitch={switchBranch}
           onopenartifact={openArtifact}
-          resolveArtifact={(key) => artifacts.items.find((item) => item.key === key)?.id ?? null}
+          {resolveArtifact}
           {showThinking}
         >
           {#snippet empty()}

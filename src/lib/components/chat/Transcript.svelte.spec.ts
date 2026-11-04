@@ -153,3 +153,46 @@ describe("Transcript", () => {
     );
   });
 });
+
+/**
+ * The last stage, under the answer it finished (§20).
+ *
+ * The live row goes with the live message, so "done" is said here — and only
+ * while that answer is the newest thing in the thread.
+ */
+describe("Transcript — done", () => {
+  beforeEach(() => sessionStorage.clear());
+
+  function finishedConversation(reason: string): ConversationState {
+    const conversation = new ConversationState({
+      id: "c1",
+      title: null,
+      messages: [message("u1", "user", "Lav en side"), message("a1", "assistant", "Her er den.")],
+    });
+    conversation.turn.finished = { turnId: "t1", elapsedMs: 23_400, reason };
+    return conversation;
+  }
+
+  it("says the answer is done, and how long it took", async () => {
+    render(Transcript, { conversation: finishedConversation("stop"), conversationId: "c1" });
+
+    await expect.element(page.getByText(m.chat_stage_done({ seconds: 23 }))).toBeVisible();
+  });
+
+  it("says it stopped when the answer was cut short", async () => {
+    render(Transcript, { conversation: finishedConversation("aborted"), conversationId: "c1" });
+
+    await expect.element(page.getByText(m.chat_stage_stopped({ seconds: 23 }))).toBeVisible();
+  });
+
+  it("drops it once the pupil has asked something new", async () => {
+    const conversation = finishedConversation("stop");
+    conversation.appendUserMessage("Og en til");
+    render(Transcript, { conversation, conversationId: "c1" });
+
+    await expect.element(page.getByText("Og en til")).toBeVisible();
+    await expect
+      .element(page.getByText(m.chat_stage_done({ seconds: 23 })))
+      .not.toBeInTheDocument();
+  });
+});

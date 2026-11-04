@@ -6,6 +6,11 @@ import type { MessagePart } from "$lib/server/db/schema";
 import type { MessageArtifactRef } from "$lib/state/conversation.svelte";
 import MessageParts from "./MessageParts.svelte";
 
+/** The text of the n-th file row of the write card on screen. */
+function rowText(index: number): string {
+  return page.getByRole("listitem").elements()[index]?.textContent ?? "";
+}
+
 /**
  * An artifact in the transcript is a card, not a wall of markup (PRD §13, §20).
  *
@@ -117,7 +122,7 @@ describe("MessageParts artifact cards", () => {
     render(MessageParts, {
       parts: text(PROSE),
       artifacts: [],
-      resolveArtifact: (key: string) => (key === "side" ? "artifact-1" : null),
+      resolveArtifact: (key: string) => (key === "side" ? { id: "artifact-1", title: null } : null),
       onopenartifact: opened,
     });
 
@@ -177,10 +182,12 @@ describe("MessageParts artifact cards", () => {
     await expect
       .element(page.getByText("export const n", { exact: false }))
       .not.toBeInTheDocument();
+    // One write, one card: both files are rows of it.
     await expect.element(page.getByText("id=projektet · css")).toBeVisible();
-    await expect
-      .element(page.getByText(m.artifact_card_writing({ path: "src/data.ts" }), { exact: false }))
-      .toBeVisible();
+    await expect.element(page.getByRole("list", { name: m.artifact_write_files() })).toBeVisible();
+    expect(rowText(0)).toContain("styles.css");
+    expect(rowText(1)).toContain("src/data.ts");
+    expect(rowText(1)).toContain(m.artifact_write_writing());
   });
 
   it("shows the build state on the card", async () => {
@@ -209,9 +216,8 @@ describe("MessageParts artifact cards", () => {
     const markdown = ["Her er siden:", '```html id=side title="Min side"', "<p>hi</p>"].join("\n");
     render(MessageParts, { parts: text(markdown), streaming: true });
 
-    await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
-      .toBeVisible();
+    await expect.element(page.getByText("Min side")).toBeVisible();
+    await expect.element(page.getByText(m.artifact_write_writing())).toBeVisible();
     await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
     // Nothing to open yet: the refs arrive with the settled message.
     await expect.element(page.getByRole("button")).not.toBeInTheDocument();
@@ -242,9 +248,8 @@ describe("MessageParts artifact cards", () => {
     // And the stub names what was built rather than still saying it is building:
     // the fence closed, two parts along from where it opened.
     await expect.element(page.getByText("Min side")).toBeVisible();
-    await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
-      .not.toBeInTheDocument();
+    await expect.element(page.getByText(m.artifact_write_writing())).not.toBeInTheDocument();
+    await expect.element(page.getByText(m.artifact_write_written())).toBeVisible();
     await expect.element(page.getByText("Prøv den.")).toBeVisible();
   });
 

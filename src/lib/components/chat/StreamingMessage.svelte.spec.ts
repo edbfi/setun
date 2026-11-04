@@ -102,7 +102,9 @@ describe("StreamingMessage", () => {
     turn.apply({ type: "text-delta", text: "Et loop" }, 1);
 
     await expect.element(page.getByText("Et loop")).toBeVisible();
-    await expect.element(page.getByRole("status")).not.toBeInTheDocument();
+    // The rotating placeholder gives way to the stage the turn is in (§20).
+    await expect.element(page.getByText(m.chat_status_reading())).not.toBeInTheDocument();
+    await expect.element(page.getByRole("status")).toHaveTextContent(m.chat_stage_answering());
   });
 
   it("accumulates deltas into the streamed text", async () => {
@@ -114,7 +116,9 @@ describe("StreamingMessage", () => {
     turn.apply({ type: "text-delta", text: "loop" }, 1);
 
     await expect.element(page.getByText("Et loop")).toBeVisible();
-    await expect.element(page.getByRole("status")).not.toBeInTheDocument();
+    // The rotating placeholder gives way to the stage the turn is in (§20).
+    await expect.element(page.getByText(m.chat_status_reading())).not.toBeInTheDocument();
+    await expect.element(page.getByRole("status")).toHaveTextContent(m.chat_stage_answering());
   });
 
   it("renders streamed markdown as plain text, not as HTML", async () => {
@@ -140,10 +144,12 @@ describe("StreamingMessage", () => {
     );
 
     // Mid-fence: the pupil is told something is being built rather than shown
-    // the markup arriving a word at a time (§13, §20).
+    // the markup arriving a word at a time (§13, §20) — on the card, and in the
+    // activity row, which names the stage.
+    await expect.element(page.getByText(m.artifact_write_writing())).toBeVisible();
     await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
-      .toBeVisible();
+      .element(page.getByRole("status"))
+      .toHaveTextContent(m.artifact_card_writing({ path: "Min side" }));
     await expect.element(page.getByText("Her er siden:")).toBeVisible();
 
     // The stub appearing is half of it. A partial leak — the card above the
@@ -153,15 +159,43 @@ describe("StreamingMessage", () => {
 
     turn.apply({ type: "text-delta", text: "</h1>\n```\nFærdig." }, 1);
 
-    await expect
-      .element(page.getByText(m.artifact_card_building({ title: "Min side" }), { exact: false }))
-      .not.toBeInTheDocument();
+    await expect.element(page.getByText(m.artifact_write_writing())).not.toBeInTheDocument();
+    await expect.element(page.getByText(m.artifact_write_written())).toBeVisible();
     await expect.element(page.getByText("Min side")).toBeVisible();
     await expect.element(page.getByText("Færdig.")).toBeVisible();
 
     // Closed, the fence body is still the card's and not the prose's.
     expect(document.body.textContent).not.toContain("<h1>");
     expect(document.body.textContent).not.toContain("</h1>");
+  });
+
+  it("shows the stage for the whole of the turn, through a tool call and back", async () => {
+    const turn = new StreamingTurn();
+    turn.begin("turn-1");
+    render(StreamingMessage, { turn });
+
+    turn.apply({ type: "text-delta", text: "Lad mig slå det op." }, 0);
+    await expect.element(page.getByRole("status")).toHaveTextContent(m.chat_stage_answering());
+
+    // A paragraph on screen and a tool running is the moment that used to look
+    // frozen: nothing moved, and nothing said why.
+    turn.apply(
+      {
+        type: "tool-call-started",
+        toolCallId: "call-1",
+        toolName: "load_skill",
+        serverLabel: null,
+        arguments: {},
+      } as Parameters<StreamingTurn["apply"]>[0],
+      1,
+    );
+    await expect
+      .element(page.getByRole("status"))
+      .toHaveTextContent(m.chat_tool_running({ tool: m.chat_tool_name_load_skill() }));
+
+    turn.apply({ type: "done", reason: "stop" } as Parameters<StreamingTurn["apply"]>[0], 2);
+    await expect.element(page.getByRole("status")).not.toBeInTheDocument();
+    expect(turn.finished?.reason).toBe("stop");
   });
 
   it("never renders model output as live HTML", async () => {
