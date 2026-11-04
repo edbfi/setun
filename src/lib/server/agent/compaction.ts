@@ -159,6 +159,8 @@ async function summariseOnce(
     promptTokens = requestTokens(input.alias.id, messages);
     if (promptTokens > input.budget) return null;
   }
+  // A summary is a few hundred words, far inside one reservation: one that
+  // runs past it has gone wrong, and is cut like one the day cannot pay for.
   const allocation = input.dailyBudget?.reserve(promptTokens);
   if (allocation && "stop" in allocation) return null;
 

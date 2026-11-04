@@ -489,6 +489,11 @@ async function* runStep(args: {
   if (allocation && "stop" in allocation) {
     return { text: "", toolCalls: [], stopped: allocation.stop };
   }
+  /** How far this step's tokens may run before the day is asked again, and what ends it there. */
+  let reservedUntil = allocation
+    ? promptTokens + allocation.outputTokens
+    : Number.POSITIVE_INFINITY;
+  let reservedLimit = allocation?.limit ?? null;
   // The prompt is billed before output arrives. Reserve its estimate before
   // starting the request, then replace it with provider usage at settlement.
   budget.recordProvisionalTokens(promptTokens);
@@ -601,11 +606,18 @@ async function* runStep(args: {
       // The one thing that stops a response mid-stream: the day's tokens are
       // gone. The event just yielded is durable, the student keeps every word
       // that reached them, and nothing further is read (§10).
-      const exhausted =
-        budget.dailyExhausted() ??
-        (allocation && stepTokens >= promptTokens + allocation.outputTokens
-          ? allocation.limit
-          : null);
+      let exhausted = budget.dailyExhausted();
+      if (!exhausted && stepTokens >= reservedUntil) {
+        // The reservation is used up. The end of the day if it was all there
+        // was; otherwise hold more, and stop only if the day has none.
+        const more = reservedLimit ? null : input.dailyBudget?.reserve(stepTokens);
+        if (!more) exhausted = reservedLimit;
+        else if ("stop" in more) exhausted = more.stop;
+        else {
+          reservedUntil = stepTokens + more.outputTokens;
+          reservedLimit = more.limit;
+        }
+      }
       if (exhausted) {
         stopped = exhausted;
         break;

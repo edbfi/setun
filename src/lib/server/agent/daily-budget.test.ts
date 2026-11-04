@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { recordUsageEvent } from "../db/queries/usage";
 import { createTestDatabase, seedTestFixtures } from "../db/testing";
 import { BUDGET_PRESETS, budgetDayRange } from "./budgets";
-import { claimDailyBudget } from "./daily-budget";
+import { claimDailyBudget, OUTPUT_RESERVATION } from "./daily-budget";
 
 function setup() {
   const db = createTestDatabase();
@@ -33,6 +33,50 @@ describe("shared daily reservations", () => {
     first.release();
     second.release();
     third.release();
+  });
+
+  it("leaves a pupil's second answer room to start beside the first", () => {
+    const { input } = setup();
+    const budgets = {
+      ...input.budgets,
+      perStudentDailyTokens: 100_000,
+      perClassroomDailyTokens: 1_000_000,
+    };
+    const first = claimDailyBudget({ ...input, budgets });
+    const second = claimDailyBudget({ ...input, budgets });
+
+    // A share each, not the whole day for whichever asked first.
+    expect(first.reserve(1_000)).toEqual({ outputTokens: OUTPUT_RESERVATION, limit: null });
+    expect(second.reserve(1_000)).toEqual({ outputTokens: OUTPUT_RESERVATION, limit: null });
+    // Together they still cannot hold more than the day has: three shares of
+    // 33,000 leave 1,000, which pays for no prompt.
+    const third = claimDailyBudget({ ...input, budgets });
+    const fourth = claimDailyBudget({ ...input, budgets });
+    expect(third.reserve(1_000)).toEqual({ outputTokens: OUTPUT_RESERVATION, limit: null });
+    expect(fourth.reserve(1_000)).toEqual({ stop: "student-allowance-exhausted" });
+    fourth.release();
+    first.release();
+    second.release();
+    third.release();
+  });
+
+  it("holds more for a request already under way, up to what the day has", () => {
+    const { input } = setup();
+    const budgets = {
+      ...input.budgets,
+      perStudentDailyTokens: 50_000,
+      perClassroomDailyTokens: 1_000_000,
+    };
+    const own = claimDailyBudget({ ...input, budgets });
+
+    expect(own.reserve(1_000)).toEqual({ outputTokens: OUTPUT_RESERVATION, limit: null });
+    // Asked again with what the request has used so far.
+    expect(own.reserve(1_000 + OUTPUT_RESERVATION)).toEqual({
+      outputTokens: 50_000 - 1_000 - OUTPUT_RESERVATION,
+      limit: "student-allowance-exhausted",
+    });
+    expect(own.reserve(50_000)).toEqual({ stop: "student-allowance-exhausted" });
+    own.release();
   });
 
   it("releases unused reservations after a response or a failed request", () => {
