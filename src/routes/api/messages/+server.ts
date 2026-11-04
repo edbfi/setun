@@ -191,6 +191,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       conversationId,
       studentId: student.id,
       classroom: access.classroom,
+      conversationAlias: alias,
       firstMessage: text,
     });
   }
