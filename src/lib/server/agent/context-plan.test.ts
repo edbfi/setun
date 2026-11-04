@@ -262,6 +262,51 @@ describe("planContext", () => {
     expect(plan.tokens).toBeLessThan(measure(conversation()));
   });
 
+  it("compacts at the classroom's ceiling even where the window has room", async () => {
+    const plan = await planContext({
+      path: conversation(),
+      stored: null,
+      budget: 100_000,
+      ceiling: 700,
+      measure,
+      summarise: summariseTo("The pupil is building a quiz."),
+    });
+
+    expect(plan.mode).toBe("summarised");
+    expect(plan.path.map((message) => message.id)).toEqual(["u5", "a5", "u6"]);
+    expect(plan.fits).toBe(true);
+  });
+
+  it("does not leave messages out for the ceiling alone when no summary can be had", async () => {
+    const path = conversation();
+    const plan = await planContext({
+      path,
+      stored: null,
+      budget: 100_000,
+      ceiling: 600,
+      measure,
+      summarise: summariseTo(null),
+    });
+
+    expect(plan.mode).toBe("trimmed");
+    expect(plan.path.map((message) => message.id)).toEqual(path.map((message) => message.id));
+    expect(textOf(plan.path)).not.toContain("left out");
+  });
+
+  it("decides whether a request fits by the window, never the ceiling", async () => {
+    const path = [msg("u1", "user", "q".repeat(2_000))];
+    const plan = await planContext({
+      path,
+      stored: null,
+      budget: 100_000,
+      ceiling: 500,
+      measure,
+      summarise: summariseTo("x"),
+    });
+
+    expect(plan.fits).toBe(true);
+  });
+
   it("reports when even the prompt alone does not fit", async () => {
     const path = [msg("u1", "user", "x".repeat(5_000))];
     const plan = await planContext({

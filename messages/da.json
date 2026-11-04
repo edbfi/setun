@@ -270,6 +270,7 @@
   "educator_availability_title": "Tilgængelighed",
   "educator_budget_checkpoints_help": "Et svar, der når en af disse, holder pause og spørger eleven, om det skal fortsætte. Fortsætter eleven, gives det samme igen.",
   "educator_budget_checkpoints_title": "Kontrolpunkter pr. svar",
+  "educator_budget_context_ceiling": "Samtaler længere end cirka {tokens} tokens bliver opsummeret fra starten, fordi hele samtalen betales igen ved hvert svar. En fjerdedel af det mindste af dette loft og den daglige kvote.",
   "educator_budget_daily_help": "Faste grænser. Elever advares én gang, når 70 % er brugt, og et svar stopper, når grænsen er nået.",
   "educator_budget_daily_title": "Daglige grænser",
   "educator_budgets_title": "Forbrugsgrænser",

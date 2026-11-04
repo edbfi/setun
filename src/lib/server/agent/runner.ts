@@ -1,3 +1,4 @@
+import { turnContextCeiling } from "../../classroom/context-ceiling";
 import { classroomStateChannel } from "../classroom/state-channel";
 import type { AppDatabase } from "../db/client";
 import { getClassroom } from "../db/queries/classrooms";
@@ -601,6 +602,7 @@ async function planTurnContext(args: {
     path: input.path,
     stored: stored ? { throughMessageId: stored.throughMessageId, text: stored.text } : null,
     budget,
+    ceiling: turnContextCeiling(input.budgets ?? BUDGET_PRESETS.standard),
     measure,
     summarise: createSummariser({
       adapter: input.adapter,

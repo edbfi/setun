@@ -8,6 +8,7 @@ import type { Message } from "../db/schema";
 import { createTestDatabase, seedTestFixtures } from "../db/testing";
 import { GatewayAdapter } from "../gateway/adapter";
 import { type StubFetchCall, streamingResponse, stubFetch } from "../gateway/testing";
+import { BUDGET_PRESETS, type BudgetSettings } from "./budgets";
 import { SUMMARY_INSTRUCTIONS } from "./compaction";
 import { resetContextWindowState, resolveContextWindow } from "./context-window";
 import { executeTurn } from "./runner";
@@ -90,6 +91,7 @@ function longConversation(exchanges: number) {
 function run(
   scaffold: ReturnType<typeof longConversation>,
   responder: (call: StubFetchCall) => Response,
+  options: { window?: number; budgets?: BudgetSettings } = {},
 ) {
   const adapter = new GatewayAdapter({
     baseUrl: "http://cpa:8317",
@@ -109,9 +111,10 @@ function run(
     studentId: fixtures.student.id,
     classroomId: fixtures.classroom.id,
     // A small window, stated by the operator: twelve exchanges do not fit.
-    alias: { ...fixtures.alias, contextWindowTokens: 6_000 },
+    alias: { ...fixtures.alias, contextWindowTokens: options.window ?? 6_000 },
     parentMessageId: scaffold.prompt.id,
     path: scaffold.path,
+    ...(options.budgets ? { budgets: options.budgets } : {}),
   });
 }
 
@@ -249,5 +252,51 @@ describe("a conversation that outgrows the model", () => {
     expect(
       answerOf(scaffold.conversation.id)?.parts.some((part) => part.type === "context-compacted"),
     ).toBe(false);
+  });
+});
+
+describe("a conversation that outgrows what the classroom can afford (§10)", () => {
+  // The floor of the ceiling: 8,000 tokens of history, on a model that could
+  // read a million.
+  const budgets = { ...BUDGET_PRESETS.cautious, perTurnTokenCap: 1_000 };
+
+  it("is summarised though the model's window has room for all of it", async () => {
+    const scaffold = longConversation(40);
+    const answers: StubFetchCall[] = [];
+
+    await run(
+      scaffold,
+      (call) => {
+        if (isSummary(call)) return chat("Eleven spørger om hvorfor.");
+        answers.push(call);
+        return chat("Nu dette.");
+      },
+      { window: 1_000_000, budgets },
+    );
+
+    const sent = JSON.stringify(answers[0].body);
+    expect(sent).toContain("Eleven spørger om hvorfor.");
+    expect(sent).not.toContain("Spørgsmål 0:");
+    expect(answerOf(scaffold.conversation.id)?.parts[0]).toEqual({
+      type: "context-compacted",
+      mode: "summarised",
+    });
+  });
+
+  it("is left alone under the same budgets while it is short", async () => {
+    const scaffold = longConversation(12);
+    const answers: StubFetchCall[] = [];
+
+    await run(
+      scaffold,
+      (call) => {
+        if (isSummary(call)) throw new Error("nothing to summarise");
+        answers.push(call);
+        return chat("Fint.");
+      },
+      { window: 1_000_000, budgets },
+    );
+
+    expect(JSON.stringify(answers[0].body)).toContain("Spørgsmål 0:");
   });
 });
