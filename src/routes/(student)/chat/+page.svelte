@@ -6,6 +6,7 @@ import { goto, invalidateAll, replaceState } from "$app/navigation";
 import { page } from "$app/state";
 import type { BuildStatus } from "$lib/artifacts/types";
 import { playDoneChime, primeDoneChime } from "$lib/chat/done-chime";
+import { doneCue } from "$lib/chat/done-cue";
 import { readEventStream } from "$lib/chat/sse-client";
 import { effectiveThinking, thinkingChoiceAvailable } from "$lib/chat/thinking-visibility";
 import { fitVisualViewport } from "$lib/chat/viewport";
@@ -73,8 +74,8 @@ const showThinking = $derived(effectiveThinking(data.thinkingVisibility, thinkin
  *
  * A soft chime where the classroom's default and this device's switch agree it
  * is on, and a ✓ in the tab title while the tab is in the background — so a
- * pupil who went to read something else can see the answer has landed. Nothing
- * for an answer the pupil stopped themselves: they know.
+ * pupil who went to read something else can see the answer has landed. Which
+ * endings cue is `doneCue`'s to say.
  */
 const doneSound = getDoneSound();
 const soundOn = $derived(effectiveDoneSound(data.doneSound, doneSound.preference));
@@ -85,10 +86,13 @@ $effect(() => {
   const finished = conversation.turn.finished;
   if (!finished || finished === cued) return;
   cued = finished;
-  if (finished.reason === "aborted") return;
 
-  if (untrack(() => soundOn)) playDoneChime();
-  if (document.hidden) unseenDone = true;
+  const cue = doneCue(finished.reason, {
+    soundOn: untrack(() => soundOn),
+    hidden: document.hidden,
+  });
+  if (cue.chime) playDoneChime();
+  if (cue.badge) unseenDone = true;
 });
 
 $effect(() => {
