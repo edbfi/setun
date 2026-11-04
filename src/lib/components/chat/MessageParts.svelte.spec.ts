@@ -131,10 +131,24 @@ describe("MessageParts artifact cards", () => {
     expect(opened).toHaveBeenCalledWith("artifact-1");
   });
 
-  it("keeps the code contained when a ref names a different language than the block", async () => {
+  it("pairs by id when the ref's language differs from the block's", async () => {
+    // Positional pairing refuses a language mismatch; the id still names the
+    // artifact, whose revision answers to the tag it runs as now.
     render(MessageParts, { parts: text(PROSE), artifacts: [ref({ language: "svg" })] });
 
-    await expect.element(page.getByText("id=side · html · v3")).not.toBeInTheDocument();
+    await expect.element(page.getByText("id=side · svg · v3")).toBeVisible();
+    await expect.element(page.getByText(m.artifact_contained_unsaved())).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("keeps the code contained when no ref matches the block's position or id", async () => {
+    render(MessageParts, {
+      parts: text(PROSE),
+      artifacts: [ref({ key: "logo", language: "svg" })],
+    });
+
+    await expect.element(page.getByText(m.artifact_contained_unsaved())).toBeVisible();
+    await expect.element(page.getByText("id=logo · svg · v3")).not.toBeInTheDocument();
     await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
   });
 

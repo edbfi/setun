@@ -58,9 +58,6 @@ const status = $derived(
 
 /** Whether the source is expanded; it is only rendered once it is. */
 let expanded = $state(false);
-
-/** Open only means something when there is a thing to open. */
-const openable = $derived(artifactId !== null && reason !== "incomplete");
 </script>
 
 <div
@@ -76,7 +73,8 @@ const openable = $derived(artifactId !== null && reason !== "incomplete");
       <p class="truncate text-xs text-muted-foreground">{status}</p>
     </div>
 
-    {#if openable && artifactId}
+    <!-- Open only means something when there is a thing to open. -->
+    {#if artifactId !== null && reason !== "incomplete"}
       <button
         type="button"
         onclick={() => onopen?.(artifactId)}
