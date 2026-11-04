@@ -93,6 +93,21 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
         <span class="text-xs text-muted-foreground">{m.educator_thinking_visibility_help()}</span>
       </label>
 
+      <!--
+        The classroom's default for the done chime (§20). A default and not a
+        rule: each pupil's own switch overrides it on their device, so a room
+        that wants quiet sets "off" and a pupil with headphones can still turn
+        it on.
+      -->
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-muted-foreground">{m.educator_done_sound_label()}</span>
+        <select name="doneSound" bind:value={$form.doneSound} class="h-9 {field}">
+          <option value="on">{m.educator_done_sound_on()}</option>
+          <option value="off">{m.educator_done_sound_off()}</option>
+        </select>
+        <span class="text-xs text-muted-foreground">{m.educator_done_sound_help()}</span>
+      </label>
+
       <label class="flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">{m.educator_session_policy_label()}</span>
         <select name="sessionPolicy" bind:value={$form.sessionPolicy} class="h-9 {field}">

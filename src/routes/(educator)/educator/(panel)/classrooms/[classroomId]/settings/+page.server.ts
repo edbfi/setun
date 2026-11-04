@@ -162,6 +162,7 @@ export const load: PageServerLoad = async ({ params }) => {
         classroomInstructions: classroom.classroomInstructions ?? "",
         interfaceLanguage: classroom.interfaceLanguage,
         thinkingVisibility: classroom.thinkingVisibility,
+        doneSound: classroom.doneSound,
         sessionPolicy: classroom.sessionPolicy,
         sessionSlidingDays: classroom.sessionSlidingDays,
         conversationRetentionDays: classroom.conversationRetentionDays,

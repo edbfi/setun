@@ -4,6 +4,7 @@ import * as m from "$lib/paraglide/messages";
 import { BUDGET_PRESET_NAMES } from "../agent/budgets";
 import {
   CLASSROOM_STATES,
+  DONE_SOUNDS,
   GATEWAY_DIALECTS,
   INTERFACE_LANGUAGES,
   PERMISSION_MODES,
@@ -220,6 +221,8 @@ export const ClassroomPolicySchema = v.object({
    * reasoning by any route (§21).
    */
   thinkingVisibility: v.picklist(THINKING_VISIBILITIES),
+  /** Whether an answer finishing chimes by default; each pupil may override it (§20). */
+  doneSound: v.picklist(DONE_SOUNDS),
   sessionPolicy: v.picklist(SESSION_POLICIES),
   sessionSlidingDays: whole(1, 365),
   conversationRetentionDays: whole(1, 3_650),

@@ -34,6 +34,17 @@ export type PermissionMode = (typeof PERMISSION_MODES)[number];
 export const THINKING_VISIBILITIES = ["student", "shown", "hidden"] as const;
 export type ThinkingVisibility = (typeof THINKING_VISIBILITIES)[number];
 
+/**
+ * Whether a pupil's browser plays a soft sound when an answer finishes (§20).
+ *
+ * The classroom's *default*: each pupil can still turn it on or off for their
+ * own device. Two values, because the educator's question is "should this room
+ * chime?" — twenty-five laptops chiming at once is a real risk in a classroom,
+ * and a quiet room needs a way to say so for everybody at once.
+ */
+export const DONE_SOUNDS = ["on", "off"] as const;
+export type DoneSound = (typeof DONE_SOUNDS)[number];
+
 /** Student skill-authoring policy (§12). Enforced in Phase 3.9. */
 export const SKILL_AUTHORING_POLICIES = ["immediate", "pre-approval", "disabled"] as const;
 export type SkillAuthoringPolicy = (typeof SKILL_AUTHORING_POLICIES)[number];
@@ -140,6 +151,11 @@ export const classroom = sqliteTable("classroom", {
    * where a preference about how somebody likes to read belongs (§16).
    */
   thinkingVisibility: text({ enum: THINKING_VISIBILITIES }).notNull().default("student"),
+  /**
+   * Whether an answer finishing chimes by default (§20). A pupil's own device
+   * setting overrides it; nothing about that choice reaches the server (§16).
+   */
+  doneSound: text({ enum: DONE_SOUNDS }).notNull().default("on"),
   skillAuthoringPolicy: text({ enum: SKILL_AUTHORING_POLICIES }).notNull().default("immediate"),
 
   /** Classroom-wide attachment toggle; per-student overrides sit on `student` (§10). */

@@ -68,6 +68,7 @@ export type ClassroomSettingsUpdate = Partial<
     | "perClassroomDailyTokens"
     | "permissionMode"
     | "thinkingVisibility"
+    | "doneSound"
     | "skillAuthoringPolicy"
     | "attachmentsEnabled"
     | "attachmentTypes"
