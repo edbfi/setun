@@ -39,6 +39,8 @@
   "artifact_fix_request": "Den kunne ikke køre. Kan du hjælpe mig med at rette den?",
   "artifact_fix_request_threw": "Den kørte, men så gik noget galt. Kan du hjælpe mig med at rette den?",
   "artifact_frame_title": "Forhåndsvisning af byggeri",
+  "artifact_fullscreen_enter": "Fuld skærm",
+  "artifact_fullscreen_exit": "Afslut fuld skærm (Esc)",
   "artifact_history_added": "{count} tilføjet",
   "artifact_history_deleted": "{count} fjernet",
   "artifact_history_load_failed": "Versionens filer kunne ikke indlæses.",

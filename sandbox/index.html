@@ -34,10 +34,16 @@
       The artifact's own document. Sandboxed again on its own account: an
       iframe's sandbox flags are the intersection of its own and its parent's,
       so this is belt and braces rather than the only restriction.
+
+      `allow-pointer-lock` on both frames, because a game that looks around
+      with the mouse needs `requestPointerLock()`; without it the call is
+      refused and the pupil can only drag. It grants nothing beyond the
+      cursor: the browser lets Esc release it, says so on screen, and grants it
+      only from a click inside the artifact.
     -->
     <iframe
       id="stage"
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-pointer-lock"
       referrerpolicy="no-referrer"
       allow=""
       title="Artifact"

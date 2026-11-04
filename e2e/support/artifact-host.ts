@@ -65,7 +65,7 @@ export async function mountArtifact(page: Page, input: RenderInput): Promise<Fra
       frame.id = id;
       frame.src = origin;
       // Scripts, but no same-origin: the frame's document gets an opaque origin.
-      frame.setAttribute("sandbox", "allow-scripts");
+      frame.setAttribute("sandbox", "allow-scripts allow-pointer-lock");
       frame.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:99999";
       document.body.appendChild(frame);
 
