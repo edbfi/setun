@@ -5,7 +5,7 @@ import * as m from "../src/lib/paraglide/messages";
 import { E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
 import { openDrawer, startConversation } from "./support/chat";
 import { clearLoginWindow } from "./support/login-window";
-import { ARTIFACT_REPLY, ARTIFACT_MARKER, SLOW_MARKER } from "./support/stub-gateway";
+import { ARTIFACT_MARKER, ARTIFACT_REPLY, SLOW_MARKER } from "./support/stub-gateway";
 
 /**
  * A long answer keeps going while the pupil opens another conversation (PRD §10).
@@ -87,7 +87,6 @@ test("a new conversation opens while an answer keeps running in the old one", as
   await expect(page.locator('[data-turn-stage="done"]')).toBeVisible();
   await page.waitForTimeout(1_500);
   expect(reconnects).toEqual([]);
-  await expect(
-    page.locator('article[data-role="assistant"]').getByText(ARTIFACT_REPLY.split("\n").at(-1) ?? ""),
-  ).toHaveCount(1);
+  const closing = ARTIFACT_REPLY.split("\n").at(-1) ?? "";
+  await expect(page.locator('article[data-role="assistant"]').getByText(closing)).toHaveCount(1);
 });
