@@ -73,6 +73,8 @@ export const ARTIFACT_INSTRUCTIONS = [
   "that whole file. Files you do not mention are kept exactly as they are. To remove one, write an",
   "empty block for its path with the delete flag, opening and closing it on their own lines:",
   "```ts id=tidslinje path=src/old.ts delete\n```",
+  "If a file itself holds a line starting with three backticks — a README, a page about",
+  "markdown — open and close its block with four (````) so that line cannot end it early.",
   "The entry is the file that runs: App.tsx, App.jsx, App.svelte, index.html or image.svg,",
   "optionally under src/. Mark another file with the entry flag if you mean a different one. An id",
   "with no path at all is the entry alone, which is the right shape for a single-file page.",

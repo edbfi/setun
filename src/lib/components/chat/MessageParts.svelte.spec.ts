@@ -11,8 +11,9 @@ import MessageParts from "./MessageParts.svelte";
  *
  * The pupil's route from "here is the page" to the page itself is one tap. What
  * matters as much is the fallback: the cards come from the database and the
- * blocks from the text, and when the two disagree the fence renders as it was
- * written rather than a card naming the wrong thing.
+ * blocks from the text, and when the two disagree a block stays a contained card
+ * — its code a click away — rather than a card naming the wrong thing, or the
+ * fence spilling into the conversation as written.
  */
 
 const PROSE = ["Her er siden:", "```html id=side", "<p>hi</p>", "```", "Prøv den."].join("\n");
@@ -78,27 +79,108 @@ describe("MessageParts artifact cards", () => {
     await expect.element(page.getByText(m.artifact_untitled({ language: "html" }))).toBeVisible();
   });
 
-  it("falls back to the fence when the message records no artifacts", async () => {
+  it("keeps the code contained when the message records no artifacts", async () => {
     render(MessageParts, { parts: text(PROSE) });
 
-    // Never a card naming something the database does not have.
-    await expect.element(page.getByText("<p>hi</p>", { exact: false })).toBeVisible();
+    // Never a card naming something the database does not have…
     await expect.element(page.getByText("id=side · html · v3")).not.toBeInTheDocument();
+    await expect.element(page.getByText(m.artifact_contained_unsaved())).toBeVisible();
+    // …and never the fence spilled into the conversation either.
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
+    await expect.element(page.getByText("Prøv den.")).toBeVisible();
+
+    // The source is one click away.
+    await page.getByText(m.artifact_contained_show_code()).click();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).toBeVisible();
   });
 
-  it("falls back to the fence when the refs and the blocks disagree", async () => {
-    // Two blocks, one ref: something recorded a revision the text does not show,
-    // and pairing them by position would name the wrong one.
+  it("pairs by id when one write has no ref, and keeps that one contained", async () => {
+    // Two writes, one ref — the second, by id. Pairing by position would hang
+    // the logo's revision on the page's card.
     const two = "```html id=side\n<p>en</p>\n```\n```svg id=logo\n<svg/>\n```";
-    render(MessageParts, { parts: text(two), artifacts: [ref()] });
+    render(MessageParts, {
+      parts: text(two),
+      artifacts: [ref({ key: "logo", language: "svg", title: "Logo", artifactId: "logo-1" })],
+    });
 
-    await expect.element(page.getByText("<p>en</p>")).toBeVisible();
+    await expect
+      .element(page.getByRole("button", { name: m.artifact_card_label({ title: "Logo" }) }))
+      .toBeVisible();
+    await expect.element(page.getByText("<p>en</p>")).not.toBeInTheDocument();
+    await expect.element(page.getByText(m.artifact_contained_unsaved())).toBeVisible();
   });
 
-  it("falls back when a ref names a different language than the block", async () => {
+  it("opens the existing artifact for a write that restated it unchanged", async () => {
+    // An identical re-emission appends no revision, so the message has no ref —
+    // but the artifact its id names is still in the conversation.
+    const opened = vi.fn();
+    render(MessageParts, {
+      parts: text(PROSE),
+      artifacts: [],
+      resolveArtifact: (key: string) => (key === "side" ? "artifact-1" : null),
+      onopenartifact: opened,
+    });
+
+    await expect.element(page.getByText(m.artifact_contained_existing())).toBeVisible();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
+    await page
+      .getByRole("button", {
+        name: m.artifact_card_label({ title: m.artifact_untitled({ language: "html" }) }),
+      })
+      .click();
+    expect(opened).toHaveBeenCalledWith("artifact-1");
+  });
+
+  it("pairs by id when the ref's language differs from the block's", async () => {
+    // Positional pairing refuses a language mismatch; the id still names the
+    // artifact, whose revision answers to the tag it runs as now.
     render(MessageParts, { parts: text(PROSE), artifacts: [ref({ language: "svg" })] });
 
-    await expect.element(page.getByText("<p>hi</p>", { exact: false })).toBeVisible();
+    await expect.element(page.getByText("id=side · svg · v3")).toBeVisible();
+    await expect.element(page.getByText(m.artifact_contained_unsaved())).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("keeps the code contained when no ref matches the block's position or id", async () => {
+    render(MessageParts, {
+      parts: text(PROSE),
+      artifacts: [ref({ key: "logo", language: "svg" })],
+    });
+
+    await expect.element(page.getByText(m.artifact_contained_unsaved())).toBeVisible();
+    await expect.element(page.getByText("id=logo · svg · v3")).not.toBeInTheDocument();
+    await expect.element(page.getByText("<p>hi</p>", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("keeps a file the turn never finished contained", async () => {
+    const cut = ["Her er siden:", "```html id=side", "<main>", "<h1>Hej"].join("\n");
+    render(MessageParts, { parts: text(cut) });
+
+    await expect.element(page.getByText("Her er siden:")).toBeVisible();
+    await expect.element(page.getByText(m.artifact_contained_incomplete())).toBeVisible();
+    await expect.element(page.getByText("<h1>Hej", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("stubs a stylesheet-only revision while it streams, never showing the CSS", async () => {
+    const revision = [
+      "Jeg har skiftet farven:",
+      "```css id=projektet path=styles.css",
+      "#hilsen { color: purple }",
+      "```",
+      "```ts id=projektet path=src/data.ts",
+      "export const n = 1;",
+    ].join("\n");
+    render(MessageParts, { parts: text(revision), streaming: true });
+
+    await expect.element(page.getByText("Jeg har skiftet farven:")).toBeVisible();
+    await expect.element(page.getByText("#hilsen", { exact: false })).not.toBeInTheDocument();
+    await expect
+      .element(page.getByText("export const n", { exact: false }))
+      .not.toBeInTheDocument();
+    await expect.element(page.getByText("id=projektet · css")).toBeVisible();
+    await expect
+      .element(page.getByText(m.artifact_card_writing({ path: "src/data.ts" }), { exact: false }))
+      .toBeVisible();
   });
 
   it("shows the build state on the card", async () => {

@@ -16,7 +16,15 @@ import * as m from "$lib/paraglide/messages";
  * the end-to-end suite reads it as such.
  */
 interface Props {
-  language: ArtifactLanguage;
+  /**
+   * The runnable language, or null for a file that is only imported — the
+   * stylesheet or data module a revision re-emits on its own (§13).
+   */
+  language: ArtifactLanguage | null;
+  /** The fence tag, runnable or not; what the stub calls the file when it is not. */
+  fileKind?: string;
+  /** The `delete` flag: the file is being removed rather than written. */
+  deleted?: boolean;
   /** The `id=` the model wrote, or null when it wrote none or wrote a non-slug. */
   artifactKey: string | null;
   title: string | null;
@@ -34,9 +42,26 @@ interface Props {
   path?: string | null;
 }
 
-let { language, artifactKey, title, pending = false, lines = 0, path = null }: Props = $props();
+let {
+  language,
+  fileKind,
+  deleted = false,
+  artifactKey,
+  title,
+  pending = false,
+  lines = 0,
+  path = null,
+}: Props = $props();
 
-const name = $derived(title ?? m.artifact_untitled({ language }));
+const tag = $derived(language ?? fileKind ?? "");
+
+/**
+ * A revision's file fences carry no title — the artifact already has one — so
+ * the file's own path names the stub before "Untitled css" would.
+ */
+const name = $derived(
+  title ?? (artifactKey && path ? path : m.artifact_untitled({ language: tag })),
+);
 </script>
 
 <div
@@ -51,14 +76,16 @@ const name = $derived(title ?? m.artifact_untitled({ language }));
     <p class="truncate font-mono text-xs tabular-nums text-muted-foreground">
       {#if artifactKey}
         {m.artifact_id_label()}={artifactKey}
-        · {language}
+        · {tag}
       {:else}
-        {language}
+        {tag}
       {/if}
     </p>
     {#if pending}
       <p class="truncate text-xs text-muted-foreground">
-        {#if path && artifactKey}
+        {#if deleted && path}
+          {m.artifact_card_deleting({ path })}
+        {:else if path && artifactKey}
           <!-- A project's own file, named: "Building Tidslinje…" says nothing
                about which of five files is arriving (§13). -->
           {m.artifact_card_writing({ path })}

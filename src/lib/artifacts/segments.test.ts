@@ -3,6 +3,7 @@ import {
   artifactMessageSegments,
   artifactSegmentCount,
   artifactSegments,
+  pairArtifactRefs,
   streamingMessageSegments,
   streamingSegments,
 } from "./segments";
@@ -129,7 +130,16 @@ describe("streamingSegments", () => {
     // The pupil watched `<!doctype html>` scroll past before this (§13, §20).
     expect(segments).toEqual([
       { kind: "text", text: "Her er siden:" },
-      { kind: "pending", language: "html", key: "side", title: "Min side", lines: 2, path: null },
+      {
+        kind: "pending",
+        language: "html",
+        fileKind: "html",
+        deleted: false,
+        key: "side",
+        title: "Min side",
+        lines: 2,
+        path: null,
+      },
     ]);
   });
 
@@ -150,6 +160,8 @@ describe("streamingSegments", () => {
     expect(segments[2]).toEqual({
       kind: "pending",
       language: "svg",
+      fileKind: "svg",
+      deleted: false,
       key: "to",
       title: null,
       lines: 1,
@@ -171,7 +183,16 @@ describe("streamingSegments", () => {
     // A tilde fence's info string may hold one, so the same info string that is
     // not a fence above opens one here.
     expect(streamingSegments("~~~html id=side title=`x`\n<p>hi")).toEqual([
-      { kind: "pending", language: "html", key: "side", title: "`x`", lines: 1, path: null },
+      {
+        kind: "pending",
+        language: "html",
+        fileKind: "html",
+        deleted: false,
+        key: "side",
+        title: "`x`",
+        lines: 1,
+        path: null,
+      },
     ]);
   });
 
@@ -181,7 +202,16 @@ describe("streamingSegments", () => {
     // The backtick is what makes this a tilde fence's case: the same info string
     // after three backticks is not a fence at all.
     expect(segments).toEqual([
-      { kind: "pending", language: "html", key: "side", title: "`x`", lines: 1, path: null },
+      {
+        kind: "pending",
+        language: "html",
+        fileKind: "html",
+        deleted: false,
+        key: "side",
+        title: "`x`",
+        lines: 1,
+        path: null,
+      },
     ]);
   });
 
@@ -291,7 +321,16 @@ describe("streamingMessageSegments", () => {
     const scans = streamingMessageSegments(["```html id=side\n<h1>Hej", "<p>mere</p>"]);
 
     expect(scans[0]).toEqual([
-      { kind: "pending", language: "html", key: "side", title: null, lines: 1, path: null },
+      {
+        kind: "pending",
+        language: "html",
+        fileKind: "html",
+        deleted: false,
+        key: "side",
+        title: null,
+        lines: 1,
+        path: null,
+      },
     ]);
     expect(scans[1]).toEqual([]);
   });
@@ -324,7 +363,16 @@ describe("streamingMessageSegments", () => {
     expect(scans[0].map((segment) => segment.kind)).toEqual(["artifact"]);
     expect(scans[1]).toEqual([
       { kind: "text", text: "Og nu:" },
-      { kind: "pending", language: "svg", key: "to", title: null, lines: 1, path: null },
+      {
+        kind: "pending",
+        language: "svg",
+        fileKind: "svg",
+        deleted: false,
+        key: "to",
+        title: null,
+        lines: 1,
+        path: null,
+      },
     ]);
   });
 
@@ -392,5 +440,205 @@ describe("streamingMessageSegments", () => {
   it("is one scan per text, in the order they were given", () => {
     expect(streamingMessageSegments([])).toEqual([]);
     expect(streamingMessageSegments(["en", "to", "tre"])).toHaveLength(3);
+  });
+});
+
+/**
+ * Code the model writes never reaches the transcript as prose (§13, §20).
+ *
+ * Reported from a classroom: revising an artifact sent its code into the chat.
+ * A revision re-emits only the files that changed, and a stylesheet or a data
+ * module is an artifact file only by its `id=` and `path=` — which the streaming
+ * scan did not read, so a revision's CSS streamed in as text.
+ *
+ * Checked at every prefix of the stream, because a leak that lasts one delta is
+ * still a screenful of code in front of a pupil.
+ */
+describe("containment", () => {
+  /** Every body line of every artifact file, which must never be prose. */
+  const CODE = [
+    "export default function App() { return <Timeline /> }",
+    "#hilsen { color: rgb(128, 0, 128) }",
+    "export const events = [{ year: 1958, name: 'Setun' }];",
+    '{ "title": "Tidslinje" }',
+    "#hilsen { color: rgb(0, 0, 255) }",
+  ];
+
+  /** Three writes of one id: the entry and data, then the stylesheet twice. */
+  const REVISIONS = [
+    "Her er tidslinjen:",
+    '```tsx id=tidslinje path=src/App.tsx title="Tidslinje" entry',
+    CODE[0],
+    "```",
+    "```ts id=tidslinje path=src/events.ts",
+    CODE[2],
+    "```",
+    "Jeg har skiftet farven:",
+    "```css id=tidslinje path=src/styles.css",
+    CODE[1],
+    "```",
+    "```json id=tidslinje path=src/meta.json",
+    CODE[3],
+    "```",
+    "```ts id=tidslinje path=src/old.ts delete",
+    "```",
+    "Og en gang til:",
+    "```css id=tidslinje path=src/styles.css",
+    CODE[4],
+    "```",
+    "Prøv den nu.",
+  ].join("\n");
+
+  function leaks(segments: readonly { kind: string; text?: string }[]): string[] {
+    return segments.flatMap((segment) =>
+      segment.kind === "text" ? CODE.filter((line) => segment.text?.includes(line)) : [],
+    );
+  }
+
+  it("keeps every file of repeated revisions out of the prose at every delta", () => {
+    for (let end = 0; end <= REVISIONS.length; end++) {
+      const prefix = REVISIONS.slice(0, end);
+      expect({ end, leaked: leaks(streamingSegments(prefix)) }).toEqual({ end, leaked: [] });
+    }
+  });
+
+  it("keeps them out when tool calls split the stream into parts", () => {
+    // `StreamingTurn` starts a new text part wherever a tool call landed — at a
+    // line boundary, or partway through a line of a file's body. (A cut inside
+    // a fence's own marker line is the scanner's documented limit, and not
+    // where a model stops to call a tool.)
+    const lines = REVISIONS.split("\n");
+    const cuts: number[] = [];
+    let offset = 0;
+    for (const line of lines) {
+      cuts.push(offset);
+      if (CODE.includes(line)) cuts.push(offset + Math.floor(line.length / 2));
+      offset += line.length + 1;
+    }
+
+    for (const cut of cuts) {
+      for (let end = cut; end <= REVISIONS.length; end += 5) {
+        const parts = [REVISIONS.slice(0, cut), REVISIONS.slice(cut, end)];
+        const leaked = streamingMessageSegments(parts).flatMap(leaks);
+        expect({ cut, end, leaked }).toEqual({ cut, end, leaked: [] });
+      }
+    }
+  });
+
+  it("stubs a stylesheet-only revision while it arrives, naming the file", () => {
+    const segments = streamingSegments(
+      ["Jeg har skiftet farven:", "```css id=projektet path=styles.css", "#hilsen {"].join("\n"),
+    );
+
+    expect(segments).toEqual([
+      { kind: "text", text: "Jeg har skiftet farven:" },
+      {
+        kind: "pending",
+        language: null,
+        fileKind: "css",
+        deleted: false,
+        key: "projektet",
+        title: null,
+        lines: 1,
+        path: "styles.css",
+      },
+    ]);
+  });
+
+  it("names a deletion, which has no body, rather than putting it back as prose", () => {
+    const fence = "```ts id=tidslinje path=src/old.ts delete\n```";
+    const whole = streamingSegments(fence);
+    expect(whole).toHaveLength(1);
+    expect(whole[0].kind === "artifact" && whole[0].artifact.deleted).toBe(true);
+
+    // And across a part boundary, where the closing line lands in the next part.
+    const split = streamingMessageSegments(["```ts id=tidslinje path=src/old.ts delete\n", "```"]);
+    expect(split[0]).toHaveLength(1);
+    expect(split[0][0].kind === "artifact" && split[0][0].artifact.deleted).toBe(true);
+  });
+
+  it("leaves a stylesheet with no id and path an ordinary code block", () => {
+    // The tag alone still means "example CSS" everywhere outside a project.
+    const text = "Sådan:\n```css\np { color: teal }\n```";
+    expect(streamingSegments(text)).toEqual([{ kind: "text", text }]);
+    expect(artifactSegments(text)).toEqual([{ kind: "text", text }]);
+  });
+
+  it("keeps a settled message's unclosed artifact fence out of the prose", () => {
+    // A turn stopped mid-file: Stop, a cap, a dropped connection.
+    const cut = ["Her er siden:", "```html id=side", "<main>", "<h1>Hej"].join("\n");
+
+    expect(artifactSegments(cut)).toEqual([
+      { kind: "text", text: "Her er siden:" },
+      {
+        kind: "unclosed",
+        fence: {
+          language: "html",
+          kind: "html",
+          key: "side",
+          title: null,
+          path: null,
+          deleted: false,
+          entry: false,
+        },
+        raw: ["```html id=side", "<main>", "<h1>Hej"].join("\n"),
+      },
+    ]);
+  });
+
+  it("puts an unclosed fence in the part that opened it, and swallows the parts inside it", () => {
+    const parts = artifactMessageSegments([
+      "Først:\n```css id=side path=styles.css\np {",
+      "color: red",
+    ]);
+
+    expect(parts[0].map((segment) => segment.kind)).toEqual(["text", "unclosed"]);
+    expect(parts[1]).toEqual([]);
+  });
+
+  it("leaves an unclosed ordinary code block to the markdown renderer", () => {
+    const text = "Kør:\n```sh\nbun test";
+    expect(artifactSegments(text)).toEqual([{ kind: "text", text }]);
+  });
+});
+
+describe("pairArtifactRefs", () => {
+  const ref = (key: string, language = "html") => ({ key, language });
+
+  function cards(markdown: string) {
+    return artifactSegments(markdown).filter((segment) => segment.kind === "artifact");
+  }
+
+  it("pairs by position when every card has its ref", () => {
+    const found = cards("```html id=a\n<p/>\n```\n```svg id=b\n<svg/>\n```");
+    expect(pairArtifactRefs(found, [ref("a"), ref("b", "svg")])).toEqual([
+      ref("a"),
+      ref("b", "svg"),
+    ]);
+  });
+
+  it("pairs the rest by id when one write recorded no revision", () => {
+    // `a` was restated unchanged: it has no ref, and pairing by position would
+    // hang `b`'s revision on `a`'s card.
+    const found = cards("```html id=a\n<p/>\n```\n```svg id=b\n<svg/>\n```");
+    expect(pairArtifactRefs(found, [ref("b", "svg")])).toEqual([null, ref("b", "svg")]);
+  });
+
+  it("pairs a stylesheet-only write by the id it names", () => {
+    const found = cards("```css id=side path=styles.css\np {}\n```");
+    expect(pairArtifactRefs(found, [ref("side")])).toEqual([ref("side")]);
+  });
+
+  it("pairs key-less blocks by order and language among unclaimed refs", () => {
+    const found = cards(
+      "```html\n<p>1</p>\n```\n```svg id=logo\n<svg/>\n```\n```html\n<p>2</p>\n```",
+    );
+    // One ref for two key-less html blocks: it goes to the first, in order.
+    const refs = [ref("logo", "svg"), ref("html-abc")];
+    expect(pairArtifactRefs(found, refs)).toEqual([ref("html-abc"), ref("logo", "svg"), null]);
+  });
+
+  it("pairs nothing when there are no refs at all", () => {
+    expect(pairArtifactRefs(cards("```html id=a\n<p/>\n```"), [])).toEqual([null]);
   });
 });

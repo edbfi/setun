@@ -34,6 +34,8 @@ interface Props {
   onopenartifact?: (artifactId: string) => void;
   /** Which artifact the build surface is showing, so its card can say so (§13). */
   activeArtifactId?: string | null;
+  /** The conversation's artifact a fence's id names, for a write with no revision of its own (§13). */
+  resolveArtifact?: (key: string) => string | null;
   /** Whether the model's reasoning is rendered, once policy and preference agree (§20). */
   showThinking?: boolean;
 }
@@ -45,6 +47,7 @@ let {
   onswitch,
   onopenartifact,
   activeArtifactId = null,
+  resolveArtifact,
   showThinking = true,
 }: Props = $props();
 
@@ -73,6 +76,7 @@ const action =
       artifacts={message.artifacts}
       {activeArtifactId}
       {onopenartifact}
+      {resolveArtifact}
       {showThinking}
     />
   </div>

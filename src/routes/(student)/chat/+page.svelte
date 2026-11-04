@@ -710,6 +710,7 @@ async function abort(): Promise<void> {
           onregenerate={regenerate}
           onswitch={switchBranch}
           onopenartifact={openArtifact}
+          resolveArtifact={(key) => artifacts.items.find((item) => item.key === key)?.id ?? null}
           {showThinking}
         >
           {#snippet empty()}
