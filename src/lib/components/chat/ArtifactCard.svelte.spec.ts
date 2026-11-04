@@ -65,3 +65,53 @@ describe("ArtifactCard", () => {
       .toBeVisible();
   });
 });
+
+/**
+ * What one write did, on the card it settled into (§13, §20).
+ *
+ * The same rows the write showed while it streamed, so the unit a pupil watched
+ * arrive is the unit they open.
+ */
+describe("ArtifactCard — the write", () => {
+  it("says a first revision is new and a later one updated", async () => {
+    const first = await render(ArtifactCard, { artifact: ref({ revision: 1 }) });
+    await expect
+      .element(page.getByText(m.artifact_write_created(), { exact: false }))
+      .toBeVisible();
+    first.unmount();
+
+    render(ArtifactCard, { artifact: ref({ revision: 2, modified: 1 }) });
+    await expect
+      .element(
+        page.getByText(
+          `${m.artifact_write_updated()} · ${m.artifact_history_modified({ count: 1 })}`,
+        ),
+      )
+      .toBeVisible();
+  });
+
+  it("lists the files the write named, with the removed ones marked", async () => {
+    render(ArtifactCard, {
+      artifact: ref(),
+      files: ["src/App.tsx", "src/old.ts"],
+      deletes: ["src/old.ts"],
+    });
+
+    const rows = document.querySelectorAll("[data-file-state]");
+    await expect.element(page.getByText("src/App.tsx")).toBeVisible();
+    expect([...rows].map((row) => row.getAttribute("data-file-state"))).toEqual([
+      "written",
+      "deleted",
+    ]);
+    expect(rows[1].textContent).toContain(m.artifact_write_deleted());
+    // Still one control: the rows are inside the card's button, not beside it.
+    expect(rows[0].closest("button")).not.toBeNull();
+  });
+
+  it("shows no rows for a single-file page", async () => {
+    render(ArtifactCard, { artifact: ref() });
+
+    await expect.element(page.getByText("id=klikkeren · html · v2")).toBeVisible();
+    expect(document.querySelectorAll("[data-file-state]")).toHaveLength(0);
+  });
+});

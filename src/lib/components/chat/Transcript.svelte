@@ -110,7 +110,6 @@ $effect(() => {
   });
 });
 
-/** The newest slice of the active path — the rest is behind "show earlier" (§20). */
 /**
  * How the last turn ended, once its answer is the last message (§20).
  *
@@ -125,6 +124,7 @@ const finished = $derived(
     : null,
 );
 
+/** The newest slice of the active path — the rest is behind "show earlier" (§20). */
 const visibleMessages = $derived(
   conversation.messages.length > windowSize
     ? conversation.messages.slice(-windowSize)
