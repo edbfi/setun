@@ -607,7 +607,9 @@ async function* runStep(args: {
       // gone. The event just yielded is durable, the student keeps every word
       // that reached them, and nothing further is read (§10).
       let exhausted = budget.dailyExhausted();
-      if (!exhausted && stepTokens >= reservedUntil) {
+      // Not once the step's usage is in: it has settled, and holding more
+      // against tokens already counted would count them twice.
+      if (!exhausted && !sawUsage && stepTokens >= reservedUntil) {
         // The reservation is used up. The end of the day if it was all there
         // was; otherwise hold more, and stop only if the day has none.
         const more = reservedLimit ? null : input.dailyBudget?.reserve(stepTokens);

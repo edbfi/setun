@@ -647,6 +647,25 @@ describe("the day's reservation, held a share at a time (§10)", () => {
     expect(asked).toEqual([...asked].sort((a, b) => a - b));
   });
 
+  it("holds no more once the step's usage is in, even past its share", async () => {
+    // The estimate stays under the share; the provider's own count passes it.
+    const { adapter } = adapterOver(() =>
+      streamingResponse([
+        JSON.stringify({ choices: [{ delta: { content: "x".repeat(300) } }] }),
+        JSON.stringify({ choices: [], usage: { prompt_tokens: 12, completion_tokens: 5_000 } }),
+        "[DONE]",
+      ]),
+    );
+    const { asked, dailyBudget } = lease(300, "stop");
+
+    const events = await collect(
+      runTurn({ adapter, dialect: "openai", model: "m", path, dailyBudget }),
+    );
+
+    expect(events.at(-1)).toEqual({ type: "done", reason: "stop" });
+    expect(asked).toHaveLength(1);
+  });
+
   it("stops where the day has nothing more to hold", async () => {
     const { adapter } = adapterOver(() => streamingResponse(LONG_STREAM));
     const { dailyBudget } = lease(300, "stop");
