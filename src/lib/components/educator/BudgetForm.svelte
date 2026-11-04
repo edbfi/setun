@@ -2,8 +2,10 @@
 import { type SuperValidated, superForm } from "sveltekit-superforms";
 import type * as v from "valibot";
 import { enhance as formEnhance } from "$app/forms";
+import { turnContextCeiling } from "$lib/classroom/context-ceiling";
 import FieldError from "$lib/components/ui/FieldError.svelte";
 import * as m from "$lib/paraglide/messages";
+import { getLocale } from "$lib/paraglide/runtime";
 import type { BudgetsSchema } from "$lib/server/classroom/schemas";
 
 /**
@@ -61,6 +63,22 @@ const PRESETS = [
   { value: "standard", label: m.educator_preset_standard },
   { value: "generous", label: m.educator_preset_generous },
 ] as const;
+
+const numbers = $derived(new Intl.NumberFormat(getLocale()));
+
+/**
+ * Where a conversation starts being summarised under the figures in the form
+ * (§10): follows the fields as they are typed, so the consequence of a cap is
+ * visible before it is saved. Only while both are numbers.
+ */
+const contextCeiling = $derived(
+  Number.isFinite($form.perTurnTokenCap) && Number.isFinite($form.perStudentDailyTokens)
+    ? turnContextCeiling({
+        perTurnTokenCap: $form.perTurnTokenCap,
+        perStudentDailyTokens: $form.perStudentDailyTokens,
+      })
+    : null,
+);
 
 const field = "h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground";
 </script>
@@ -140,6 +158,11 @@ const field = "h-9 rounded-md border border-input bg-background px-3 text-sm tex
           <FieldError message={$errors.perTurnTokenCap} />
         </label>
       </div>
+      {#if contextCeiling !== null}
+        <p class="text-xs text-muted-foreground" data-context-ceiling>
+          {m.educator_budget_context_ceiling({ tokens: numbers.format(contextCeiling) })}
+        </p>
+      {/if}
     </fieldset>
 
     <fieldset class="flex flex-col gap-2">

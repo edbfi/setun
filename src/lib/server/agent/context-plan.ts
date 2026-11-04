@@ -14,8 +14,13 @@ import type { Message, MessagePart } from "../db/schema";
  *    own model, and the summary stands in for those messages. It is stored
  *    against the last message it covers, so later turns reuse it.
  * 3. **Omit.** Where a summary cannot be had — the call failed, the day's
- *    allowance cannot pay for it — the same messages are left out and the model
- *    is told how many.
+ *    allowance cannot pay for it — and the window needs the room, the same
+ *    messages are left out and the model is told how many.
+ *
+ * What triggers it is the model's window, or the classroom's ceiling on
+ * history (`turnContextCeiling`) where that comes first: the history is paid
+ * for again on every step, so a conversation is kept to what the class can
+ * afford even on a model that could read far more.
  *
  * What is never summarised is code. An artifact's current files travel in full
  * beside the note whenever the path no longer holds them, which is exactly what
@@ -52,8 +57,17 @@ export interface PlanInput {
   readonly path: readonly PathMessage[];
   /** The deepest summary already stored for this path, if any. */
   readonly stored: StoredSummary | null;
-  /** How many input tokens the request may hold. */
+  /** How many input tokens the request may hold: the model's window, after the answer. */
   readonly budget: number;
+  /**
+   * How much history the classroom's budgets make worth sending (§10): tokens
+   * beyond what the request costs with the current prompt alone — the system
+   * prompt, the tools and the project's files are paid for either way, and
+   * cutting history cannot shrink them. Past it, history is summarised as when
+   * the window runs out; only `budget` decides whether a request fits, and only
+   * the window is worth leaving messages out for.
+   */
+  readonly ceiling?: number;
   /** The size of the whole request built from a path, as the provider will count it. */
   measure(path: readonly PathMessage[]): number;
   /**
@@ -82,9 +96,8 @@ const HARD_TARGET = 0.4;
 
 export async function planContext(input: PlanInput): Promise<ContextPlan> {
   const { budget } = input;
-  // Hard: compact whatever the size, down to well under the budget.
-  const trigger = input.hard ? 0 : budget * TRIGGER;
-  const target = budget * (input.hard ? HARD_TARGET : TRIGGER);
+  // Where the window itself, not the classroom's purse, needs the path cut.
+  const windowTarget = budget * (input.hard ? HARD_TARGET : TRIGGER);
 
   // A stored summary stands in for what it covers on every turn after it: sending
   // the full history again whenever it happens to fit would make the model's
@@ -100,6 +113,21 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
 
   const asIs = compose(body);
   const asIsTokens = input.measure(asIs);
+
+  const starts = userStarts(body);
+  const current = starts.at(-1) ?? 0;
+  const lastTwo = starts.at(-2) ?? current;
+
+  // The classroom's ceiling counts history only, so it is measured above the
+  // request the current prompt makes on its own — and only when the request is
+  // big enough for that to matter.
+  const ceiling =
+    input.ceiling !== undefined && asIsTokens > input.ceiling
+      ? input.measure(compose(body.slice(current))) + input.ceiling
+      : Number.POSITIVE_INFINITY;
+  // Hard: compact whatever the size, down to well under the budget.
+  const trigger = input.hard ? 0 : Math.min(budget * TRIGGER, ceiling);
+  const target = Math.min(windowTarget, ceiling);
   if (asIsTokens <= trigger) {
     return {
       path: asIs,
@@ -109,10 +137,6 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
       fits: asIsTokens <= budget,
     };
   }
-
-  const starts = userStarts(body);
-  const current = starts.at(-1) ?? 0;
-  const lastTwo = starts.at(-2) ?? current;
 
   // 1. Trim what is older than the last two exchanges.
   const trimmed = compose(trimBefore(body, lastTwo));
@@ -164,6 +188,13 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
     }
     best = { path: candidate, tokens };
     if (tokens <= target) break;
+  }
+
+  // No summary could be had. Leaving messages out is the price of fitting the
+  // model, not of the classroom's ceiling: where the trimmed path fits the
+  // window, it is sent whole and the next turn tries the summary again.
+  if (mode === "omitted" && !input.hard && trimmedTokens <= windowTarget) {
+    return { path: trimmed, mode: "trimmed", summary: null, tokens: trimmedTokens, fits: true };
   }
 
   return { path: best.path, mode, summary, tokens: best.tokens, fits: best.tokens <= budget };
