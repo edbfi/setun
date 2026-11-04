@@ -119,7 +119,9 @@ $effect(() => {
 const finished = $derived(
   !conversation.turn.streaming &&
     conversation.turn.isEmpty &&
-    conversation.lastMessage?.role === "assistant"
+    conversation.lastMessage?.role === "assistant" &&
+    // A turn that finished in the background answered another conversation.
+    (conversation.turn.finished?.conversationId ?? null) === (conversation.id ?? null)
     ? conversation.turn.finished
     : null,
 );
@@ -155,7 +157,7 @@ function jumpToLatest(): void {
 // Keep the newest content in view as it streams — but only for a pupil who is
 // already there.
 $effect(() => {
-  conversation.turn.text;
+  if (conversation.turnHere) conversation.turn.text;
   conversation.messages.length;
   if (!pinned) return;
 
@@ -287,7 +289,10 @@ $effect(() => {
         />
       {/each}
 
-      <StreamingMessage turn={conversation.turn} {showThinking} {resolveArtifact} />
+      {#if conversation.turnHere}
+        <!-- A turn running in another conversation is not drawn into this one (§10). -->
+        <StreamingMessage turn={conversation.turn} {showThinking} {resolveArtifact} />
+      {/if}
 
       {#if finished}
         <!--

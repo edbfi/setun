@@ -204,8 +204,20 @@ $effect(() => {
   if (!turnId || turnId === consumedTurnId || conversation.turn.streaming) return;
 
   consumedTurnId = turnId;
-  conversation.turn.resume(turnId, -1);
+  conversation.turn.resume(turnId, -1, data.conversation?.id ?? null);
   void consume(`/api/turns/${turnId}/events?after=-1`, { method: "GET" });
+});
+
+/**
+ * The conversation a live turn is answering in, when the pupil is in another (§10).
+ *
+ * Named by its title where it has one, so the line says where the work is.
+ */
+const elsewhere = $derived.by(() => {
+  const id = conversation.turnElsewhere;
+  if (!id) return null;
+  const title = data.conversations.find((item) => item.id === id)?.title?.trim();
+  return { id, title: title || m.chat_untitled_conversation() };
 });
 
 /** Active fetch controller — cancelled when the student presses Stop. */
@@ -248,6 +260,11 @@ async function consume(url: string, init: RequestInit): Promise<void> {
     const headerTurnId = response.headers.get("x-setun-turn-id");
     if (headerTurnId) {
       conversation.turn.turnId = headerTurnId;
+      // This tab is already reading the turn. Once the pupil has opened another
+      // conversation and come back, the page data names it as resumable — and
+      // without this the resume effect would read it a second time the moment
+      // it ends, replaying the whole answer (§10).
+      consumedTurnId = headerTurnId;
       // Stop was pressed while the id was still "pending": now that we can name
       // the turn, tell the server to stop it and drop the local stream. Without
       // this the detached server turn would run to completion and the
@@ -350,6 +367,13 @@ async function mintConversation(): Promise<string | null> {
 
 async function send(): Promise<void> {
   refusal = null;
+  // One turn in flight per pupil, across every conversation (§10). Checked here
+  // as well as on the server: the live turn is still filling this tab's state,
+  // and beginning another would overwrite it mid-stream. The draft stays put.
+  if (conversation.turn.streaming) {
+    refusal = m.chat_turn_in_flight();
+    return;
+  }
   // Inside the click, where the browser allows sound to be started (§20).
   if (soundOn) primeDoneChime();
   const conversationId = await ensureConversation();
@@ -370,7 +394,7 @@ async function send(): Promise<void> {
     })),
   );
   abortRequested = false;
-  conversation.turn.begin("pending");
+  conversation.turn.begin("pending", conversationId);
 
   await consume("/api/messages", {
     method: "POST",
@@ -508,7 +532,8 @@ async function generateImage(): Promise<void> {
  */
 async function switchBranch(messageId: string): Promise<void> {
   const conversationId = conversation.id;
-  if (!conversationId || conversation.turn.streaming) return;
+  // Only the conversation the turn answers in is about to move its leaf.
+  if (!conversationId || (conversation.turn.streaming && conversation.turnHere)) return;
 
   const response = await fetch(`/api/conversations/${conversationId}`, {
     method: "POST",
@@ -777,62 +802,68 @@ async function abort(): Promise<void> {
               The turn's only interactive parts. Rendered inline in the
               conversation rather than as a dialog: on a 640-pixel screen a modal
               covers the answer the pupil is deciding about (§11, §20).
+
+              Only in the conversation the turn answers: a question about a
+              tool in another thread, asked under this one, answers nothing the
+              pupil can see. The status line below the transcript points there.
             -->
-            {#if conversation.turn.permission}
-              {#key conversation.turn.permission.toolCallId}
-                <PermissionPrompt
-                  permission={conversation.turn.permission}
-                  onrespond={(approved) =>
-                    respond({
-                      requestId: conversation.turn.permission?.toolCallId,
-                      kind: "permission",
-                      approved,
-                    })}
-                />
-              {/key}
-            {/if}
+            {#if conversation.turnHere}
+              {#if conversation.turn.permission}
+                {#key conversation.turn.permission.toolCallId}
+                  <PermissionPrompt
+                    permission={conversation.turn.permission}
+                    onrespond={(approved) =>
+                      respond({
+                        requestId: conversation.turn.permission?.toolCallId,
+                        kind: "permission",
+                        approved,
+                      })}
+                  />
+                {/key}
+              {/if}
 
-            {#if conversation.turn.elicitation}
-              {#key conversation.turn.elicitation.toolCallId}
-                <ElicitationForm
-                  elicitation={conversation.turn.elicitation}
-                  onrespond={(answer) =>
-                    respond({
-                      requestId: conversation.turn.elicitation?.toolCallId,
-                      kind: "elicitation",
-                      ...answer,
-                    })}
-                />
-              {/key}
-            {/if}
+              {#if conversation.turn.elicitation}
+                {#key conversation.turn.elicitation.toolCallId}
+                  <ElicitationForm
+                    elicitation={conversation.turn.elicitation}
+                    onrespond={(answer) =>
+                      respond({
+                        requestId: conversation.turn.elicitation?.toolCallId,
+                        kind: "elicitation",
+                        ...answer,
+                      })}
+                  />
+                {/key}
+              {/if}
 
-            {#if conversation.turn.continuePrompt}
-              {#key conversation.turn.continuePrompt.requestId}
-                <ContinuePrompt
-                  prompt={conversation.turn.continuePrompt}
-                  onrespond={(proceed) => {
-                    if (proceed) conversation.turn.acknowledgeWarning();
-                    void respond({
-                      requestId: conversation.turn.continuePrompt?.requestId,
-                      kind: "continue",
-                      proceed,
-                    });
-                  }}
-                />
-              {/key}
-            {/if}
+              {#if conversation.turn.continuePrompt}
+                {#key conversation.turn.continuePrompt.requestId}
+                  <ContinuePrompt
+                    prompt={conversation.turn.continuePrompt}
+                    onrespond={(proceed) => {
+                      if (proceed) conversation.turn.acknowledgeWarning();
+                      void respond({
+                        requestId: conversation.turn.continuePrompt?.requestId,
+                        kind: "continue",
+                        proceed,
+                      });
+                    }}
+                  />
+                {/key}
+              {/if}
 
-            {#if conversation.turn.budgetWarning}
-              <!--
+              {#if conversation.turn.budgetWarning}
+                <!--
                 Shown while the answer keeps arriving: the allowance is the
                 pupil's day, and a response in flight is never cut for it (§10).
               -->
-              <BudgetWarning
-                warning={conversation.turn.budgetWarning}
-                streaming={conversation.turn.streaming && !conversation.turn.continuePrompt}
-                onkeepgoing={keepGoing}
-                onstop={abort}
-              />
+                <BudgetWarning
+                  warning={conversation.turn.budgetWarning}
+                  streaming={conversation.turn.streaming && !conversation.turn.continuePrompt}
+                  onkeepgoing={keepGoing}
+                  onstop={abort}
+                />
+              {/if}
             {/if}
 
             {#if generating}
@@ -842,6 +873,36 @@ async function abort(): Promise<void> {
             {/if}
           {/snippet}
         </Transcript>
+
+        {#if elsewhere}
+          <!--
+            The answer still being written in another conversation (§10). It
+            keeps going while the pupil reads or starts something else here, and
+            this is the one way back to it.
+          -->
+          <div class="shrink-0 px-3 pt-2" data-turn-elsewhere={elsewhere.id}>
+            <p
+              class="mx-auto flex max-w-2xl items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-xs text-secondary-foreground"
+              role="status"
+            >
+              <span
+                class="size-1.5 shrink-0 rounded-full bg-primary motion-safe:animate-pulse"
+                aria-hidden="true"
+              ></span>
+              <span class="min-w-0 flex-1 truncate">
+                {conversation.turn.waiting
+                  ? m.chat_turn_elsewhere_waiting({ title: elsewhere.title })
+                  : m.chat_turn_elsewhere({ title: elsewhere.title })}
+              </span>
+              <a
+                href="/chat?c={elsewhere.id}"
+                class="shrink-0 font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {m.chat_turn_elsewhere_open()}
+              </a>
+            </p>
+          </div>
+        {/if}
 
         {#if refusal}
           <!--
@@ -867,7 +928,7 @@ async function abort(): Promise<void> {
         <Composer
           bind:this={composerRef}
           {composer}
-          streaming={conversation.turn.streaming || generating}
+          streaming={(conversation.turn.streaming && conversation.turnHere) || generating}
           attachmentsEnabled={data.attachmentsEnabled}
           imageModeAvailable={data.imageModeAvailable}
           modelName={data.aliases.length > 1 ? (activeAlias?.name ?? null) : null}

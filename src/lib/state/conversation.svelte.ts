@@ -88,6 +88,26 @@ export class ConversationState {
     return this.messages.at(-1);
   }
 
+  /**
+   * Whether the live turn belongs to the conversation on screen (§10).
+   *
+   * A turn keeps running when the pupil opens another conversation; it is drawn,
+   * and its prompts and Stop button offered, only in the one it answers.
+   */
+  get turnHere(): boolean {
+    return this.turn.conversationId === null || this.turn.conversationId === this.id;
+  }
+
+  /**
+   * The conversation a live turn is running in, when that is not this one.
+   *
+   * Null when nothing is running, or when it is running here.
+   */
+  get turnElsewhere(): string | null {
+    if (!this.turn.streaming || this.turnHere) return null;
+    return this.turn.conversationId;
+  }
+
   /** True while a turn is streaming or its text is still on screen unpersisted. */
   get hasPendingAssistantText(): boolean {
     return this.turn.streaming || !this.turn.isEmpty;

@@ -169,7 +169,7 @@ describe("Transcript — done", () => {
       title: null,
       messages: [message("u1", "user", "Lav en side"), message("a1", "assistant", "Her er den.")],
     });
-    conversation.turn.finished = { turnId: "t1", elapsedMs: 23_400, reason };
+    conversation.turn.finished = { turnId: "t1", conversationId: "c1", elapsedMs: 23_400, reason };
     return conversation;
   }
 
@@ -183,6 +183,23 @@ describe("Transcript — done", () => {
     render(Transcript, { conversation: finishedConversation("aborted"), conversationId: "c1" });
 
     await expect.element(page.getByText(m.chat_stage_stopped({ seconds: 23 }))).toBeVisible();
+  });
+
+  it("does not say done under another conversation's answer", async () => {
+    // The turn finished in the background, answering a conversation the pupil left.
+    const conversation = finishedConversation("stop");
+    conversation.turn.finished = {
+      turnId: "t1",
+      conversationId: "elsewhere",
+      elapsedMs: 23_400,
+      reason: "stop",
+    };
+    render(Transcript, { conversation, conversationId: "c1" });
+
+    await expect.element(page.getByText("Her er den.")).toBeVisible();
+    await expect
+      .element(page.getByText(m.chat_stage_done({ seconds: 23 })))
+      .not.toBeInTheDocument();
   });
 
   it("drops it once the pupil has asked something new", async () => {
