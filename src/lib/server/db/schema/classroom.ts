@@ -156,6 +156,13 @@ export const classroom = sqliteTable("classroom", {
    * setting overrides it; nothing about that choice reaches the server (§16).
    */
   doneSound: text({ enum: DONE_SOUNDS }).notNull().default("on"),
+  /**
+   * How many answers one pupil may have being written at once, across their
+   * conversations (§10) — one per conversation whatever this says. Two lets a
+   * pupil ask something else while a long build runs; one is the escape hatch
+   * when a provider rate-limits a full class.
+   */
+  maxConcurrentTurns: integer().notNull().default(2),
   skillAuthoringPolicy: text({ enum: SKILL_AUTHORING_POLICIES }).notNull().default("immediate"),
 
   /** Classroom-wide attachment toggle; per-student overrides sit on `student` (§10). */

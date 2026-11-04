@@ -601,3 +601,80 @@ describe("thinking passes through the loop", () => {
     expect(events.at(-1)).toEqual({ type: "done", reason: "student-allowance-exhausted" });
   });
 });
+
+describe("the day's reservation, held a share at a time (§10)", () => {
+  /** Ten deltas of 300 characters: about a thousand estimated tokens of answer. */
+  const LONG_STREAM = [
+    ...Array.from({ length: 10 }, () =>
+      JSON.stringify({ choices: [{ delta: { content: "x".repeat(300) } }] }),
+    ),
+    JSON.stringify({ choices: [], usage: { prompt_tokens: 12, completion_tokens: 1_000 } }),
+    "[DONE]",
+  ];
+
+  /** A lease that hands out `share` tokens of output a time, then what `after` says. */
+  function lease(share: number, after: "more" | "stop") {
+    const asked: number[] = [];
+    return {
+      asked,
+      dailyBudget: {
+        consumed: () => ({ studentTokens: 0, classroomTokens: 0 }),
+        reserve(promptTokens: number) {
+          asked.push(promptTokens);
+          if (asked.length > 1 && after === "stop") {
+            return { stop: "student-allowance-exhausted" as const };
+          }
+          return { outputTokens: share, limit: null };
+        },
+        settle() {},
+        release() {},
+      },
+    };
+  }
+
+  it("holds more as a long answer runs past its share, and finishes it", async () => {
+    const { adapter } = adapterOver(() => streamingResponse(LONG_STREAM));
+    const { asked, dailyBudget } = lease(300, "more");
+
+    const events = await collect(
+      runTurn({ adapter, dialect: "openai", model: "m", path, dailyBudget }),
+    );
+
+    expect(events.at(-1)).toEqual({ type: "done", reason: "stop" });
+    expect(events.filter((event) => event.type === "text-delta")).toHaveLength(10);
+    // Each time again with what the request had used so far.
+    expect(asked.length).toBeGreaterThan(2);
+    expect(asked).toEqual([...asked].sort((a, b) => a - b));
+  });
+
+  it("holds no more once the step's usage is in, even past its share", async () => {
+    // The estimate stays under the share; the provider's own count passes it.
+    const { adapter } = adapterOver(() =>
+      streamingResponse([
+        JSON.stringify({ choices: [{ delta: { content: "x".repeat(300) } }] }),
+        JSON.stringify({ choices: [], usage: { prompt_tokens: 12, completion_tokens: 5_000 } }),
+        "[DONE]",
+      ]),
+    );
+    const { asked, dailyBudget } = lease(300, "stop");
+
+    const events = await collect(
+      runTurn({ adapter, dialect: "openai", model: "m", path, dailyBudget }),
+    );
+
+    expect(events.at(-1)).toEqual({ type: "done", reason: "stop" });
+    expect(asked).toHaveLength(1);
+  });
+
+  it("stops where the day has nothing more to hold", async () => {
+    const { adapter } = adapterOver(() => streamingResponse(LONG_STREAM));
+    const { dailyBudget } = lease(300, "stop");
+
+    const events = await collect(
+      runTurn({ adapter, dialect: "openai", model: "m", path, dailyBudget }),
+    );
+
+    expect(events.at(-1)).toEqual({ type: "done", reason: "student-allowance-exhausted" });
+    expect(events.filter((event) => event.type === "text-delta").length).toBeLessThan(10);
+  });
+});

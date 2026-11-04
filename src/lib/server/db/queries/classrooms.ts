@@ -69,6 +69,7 @@ export type ClassroomSettingsUpdate = Partial<
     | "permissionMode"
     | "thinkingVisibility"
     | "doneSound"
+    | "maxConcurrentTurns"
     | "skillAuthoringPolicy"
     | "attachmentsEnabled"
     | "attachmentTypes"

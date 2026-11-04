@@ -36,17 +36,18 @@ export function getOwnedTurn(
 }
 
 /**
- * The student's in-flight turn, if any.
+ * The student's in-flight turns, oldest first, across all of their conversations.
  *
- * One turn is in flight per student across all of their conversations, and the
- * server is what enforces it — not the composer (§10).
+ * At most one per conversation and the classroom's limit in all, enforced by
+ * the server — not the composer (§10).
  */
-export function findActiveTurn(db: AppDatabase, studentId: string): Turn | undefined {
+export function listActiveTurns(db: AppDatabase, studentId: string): Turn[] {
   return db
     .select()
     .from(turn)
     .where(and(eq(turn.studentId, studentId), eq(turn.status, "streaming")))
-    .get();
+    .orderBy(turn.createdAt)
+    .all();
 }
 
 export function finishTurn(

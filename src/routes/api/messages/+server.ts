@@ -2,7 +2,11 @@ import { error, json } from "@sveltejs/kit";
 import * as v from "valibot";
 import { markArtifactEditsDelivered, outgoingArtifactEditParts } from "$lib/server/agent/artifacts";
 import { budgetsOf } from "$lib/server/agent/budgets";
-import { assertNoTurnInFlight, TurnInFlightError } from "$lib/server/agent/concurrency";
+import {
+  assertTurnCapacity,
+  TurnInFlightError,
+  TurnLimitError,
+} from "$lib/server/agent/concurrency";
 import { executeTurn } from "$lib/server/agent/runner";
 import { sseResponse, TURN_ID_HEADER } from "$lib/server/agent/sse-response";
 import { streamTurnEvents } from "$lib/server/agent/stream";
@@ -77,12 +81,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const alias = getAliasById(db, conversation.modelAliasId);
   if (!alias) error(409, "Model unavailable");
 
-  // One turn in flight per student, across all of their conversations (§10).
+  // One answer per conversation, and the classroom's limit across all of a
+  // pupil's conversations (§10). Nothing below awaits before the turn row is
+  // written, so a second send cannot slip in between the check and the insert.
   try {
-    assertNoTurnInFlight(db, student.id);
+    assertTurnCapacity(db, {
+      studentId: student.id,
+      conversationId,
+      limit: access.classroom.maxConcurrentTurns,
+    });
   } catch (cause) {
     if (cause instanceof TurnInFlightError) {
       return json({ error: "turn-in-flight", activeTurnId: cause.activeTurnId }, { status: 409 });
+    }
+    if (cause instanceof TurnLimitError) {
+      return json({ error: "turn-limit", limit: cause.limit }, { status: 409 });
     }
     throw cause;
   }

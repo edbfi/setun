@@ -104,6 +104,8 @@ describe("applyMigrations", () => {
     expect(upgraded?.thinkingVisibility).toBe("student");
     // And one that predates the done sound keeps the default (§20).
     expect(upgraded?.doneSound).toBe("on");
+    // And two answers at once, one per conversation (§10).
+    expect(upgraded?.maxConcurrentTurns).toBe(2);
   });
 
   it("adds the artifact identity columns to rows that predate them", () => {

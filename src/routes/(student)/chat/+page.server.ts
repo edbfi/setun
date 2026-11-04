@@ -26,7 +26,7 @@ import {
   listConversations,
 } from "$lib/server/db/queries/conversations";
 import { getActivePath, listSiblings } from "$lib/server/db/queries/messages";
-import { findActiveTurn } from "$lib/server/db/queries/turns";
+import { listActiveTurns } from "$lib/server/db/queries/turns";
 import type { Actions, PageServerLoad } from "./$types";
 
 /**
@@ -156,9 +156,10 @@ export const load: PageServerLoad = ({ locals, url }) => {
       })
     : [];
 
-  // A turn still streaming when this tab reloaded: the client resumes it from
-  // the buffer rather than losing the answer (§10).
-  const activeTurn = findActiveTurn(db, student.id);
+  // Turns still streaming when this tab reloaded, in this conversation or
+  // another: the client resumes each from the buffer rather than losing the
+  // answer, and points to the ones running elsewhere (§10).
+  const activeTurns = listActiveTurns(db, student.id);
   const classroom = getClassroom(db, student.classroomId);
   const aliases = listClassroomAliases(db, student.classroomId);
 
@@ -174,7 +175,9 @@ export const load: PageServerLoad = ({ locals, url }) => {
     })),
     conversation: active ? { id: active.id, title: active.title } : null,
     messages,
-    resumeTurnId: activeTurn?.conversationId === active?.id ? (activeTurn?.id ?? null) : null,
+    activeTurns: activeTurns.map((turn) => ({ id: turn.id, conversationId: turn.conversationId })),
+    /** Answers this pupil may have being written at once (§10). Enforced by the send path. */
+    maxConcurrentTurns: classroom?.maxConcurrentTurns ?? 1,
     // Only what this classroom is allowed to use — students never see an alias
     // their educator has not allowlisted, and never the gateway identifier
     // behind it (§8, §9, §21).

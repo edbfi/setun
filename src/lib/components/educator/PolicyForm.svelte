@@ -109,6 +109,17 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
       </label>
 
       <label class="flex flex-col gap-1">
+        <span class="text-xs text-muted-foreground">{m.educator_concurrent_turns_label()}</span>
+        <select name="maxConcurrentTurns" bind:value={$form.maxConcurrentTurns} class="h-9 {field}">
+          <option value={1}>1</option>
+          <option value={2}>2</option>
+          <option value={3}>3</option>
+        </select>
+        <span class="text-xs text-muted-foreground">{m.educator_concurrent_turns_help()}</span>
+        <FieldError message={$errors.maxConcurrentTurns} />
+      </label>
+
+      <label class="flex flex-col gap-1">
         <span class="text-xs text-muted-foreground">{m.educator_session_policy_label()}</span>
         <select name="sessionPolicy" bind:value={$form.sessionPolicy} class="h-9 {field}">
           <option value="sliding">{m.educator_session_sliding()}</option>

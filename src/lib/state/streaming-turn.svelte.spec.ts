@@ -325,24 +325,30 @@ describe("StreamingTurn — the conversation it answers", () => {
     expect(turn.conversationId).toBe("conv-b");
   });
 
-  it("is here in its own conversation and elsewhere in any other", () => {
+  it("keeps one answer per conversation, each running while the pupil is elsewhere", () => {
     const conversation = new ConversationState({ id: "conv-a", title: null, messages: [] });
-    conversation.turn.begin("turn-1", "conv-a");
-    expect(conversation.turnHere).toBe(true);
-    expect(conversation.turnElsewhere).toBeNull();
+    conversation.turnFor("conv-a").begin("turn-1", "conv-a");
+    expect(conversation.turn.turnId).toBe("turn-1");
+    expect(conversation.turnsElsewhere).toEqual([]);
 
+    // A second answer, in another conversation, beside the first.
     conversation.id = "conv-b";
-    expect(conversation.turnHere).toBe(false);
-    expect(conversation.turnElsewhere).toBe("conv-a");
+    expect(conversation.turn.streaming).toBe(false);
+    conversation.turnFor("conv-b").begin("turn-2", "conv-b");
+    expect(conversation.turn.turnId).toBe("turn-2");
+    expect(conversation.streamingCount).toBe(2);
+    expect(conversation.turnsElsewhere.map((entry) => entry.conversationId)).toEqual(["conv-a"]);
 
-    // Finished: nothing is running anywhere.
-    conversation.turn.apply({ type: "done", reason: "stop" }, 0);
-    expect(conversation.turnElsewhere).toBeNull();
+    // The first finishes: nothing is running anywhere else.
+    conversation.turnFor("conv-a").apply({ type: "done", reason: "stop" }, 0);
+    expect(conversation.turnsElsewhere).toEqual([]);
+    expect(conversation.streamingCount).toBe(1);
   });
 
-  it("is shown wherever the pupil is when its conversation is not known", () => {
-    const conversation = new ConversationState({ id: "conv-b", title: null, messages: [] });
-    conversation.turn.begin("turn-1");
-    expect(conversation.turnHere).toBe(true);
+  it("reads an idle answer in a conversation that has none", () => {
+    const conversation = new ConversationState({ id: "conv-c", title: null, messages: [] });
+    expect(conversation.turn.streaming).toBe(false);
+    expect(conversation.turn.isEmpty).toBe(true);
+    expect(conversation.turns).toEqual([]);
   });
 });

@@ -10,6 +10,16 @@ interface Claim {
   reserved: number;
 }
 
+/**
+ * The output one provider request reserves before it starts (§10).
+ *
+ * Not the whole of what is left: a pupil may have two answers being written at
+ * once, and a request that held their entire allowance would refuse the other
+ * one as if the day were spent. A request whose answer runs past this asks for
+ * more as it goes, and is stopped only when the day really has none.
+ */
+export const OUTPUT_RESERVATION = 32_000;
+
 // Process infrastructure, like liveTurns: claims coordinate pupils in the same
 // database and live only until their turn's usage is persisted.
 const claimsByDb = new WeakMap<AppDatabase, { claims: Set<Claim>; generation: number }>();
@@ -63,20 +73,27 @@ export function claimDailyBudget(input: {
 
   return {
     consumed,
-    reserve(promptTokens) {
+    reserve(promptTokens, outputTokens = OUTPUT_RESERVATION) {
       const used = consumed(true, true);
       const classroomLeft =
         input.budgets.perClassroomDailyTokens - used.classroomTokens - own.spent;
       const studentLeft = input.budgets.perStudentDailyTokens - used.studentTokens - own.spent;
       if (classroomLeft <= promptTokens) return { stop: "classroom-cap-exhausted" };
       if (studentLeft <= promptTokens) return { stop: "student-allowance-exhausted" };
-      // Reserve the prompt plus the whole permitted output before yielding to
-      // the network. Per-turn checkpoints remain soft; only daily tokens bind.
-      own.reserved = Math.floor(Math.min(classroomLeft, studentLeft));
+      // Reserve the prompt and a share of output before yielding to the
+      // network. Per-turn checkpoints remain soft; only daily tokens bind.
+      const left = Math.floor(Math.min(classroomLeft, studentLeft));
+      own.reserved = Math.min(left, promptTokens + outputTokens);
       return {
         outputTokens: own.reserved - promptTokens,
+        // When the reservation is all the day has left, reaching it is the end
+        // of the day; otherwise the request reserves again (§10).
         limit:
-          classroomLeft <= studentLeft ? "classroom-cap-exhausted" : "student-allowance-exhausted",
+          own.reserved < left
+            ? null
+            : classroomLeft <= studentLeft
+              ? "classroom-cap-exhausted"
+              : "student-allowance-exhausted",
       };
     },
     settle(tokens) {

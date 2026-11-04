@@ -144,7 +144,16 @@ export interface DailyConsumption {
 /** A turn's claims on the shared day, reconciled after each provider request. */
 export interface DailyBudgetLease {
   consumed(): DailyConsumption;
-  reserve(promptTokens: number): { outputTokens: number; limit: DailyStop } | { stop: DailyStop };
+  /**
+   * Hold the day's tokens for one provider request: its prompt, then up to
+   * `outputTokens` of answer — called again, with what the request has used so
+   * far as the prompt, to hold more. `limit` is what reaching the reservation
+   * means: the end of the day, or null when more may be asked for.
+   */
+  reserve(
+    promptTokens: number,
+    outputTokens?: number,
+  ): { outputTokens: number; limit: DailyStop | null } | { stop: DailyStop };
   settle(tokens: number): void;
   release(): void;
 }

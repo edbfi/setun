@@ -10,7 +10,13 @@ import { promptTextOf } from "../gateway/messages";
 import { streamingResponse, stubFetch } from "../gateway/testing";
 import { estimateTokens } from "../gateway/usage";
 import { BUDGET_PRESETS } from "./budgets";
-import { assertNoTurnInFlight, getActiveTurn, TurnInFlightError } from "./concurrency";
+import {
+  assertNoTurnInConversation,
+  assertTurnCapacity,
+  getActiveTurns,
+  TurnInFlightError,
+  TurnLimitError,
+} from "./concurrency";
 import { assembleContext } from "./loop";
 import { executeTurn } from "./runner";
 import { streamTurnEvents } from "./stream";
@@ -365,42 +371,79 @@ describe("streamTurnEvents", () => {
   });
 });
 
-describe("one turn in flight per student", () => {
-  it("reports the in-flight turn while it is streaming", () => {
+describe("answers in flight: one per conversation, the classroom's limit per pupil (§10)", () => {
+  const capacity =
+    (conversationId: string, limit = 2) =>
+    () =>
+      assertTurnCapacity(db, { studentId: fixtures.student.id, conversationId, limit });
+
+  it("refuses a second answer in the same conversation, naming the one to wait for", () => {
     const scaffold = startedTurn();
 
-    expect(getActiveTurn(db, fixtures.student.id)?.id).toBe(scaffold.turn.id);
-    expect(() => assertNoTurnInFlight(db, fixtures.student.id)).toThrow(TurnInFlightError);
-  });
-
-  it("names the turn to abort in the refusal", () => {
-    const scaffold = startedTurn();
-
+    expect(getActiveTurns(db, fixtures.student.id).map((turn) => turn.id)).toEqual([
+      scaffold.turn.id,
+    ]);
     try {
-      assertNoTurnInFlight(db, fixtures.student.id);
+      capacity(scaffold.conversation.id)();
       throw new Error("expected a refusal");
     } catch (error) {
+      expect(error).toBeInstanceOf(TurnInFlightError);
       expect((error as TurnInFlightError).activeTurnId).toBe(scaffold.turn.id);
     }
   });
 
-  it("applies across conversations, not per conversation", async () => {
+  it("lets an answer start in another conversation, up to the limit", () => {
     startedTurn();
-    // A second conversation for the same student is still blocked (§10).
     const second = createConversation(db, {
       studentId: fixtures.student.id,
       modelAliasId: fixtures.alias.id,
     });
-    expect(second.id).toBeTruthy();
 
-    expect(() => assertNoTurnInFlight(db, fixtures.student.id)).toThrow(TurnInFlightError);
+    expect(capacity(second.id)).not.toThrow();
+    expect(capacity(second.id, 1)).toThrow(TurnLimitError);
   });
 
-  it("does not block a different student", () => {
+  it("refuses past the limit across all of the pupil's conversations", () => {
+    startedTurn();
+    startedTurn();
+    const third = createConversation(db, {
+      studentId: fixtures.student.id,
+      modelAliasId: fixtures.alias.id,
+    });
+
+    expect(capacity(third.id, 2)).toThrow(TurnLimitError);
+    expect(capacity(third.id, 3)).not.toThrow();
+  });
+
+  it("does not count another student's answers", () => {
     startedTurn();
     const other = seedTestFixtures(db, { label: "quiet-heron", digest: "other" });
+    const theirs = createConversation(db, {
+      studentId: other.student.id,
+      modelAliasId: other.alias.id,
+    });
 
-    expect(() => assertNoTurnInFlight(db, other.student.id)).not.toThrow();
+    expect(() =>
+      assertTurnCapacity(db, { studentId: other.student.id, conversationId: theirs.id, limit: 1 }),
+    ).not.toThrow();
+  });
+
+  it("guards a branch switch in the busy conversation only", () => {
+    const scaffold = startedTurn();
+    const quiet = createConversation(db, {
+      studentId: fixtures.student.id,
+      modelAliasId: fixtures.alias.id,
+    });
+
+    expect(() =>
+      assertNoTurnInConversation(db, {
+        studentId: fixtures.student.id,
+        conversationId: scaffold.conversation.id,
+      }),
+    ).toThrow(TurnInFlightError);
+    expect(() =>
+      assertNoTurnInConversation(db, { studentId: fixtures.student.id, conversationId: quiet.id }),
+    ).not.toThrow();
   });
 
   it("releases once the turn reaches a terminal state", async () => {
@@ -412,8 +455,8 @@ describe("one turn in flight per student", () => {
       ),
     );
 
-    expect(getActiveTurn(db, fixtures.student.id)).toBeUndefined();
-    expect(() => assertNoTurnInFlight(db, fixtures.student.id)).not.toThrow();
+    expect(getActiveTurns(db, fixtures.student.id)).toEqual([]);
+    expect(capacity(scaffold.conversation.id, 1)).not.toThrow();
   });
 });
 
