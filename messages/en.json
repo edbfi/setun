@@ -270,7 +270,7 @@
   "educator_availability_title": "Availability",
   "educator_budget_checkpoints_help": "An answer that reaches one of these pauses and asks the student whether to continue. Continuing grants the same amount again.",
   "educator_budget_checkpoints_title": "Checkpoints per answer",
-  "educator_budget_context_ceiling": "Conversations longer than about {tokens} tokens are summarised from the start, because the whole conversation is paid for again with every answer. A quarter of the smaller of this cap and the daily allowance.",
+  "educator_budget_context_ceiling": "Once a conversation's history passes about {tokens} tokens, its start is summarised, because the whole history is paid for again with every answer. A quarter of the smaller of this cap and the daily allowance.",
   "educator_budget_daily_help": "Firm limits. Students are warned once when 70% is used, and an answer stops when the limit is reached.",
   "educator_budget_daily_title": "Daily limits",
   "educator_budgets_title": "Budgets",

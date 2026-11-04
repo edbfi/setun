@@ -17,10 +17,10 @@ import type { Message, MessagePart } from "../db/schema";
  *    allowance cannot pay for it — and the window needs the room, the same
  *    messages are left out and the model is told how many.
  *
- * What triggers it is the smaller of the model's window and the classroom's
- * ceiling on history (`turnContextCeiling`): the history is paid for again on
- * every step, so a conversation is kept to what the class can afford even on a
- * model that could read far more.
+ * What triggers it is the model's window, or the classroom's ceiling on
+ * history (`turnContextCeiling`) where that comes first: the history is paid
+ * for again on every step, so a conversation is kept to what the class can
+ * afford even on a model that could read far more.
  *
  * What is never summarised is code. An artifact's current files travel in full
  * beside the note whenever the path no longer holds them, which is exactly what
@@ -60,9 +60,12 @@ export interface PlanInput {
   /** How many input tokens the request may hold: the model's window, after the answer. */
   readonly budget: number;
   /**
-   * How many the classroom's budgets make worth sending (§10). Compaction aims
-   * under the smaller of this and `budget`; only `budget` decides whether a
-   * request fits, and only the window is worth leaving messages out for.
+   * How much history the classroom's budgets make worth sending (§10): tokens
+   * beyond what the request costs with the current prompt alone — the system
+   * prompt, the tools and the project's files are paid for either way, and
+   * cutting history cannot shrink them. Past it, history is summarised as when
+   * the window runs out; only `budget` decides whether a request fits, and only
+   * the window is worth leaving messages out for.
    */
   readonly ceiling?: number;
   /** The size of the whole request built from a path, as the provider will count it. */
@@ -93,12 +96,8 @@ const HARD_TARGET = 0.4;
 
 export async function planContext(input: PlanInput): Promise<ContextPlan> {
   const { budget } = input;
-  const aim = Math.min(budget, input.ceiling ?? budget);
   // Where the window itself, not the classroom's purse, needs the path cut.
   const windowTarget = budget * (input.hard ? HARD_TARGET : TRIGGER);
-  // Hard: compact whatever the size, down to well under the budget.
-  const trigger = input.hard ? 0 : aim * TRIGGER;
-  const target = Math.min(windowTarget, aim * TRIGGER);
 
   // A stored summary stands in for what it covers on every turn after it: sending
   // the full history again whenever it happens to fit would make the model's
@@ -114,6 +113,21 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
 
   const asIs = compose(body);
   const asIsTokens = input.measure(asIs);
+
+  const starts = userStarts(body);
+  const current = starts.at(-1) ?? 0;
+  const lastTwo = starts.at(-2) ?? current;
+
+  // The classroom's ceiling counts history only, so it is measured above the
+  // request the current prompt makes on its own — and only when the request is
+  // big enough for that to matter.
+  const ceiling =
+    input.ceiling !== undefined && asIsTokens > input.ceiling
+      ? input.measure(compose(body.slice(current))) + input.ceiling
+      : Number.POSITIVE_INFINITY;
+  // Hard: compact whatever the size, down to well under the budget.
+  const trigger = input.hard ? 0 : Math.min(budget * TRIGGER, ceiling);
+  const target = Math.min(windowTarget, ceiling);
   if (asIsTokens <= trigger) {
     return {
       path: asIs,
@@ -123,10 +137,6 @@ export async function planContext(input: PlanInput): Promise<ContextPlan> {
       fits: asIsTokens <= budget,
     };
   }
-
-  const starts = userStarts(body);
-  const current = starts.at(-1) ?? 0;
-  const lastTwo = starts.at(-2) ?? current;
 
   // 1. Trim what is older than the last two exchanges.
   const trimmed = compose(trimBefore(body, lastTwo));

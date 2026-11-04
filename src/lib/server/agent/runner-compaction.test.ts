@@ -256,8 +256,8 @@ describe("a conversation that outgrows the model", () => {
 });
 
 describe("a conversation that outgrows what the classroom can afford (§10)", () => {
-  // The floor of the ceiling: 8,000 tokens of history, on a model that could
-  // read a million.
+  // The floor of the ceiling: 8,000 tokens of history beyond the prompt and the
+  // instructions, on a model that could read a million.
   const budgets = { ...BUDGET_PRESETS.cautious, perTurnTokenCap: 1_000 };
 
   it("is summarised though the model's window has room for all of it", async () => {

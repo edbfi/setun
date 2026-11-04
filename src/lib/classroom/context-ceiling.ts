@@ -7,10 +7,12 @@
  * per-turn cap and the pupil's daily allowance leaves room for several steps
  * before the turn's checkpoint, and for several turns in a day.
  *
- * Past it, the start of the conversation is summarised, exactly as when the
- * model's window is what runs out — the model's window still binds when it is
- * the smaller of the two. No setting of its own: it follows the budgets the
- * educator already sets.
+ * History only: what the request costs with the current prompt alone — the
+ * system prompt, the tools, the project's files — is paid for either way, and
+ * summarising cannot shrink it. Past the ceiling, the start of the conversation
+ * is summarised, exactly as when the model's window is what runs out; the
+ * window still binds when it comes first. No setting of its own: it follows the
+ * budgets the educator already sets.
  *
  * Shared, so the budget panel can say what the figures it shows imply.
  */
@@ -18,10 +20,7 @@
 /** The share of the binding allowance a turn's history may fill. */
 const SHARE = 0.25;
 
-/**
- * Never below this: the system prompt and tool definitions alone can come near
- * it, and a ceiling under them would summarise on every turn to no purpose.
- */
+/** Never below this: a few exchanges of memory, whatever the budgets. */
 export const MIN_CONTEXT_CEILING = 8_000;
 
 export function turnContextCeiling(budgets: {

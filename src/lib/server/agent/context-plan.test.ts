@@ -293,6 +293,31 @@ describe("planContext", () => {
     expect(textOf(plan.path)).not.toContain("left out");
   });
 
+  it("counts only history against the ceiling, not what the prompt costs alone", async () => {
+    // Two short exchanges under a big current prompt: the history is small,
+    // whatever the request's size, so there is nothing worth summarising.
+    const path = [
+      msg("u1", "user", "q1"),
+      msg("a1", "assistant", "a1"),
+      msg("u2", "user", "q".repeat(5_000)),
+    ];
+    let asked = false;
+    const plan = await planContext({
+      path,
+      stored: null,
+      budget: 100_000,
+      ceiling: 100,
+      measure,
+      summarise: async () => {
+        asked = true;
+        return null;
+      },
+    });
+
+    expect(asked).toBe(false);
+    expect(plan.mode).toBeNull();
+  });
+
   it("decides whether a request fits by the window, never the ceiling", async () => {
     const path = [msg("u1", "user", "q".repeat(2_000))];
     const plan = await planContext({
