@@ -39,6 +39,8 @@
   "artifact_fix_request": "It did not run. Can you help me fix it?",
   "artifact_fix_request_threw": "It ran, but then something went wrong. Can you help me fix it?",
   "artifact_frame_title": "Artifact preview",
+  "artifact_fullscreen_enter": "Full screen",
+  "artifact_fullscreen_exit": "Exit full screen (Esc)",
   "artifact_history_added": "{count} added",
   "artifact_history_deleted": "{count} removed",
   "artifact_history_load_failed": "The version files could not be loaded.",

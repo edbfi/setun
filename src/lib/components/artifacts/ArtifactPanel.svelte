@@ -13,6 +13,8 @@ let sending: Promise<unknown> = Promise.resolve();
 </script>
 
 <script lang="ts">
+import Maximize from "@lucide/svelte/icons/maximize";
+import Minimize from "@lucide/svelte/icons/minimize";
 import { rovingTarget } from "$lib/a11y/roving";
 import { effectiveArtifactKey, effectiveLanguage } from "$lib/artifacts/identity";
 import { kindOf } from "$lib/artifacts/project";
@@ -83,6 +85,52 @@ const snapshotRequests = new Map<string, Promise<ArtifactVersionView | null>>();
 let diffPath = $state<string | null>(null);
 let selectedVersionId = $state<string | null>(null);
 let frame = $state<ReturnType<typeof ArtifactFrame> | null>(null);
+/**
+ * The stage the artifact runs on, which is what goes full screen (§13, §20).
+ *
+ * A game wants the whole screen, and a 640-pixel pane beside the conversation
+ * is not it. The *application* asks for full screen, on its own element around
+ * the frame — the artifact itself is never allowed to: a page that can take
+ * over the screen by itself can draw a fake one. Esc leaves, as it does
+ * everywhere; the browser says so as it enters.
+ */
+let stage = $state<HTMLDivElement | null>(null);
+let fullscreen = $state(false);
+/** Where the browser has no full screen (an iPhone), the control is not offered. */
+const fullscreenAvailable = typeof document !== "undefined" && document.fullscreenEnabled;
+
+$effect(() => {
+  const sync = () => {
+    fullscreen = stage !== null && document.fullscreenElement === stage;
+  };
+  document.addEventListener("fullscreenchange", sync);
+  return () => document.removeEventListener("fullscreenchange", sync);
+});
+
+// Leaving the preview, or the artifact, leaves full screen with it — including
+// when that happens by itself, as when a new build opens while a game is full
+// screen. Read here so the cleanup runs on either change, not only on unmount;
+// a hidden stage left in full screen would hide its own exit button too.
+$effect(() => {
+  const element = stage;
+  void tab;
+  void artifact?.id;
+  return () => {
+    if (element && document.fullscreenElement === element) void document.exitFullscreen();
+  };
+});
+
+async function enterFullscreen(): Promise<void> {
+  if (!stage || document.fullscreenElement) return;
+  try {
+    await stage.requestFullscreen({ navigationUI: "hide" });
+  } catch {
+    // Refused (a policy, a browser setting): the pane is still there.
+    return;
+  }
+  // The game should have the keyboard the moment it fills the screen.
+  frame?.focus();
+}
 let tablist = $state<HTMLDivElement | null>(null);
 
 /** Reports already sent, so a re-render does not PATCH the same outcome twice. */
@@ -482,6 +530,19 @@ $effect(() => {
         {/if}
       </div>
 
+      {#if artifact && tab === "preview" && fullscreenAvailable && workspace.running !== null}
+        <button
+          type="button"
+          onclick={() => void enterFullscreen()}
+          title={m.artifact_fullscreen_enter()}
+          aria-label={m.artifact_fullscreen_enter()}
+          data-artifact-fullscreen
+          class="grid size-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Maximize size={16} aria-hidden="true" />
+        </button>
+      {/if}
+
       {#if artifact && tab !== "index"}
         <button
           type="button"
@@ -547,7 +608,27 @@ $effect(() => {
         The frame stays mounted across tabs: reloading the artifact because a
         pupil looked at its source would throw away whatever state it had.
       -->
-      <div class={["h-full", tab === "preview" ? "block" : "hidden"]}>
+      <div
+        bind:this={stage}
+        class={["relative h-full bg-white", tab === "preview" ? "block" : "hidden"]}
+        data-artifact-stage
+      >
+        {#if fullscreen}
+          <!--
+            The way out for a pupil without an Esc key — a touchscreen
+            Chromebook folded flat. Small, and faded until it is wanted, so it
+            sits over the game's corner rather than over the game.
+          -->
+          <button
+            type="button"
+            onclick={() => void document.exitFullscreen()}
+            aria-label={m.artifact_fullscreen_exit()}
+            title={m.artifact_fullscreen_exit()}
+            class="absolute right-2 top-2 z-10 grid size-9 place-items-center rounded-md bg-black/50 text-white opacity-40 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white motion-safe:transition-opacity"
+          >
+            <Minimize size={16} aria-hidden="true" />
+          </button>
+        {/if}
         {#if artifact && workspace.running !== null}
           <ArtifactFrame
             bind:this={frame}

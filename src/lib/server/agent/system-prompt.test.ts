@@ -130,6 +130,13 @@ describe("the artifact layer", () => {
     expect(ARTIFACT_INSTRUCTIONS).toContain("open and close its block with four (````)");
   });
 
+  it("tells a game how to lock the pointer, and to leave full screen to Setun", () => {
+    // The sandbox grants pointer lock and refuses an artifact's own full-screen
+    // request, so the model must be told both or write games that do nothing.
+    expect(ARTIFACT_INSTRUCTIONS).toContain("canvas.requestPointerLock() in a click handler");
+    expect(ARTIFACT_INSTRUCTIONS).toContain("do not call requestFullscreen");
+  });
+
   it("bounds what an artifact may import", () => {
     expect(ARTIFACT_INSTRUCTIONS).toContain("Imports are relative paths inside the project");
     expect(ARTIFACT_INSTRUCTIONS).toContain("Importable: react, react-dom/client");

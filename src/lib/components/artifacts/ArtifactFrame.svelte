@@ -242,11 +242,18 @@ $effect(() => {
 });
 </script>
 
+<!--
+  Scripts and pointer lock, and nothing else (§14). Pointer lock is what a game
+  that looks around with the mouse needs; it grants the cursor and nothing more,
+  only from a click inside the artifact, and Esc always releases it. Still no
+  `allow-same-origin`, so the document stays opaque. The runner page sandboxes
+  the artifact's own frame the same way, and the flags intersect.
+-->
 <iframe
   bind:this={frame}
   src={sandboxOrigin}
   title={m.artifact_frame_title()}
-  sandbox="allow-scripts"
+  sandbox="allow-scripts allow-pointer-lock"
   referrerpolicy="no-referrer"
   allow=""
   class="h-full w-full border-0 bg-white"
