@@ -5,6 +5,7 @@ import type { GatewayEvent } from "../gateway/events";
 import type { DailyBudgetLease } from "./budgets";
 import { createSummariser } from "./compaction";
 import type { PathMessage } from "./context-plan";
+import { recordCalibration, requestTokens } from "./context-window";
 import { fitTurnGrowth, runTurn } from "./loop";
 
 /**
@@ -213,5 +214,46 @@ describe("fitTurnGrowth", () => {
     expect(results.some((message) => String(message.content).includes("left out to fit"))).toBe(
       true,
     );
+  });
+});
+
+describe("summary requests on a densely counting model", () => {
+  it("are sized as the alias counts, and never sent over budget", async () => {
+    // This alias's provider has reported 2.5 tokens for every estimated one.
+    recordCalibration("dense", 1_000, 2_500);
+    const gateway = fakeGateway(["Kort."]);
+    const summarise = createSummariser({
+      adapter: gateway.adapter,
+      alias: { id: "dense", dialect: "openai", gatewayModelId: "m" },
+      budget: 4_050,
+      emit: () => {},
+    });
+    const long: PathMessage[] = Array.from({ length: 12 }, (_, n) => ({
+      id: `m${n}`,
+      role: n % 2 === 0 ? "user" : "assistant",
+      parts: [{ type: "text", text: `besked ${n} `.repeat(200) }],
+    }));
+
+    expect(await summarise(null, long)).not.toBeNull();
+    for (const request of gateway.requests) {
+      expect(requestTokens("dense", request.messages)).toBeLessThanOrEqual(4_050);
+    }
+  });
+});
+
+describe("fitTurnGrowth on older results", () => {
+  it("names a capped older result by its whole length", () => {
+    const capped = `${"r".repeat(4_000)}\n[… 36000 more characters left out to fit the model's context]`;
+    const sent: GatewayMessage[] = [
+      { role: "user", content: "Søg" },
+      { role: "assistant", content: "", toolCalls: [{ id: "1", name: "search", arguments: "{}" }] },
+      { role: "tool", toolCallId: "1", content: capped },
+      { role: "assistant", content: "", toolCalls: [{ id: "2", name: "search", arguments: "{}" }] },
+      { role: "tool", toolCallId: "2", content: "kort" },
+    ];
+
+    fitTurnGrowth(sent, 0, [], { inputTokens: 100, aliasId: "older-test" });
+
+    expect(String(sent[2].content)).toContain("(40000 characters)");
   });
 });

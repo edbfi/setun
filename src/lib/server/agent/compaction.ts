@@ -5,8 +5,8 @@ import type { GatewayEvent } from "../gateway/events";
 import { promptTextOf } from "../gateway/messages";
 import { estimateTokens, resolveUsage } from "../gateway/usage";
 import type { DailyBudgetLease } from "./budgets";
-import { type PathMessage, renderTranscript } from "./context-plan";
-import { CHARS_PER_ESTIMATED_TOKEN, requestTokens } from "./context-window";
+import { clip, type PathMessage, renderTranscript } from "./context-plan";
+import { CHARS_PER_ESTIMATED_TOKEN, calibrationRatio, requestTokens } from "./context-window";
 
 /**
  * The summaries that stand in for the start of a long conversation (PRD §10).
@@ -79,8 +79,12 @@ export function createSummariser(input: SummariserInput): Summarise {
   const calls = input.calls ?? { count: 0 };
   let announced = false;
   // Room for the transcript in one request: most of the budget, leaving the
-  // instructions, the previous summary and the answer their space.
-  const maxChars = Math.floor(input.budget * 0.6 * CHARS_PER_ESTIMATED_TOKEN);
+  // instructions, the previous summary and the answer their space — in the
+  // alias's own characters per token, so a model that counts densely gets
+  // chunks it can read (§10).
+  const maxChars = Math.floor(
+    (input.budget * 0.6 * CHARS_PER_ESTIMATED_TOKEN) / calibrationRatio(input.alias.id),
+  );
 
   return async (previous, messages) => {
     let summary = previous;
@@ -131,20 +135,30 @@ async function summariseOnce(
   previous: string | null,
   transcript: string,
 ): Promise<string | null> {
-  const messages: GatewayMessage[] = [
+  const build = (text: string): GatewayMessage[] => [
     { role: "system", content: SUMMARY_INSTRUCTIONS },
     {
       role: "user",
       content: [
         previous ? `Summary of what came before this part:\n${previous}\n` : "",
-        `Transcript to summarise:\n${transcript}`,
+        `Transcript to summarise:\n${text}`,
       ]
         .filter(Boolean)
         .join("\n"),
     },
   ];
 
-  const promptTokens = requestTokens(input.alias.id, messages);
+  // The whole request, measured as the alias counts, must fit the budget too:
+  // a previous summary and the instructions take their share, and a refused
+  // summary request leaves the history to be omitted instead.
+  let messages = build(transcript);
+  let promptTokens = requestTokens(input.alias.id, messages);
+  if (promptTokens > input.budget) {
+    const scale = (input.budget / promptTokens) * 0.9;
+    messages = build(clip(transcript, Math.floor(transcript.length * scale)));
+    promptTokens = requestTokens(input.alias.id, messages);
+    if (promptTokens > input.budget) return null;
+  }
   const allocation = input.dailyBudget?.reserve(promptTokens);
   if (allocation && "stop" in allocation) return null;
 

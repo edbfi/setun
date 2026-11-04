@@ -833,7 +833,10 @@ export function fitTurnGrowth(
     if (message.role !== "tool" || typeof message.content !== "string") continue;
     if (message.content.startsWith(SHORTENED)) continue;
 
-    messages[at] = { ...message, content: `${SHORTENED} (${message.content.length} characters)]` };
+    // The whole result's length, not what is left of it after an earlier cap.
+    const capped = CAPPED.exec(message.content);
+    const length = capped ? capped.index + Number(capped[1]) : message.content.length;
+    messages[at] = { ...message, content: `${SHORTENED} (${length} characters)]` };
   }
 
   /**

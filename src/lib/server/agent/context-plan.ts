@@ -303,7 +303,7 @@ function withoutCode(text: string): string {
 }
 
 /** Keep the start and the end of an over-long text, which is where the context is. */
-function clip(text: string, maxChars: number): string {
+export function clip(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   const head = Math.floor(maxChars * 0.4);
   const tail = maxChars - head;
