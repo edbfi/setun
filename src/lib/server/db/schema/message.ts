@@ -141,12 +141,25 @@ export const TURN_NOTICES = [
   "classroom-cap-exhausted",
   "unanswered",
   "error",
+  "context-full",
 ] as const;
 export type TurnNotice = (typeof TURN_NOTICES)[number];
 
 export interface TurnNoticePart {
   readonly type: "turn-notice";
   readonly notice: TurnNotice;
+}
+
+/**
+ * Earlier messages were summarised, or left out, before this answer (§10).
+ *
+ * The transcript keeps every message; this marks where the model's view of it
+ * stopped being the whole thing, so a pupil can tell why it no longer recalls
+ * something said at the start.
+ */
+export interface ContextCompactedPart {
+  readonly type: "context-compacted";
+  readonly mode: "summarised" | "omitted";
 }
 
 /**
@@ -161,7 +174,8 @@ export type MessagePart =
   | GeneratedImagePart
   | ToolCallPart
   | ToolResultPart
-  | TurnNoticePart;
+  | TurnNoticePart
+  | ContextCompactedPart;
 
 export const MESSAGE_ROLES = ["user", "assistant"] as const;
 export type MessageRole = (typeof MESSAGE_ROLES)[number];

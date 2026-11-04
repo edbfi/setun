@@ -1,13 +1,13 @@
 import { classroomStateChannel } from "../classroom/state-channel";
 import type { AppDatabase } from "../db/client";
 import { getClassroom } from "../db/queries/classrooms";
+import { saveContextSummary, summaryForPath } from "../db/queries/context-summaries";
 import { setActiveLeaf } from "../db/queries/conversations";
 import { attachImageToMessage } from "../db/queries/images";
 import { appendMessage, recordMessageUsage } from "../db/queries/messages";
 import { finishTurn } from "../db/queries/turns";
 import { recordUsageEvent } from "../db/queries/usage";
 import type {
-  Message,
   MessagePart,
   ModelAlias,
   PermissionMode,
@@ -18,7 +18,7 @@ import type { GatewayAdapter } from "../gateway/adapter";
 import type { GatewayEvent } from "../gateway/events";
 import { describeCause, log } from "../logging";
 import type { AttachmentPayload } from "../storage/attachments";
-import type { ArtifactContext } from "./artifact-context";
+import { type ArtifactContext, buildArtifactContext, CARRIED_MAX_CHARS } from "./artifact-context";
 import { recordTurnArtifacts } from "./artifacts";
 import {
   BUDGET_PRESETS,
@@ -27,10 +27,20 @@ import {
   type DailyBudgetLease,
   type DailyConsumption,
 } from "./budgets";
+import { createSummariser } from "./compaction";
+import { type PathMessage, planContext } from "./context-plan";
+import {
+  CHARS_PER_ESTIMATED_TOKEN,
+  type ContextWindow,
+  inputBudget,
+  learnContextCeiling,
+  requestTokens,
+  resolveContextWindow,
+} from "./context-window";
 import { claimDailyBudget } from "./daily-budget";
 import { turnInteractions } from "./interactions";
 import { liveTurns } from "./live-turns";
-import { runTurn } from "./loop";
+import { assembleContext, runTurn } from "./loop";
 import type { SystemPromptLayers } from "./system-prompt";
 import type { ToolContext, ToolSet } from "./tools";
 import { TurnBuffer } from "./turn-buffer";
@@ -57,7 +67,8 @@ export interface ExecuteTurnInput {
   readonly classroomId: string;
   readonly alias: ModelAlias;
   readonly parentMessageId: string | null;
-  readonly path: readonly Pick<Message, "role" | "parts">[];
+  /** The active path; stored messages carry their ids, which summaries are keyed by (§10). */
+  readonly path: readonly PathMessage[];
   readonly attachmentPayloads?: ReadonlyMap<string, AttachmentPayload>;
   readonly promptLayers?: SystemPromptLayers;
   /** What this conversation has built, for the state note and the elision (§13). */
@@ -117,49 +128,99 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
       range: budgetDayRange(classroom?.timezone ?? "UTC"),
       budgets: input.budgets ?? BUDGET_PRESETS.standard,
     });
-    for await (const event of runTurn({
-      adapter: input.adapter,
-      dialect: input.alias.dialect,
-      model: input.alias.gatewayModelId,
-      path: input.path,
-      attachmentPayloads: input.attachmentPayloads,
-      promptLayers: input.promptLayers,
-      artifacts: input.artifacts,
-      budgets: input.budgets,
-      consumed: input.consumed,
-      dailyBudget,
-      signal,
-      ...(input.tools && input.toolContext
-        ? {
-            tooling: {
-              tools: input.tools,
-              context: input.toolContext,
-              mode: input.permissionMode ?? "standard",
-              turnId,
-              interactions: turnInteractions,
-            },
-          }
-        : {}),
-    })) {
-      // Dropped before anything else sees it: the classroom said never (§21).
-      if (event.type === "thinking-delta" && input.thinkingVisibility === "hidden") continue;
 
+    /** An event of the turn's own making — the stage, the summary's cost — recorded like any other. */
+    const emit = (event: GatewayEvent) => {
       collect({ event, parts, imageIds, usage, asked });
-
-      if (event.type === "done") {
-        status = terminalStatusFor(event);
-        // The reason travels with the message, not only down the wire. The
-        // client's live copy is cleared the instant the persisted message
-        // replaces the streaming one, so a pupil whose turn was stopped or
-        // capped had nothing left to read — then, or on the next visit (§10).
-        const notice = noticeFor(event);
-        if (notice) parts.push({ type: "turn-notice", notice });
-      }
-
-      // Persist first, then publish: a tailing subscriber must never see an
-      // event that a resuming reader could miss (§10).
       const buffered = buffer.append(event);
       liveTurns.publish({ turnId, buffered });
+    };
+
+    // Fit the conversation to the model before the first request, and once more,
+    // harder, if the provider refuses it for length anyway (§10).
+    let plan = await planTurnContext({
+      input,
+      window: await resolveContextWindow(input.adapter, input.alias),
+      dailyBudget,
+      signal,
+      emit,
+      hard: false,
+    });
+
+    for (let attempt = 0; ; attempt++) {
+      let retry = false;
+
+      for await (const event of runTurn({
+        adapter: input.adapter,
+        dialect: input.alias.dialect,
+        model: input.alias.gatewayModelId,
+        path: plan.path,
+        attachmentPayloads: input.attachmentPayloads,
+        promptLayers: input.promptLayers,
+        artifacts: plan.artifacts,
+        contextBudget: { inputTokens: plan.budget, aliasId: input.alias.id },
+        budgets: input.budgets,
+        consumed: input.consumed,
+        dailyBudget,
+        signal,
+        ...(input.tools && input.toolContext
+          ? {
+              tooling: {
+                tools: input.tools,
+                context: input.toolContext,
+                mode: input.permissionMode ?? "standard",
+                turnId,
+                interactions: turnInteractions,
+              },
+            }
+          : {}),
+      })) {
+        // Dropped before anything else sees it: the classroom said never (§21).
+        if (event.type === "thinking-delta" && input.thinkingVisibility === "hidden") continue;
+
+        // Refused for length before a word of the answer: held back, not shown,
+        // and asked again once with a harder compaction. Past that, or once the
+        // answer has begun, the pupil is told instead.
+        if (
+          event.type === "done" &&
+          event.reason === "context-full" &&
+          attempt === 0 &&
+          parts.every((part) => part.type === "context-compacted")
+        ) {
+          retry = true;
+          break;
+        }
+
+        collect({ event, parts, imageIds, usage, asked });
+
+        if (event.type === "done") {
+          status = terminalStatusFor(event);
+          // The reason travels with the message, not only down the wire. The
+          // client's live copy is cleared the instant the persisted message
+          // replaces the streaming one, so a pupil whose turn was stopped or
+          // capped had nothing left to read — then, or on the next visit (§10).
+          const notice = noticeFor(event);
+          if (notice) parts.push({ type: "turn-notice", notice });
+        }
+
+        // Persist first, then publish: a tailing subscriber must never see an
+        // event that a resuming reader could miss (§10).
+        const buffered = buffer.append(event);
+        liveTurns.publish({ turnId, buffered });
+      }
+
+      if (!retry) break;
+
+      // The provider knows the window better than the estimate did.
+      learnContextCeiling(input.alias.id, plan.tokens);
+      plan = await planTurnContext({
+        input,
+        window: await resolveContextWindow(input.adapter, input.alias),
+        dailyBudget,
+        signal,
+        emit,
+        hard: true,
+      });
     }
 
     persistOutcome({ ...input, parts, imageIds, usage, status });
@@ -267,6 +328,15 @@ function collect(args: {
       });
       break;
     }
+    case "context-compacted": {
+      // One marker per message, at its head, however many passes it took: a
+      // summary outranks an omission, because it is what the model was given.
+      const at = parts.findIndex((part) => part.type === "context-compacted");
+      if (at === -1) parts.unshift({ type: "context-compacted", mode: event.mode });
+      else if (event.mode === "summarised")
+        parts[at] = { type: "context-compacted", mode: "summarised" };
+      break;
+    }
     case "image-generated":
       args.imageIds.push(event.imageId);
       parts.push({ type: "generated-image", imageId: event.imageId, prompt: event.prompt });
@@ -336,7 +406,7 @@ function noticeFor(event: Extract<GatewayEvent, { type: "done" }>): TurnNotice |
 
 function terminalStatusFor(event: Extract<GatewayEvent, { type: "done" }>) {
   if (event.reason === "aborted") return "aborted" as const;
-  if (event.reason === "error") return "failed" as const;
+  if (event.reason === "error" || event.reason === "context-full") return "failed" as const;
   return "completed" as const;
 }
 
@@ -424,4 +494,93 @@ function persistOutcome(
     status: input.status,
     assistantMessageId: assistantMessage?.id ?? null,
   });
+}
+
+/** The context a turn sends, and the numbers it was planned against. */
+interface PlannedContext {
+  readonly path: PathMessage[];
+  readonly artifacts?: ArtifactContext;
+  /** The input budget, in tokens, the plan was made for. */
+  readonly budget: number;
+  /** The planned request's measured size. */
+  readonly tokens: number;
+}
+
+/**
+ * Fit the conversation into the alias's context window (§10).
+ *
+ * Measures the request exactly as the loop will build it — system prompt,
+ * history, artifact note and carried sources, tool definitions — so what is
+ * planned is what is sent. A summary written here is stored against the last
+ * message it covers, and the pupil sees a marker on the answer.
+ */
+async function planTurnContext(args: {
+  input: ExecuteTurnInput;
+  window: ContextWindow;
+  dailyBudget?: DailyBudgetLease;
+  signal: AbortSignal;
+  emit: (event: GatewayEvent) => void;
+  hard: boolean;
+}): Promise<PlannedContext> {
+  const { input, window } = args;
+  const budget = inputBudget(window, input.alias.dialect, input.alias.gatewayModelId);
+  const definitions = input.tools && input.toolContext ? input.tools.definitions() : [];
+  // Carried sources share the budget with everything else: a project the path
+  // no longer holds must not, on its own, be what overflows a small window.
+  const carriedMaxChars = Math.min(
+    CARRIED_MAX_CHARS,
+    Math.floor(budget * 0.35 * CHARS_PER_ESTIMATED_TOKEN),
+  );
+
+  const artifactsFor = (path: readonly PathMessage[]): ArtifactContext | undefined => {
+    if (input.artifacts === undefined) return undefined;
+    // The path as given: the artifacts the caller already built for it.
+    const unchanged =
+      path.length === input.path.length && path.every((m, at) => m === input.path[at]);
+    const built = unchanged
+      ? input.artifacts
+      : buildArtifactContext(input.db, {
+          conversationId: input.conversationId,
+          studentId: input.studentId,
+          // A cut path no longer holds what it summarised away, so those
+          // current sources come back as carried ones, in full.
+          path,
+        });
+    return { ...built, carriedMaxChars };
+  };
+
+  const measure = (path: readonly PathMessage[]) =>
+    requestTokens(
+      input.alias.id,
+      assembleContext(path, input.promptLayers, input.attachmentPayloads, artifactsFor(path)),
+      definitions,
+    );
+
+  const pathIds = input.path.flatMap((message) => (message.id ? [message.id] : []));
+  const stored = summaryForPath(input.db, { conversationId: input.conversationId, pathIds });
+
+  const plan = await planContext({
+    path: input.path,
+    stored: stored ? { throughMessageId: stored.throughMessageId, text: stored.text } : null,
+    budget,
+    measure,
+    summarise: createSummariser({
+      adapter: input.adapter,
+      alias: input.alias,
+      budget,
+      signal: args.signal,
+      dailyBudget: args.dailyBudget,
+      emit: args.emit,
+    }),
+    hard: args.hard,
+  });
+
+  if (plan.summary) {
+    saveContextSummary(input.db, { conversationId: input.conversationId, ...plan.summary });
+  }
+  if (plan.mode === "summarised" || plan.mode === "omitted") {
+    args.emit({ type: "context-compacted", mode: plan.mode });
+  }
+
+  return { path: plan.path, artifacts: artifactsFor(plan.path), budget, tokens: plan.tokens };
 }

@@ -90,6 +90,7 @@ const stage = $derived(
     parts: turn.parts,
     lastSegments: segments.get(turn.parts.length - 1),
     waiting: turn.waiting,
+    compacting: turn.compacting,
   }),
 );
 

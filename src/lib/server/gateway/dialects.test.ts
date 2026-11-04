@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { GatewayAdapter } from "./adapter";
-import { GatewayError } from "./errors";
+import { GatewayError, isContextOverflow } from "./errors";
 import type { GatewayEvent } from "./events";
 import { sseBody, streamingResponse, stubFetch } from "./testing";
 
@@ -237,6 +237,29 @@ describe("openai dialect", () => {
     const events = await collect(adapter.streamChat("openai", request));
 
     expect(events.at(-1)).toMatchObject({ type: "usage", finishReason: "stop" });
+  });
+
+  it("lists the context window CPA reports, preferring the operator's override", async () => {
+    const { adapter } = adapterOver(
+      () =>
+        new Response(
+          JSON.stringify({
+            data: [
+              { id: "known", context_length: 128000, max_completion_tokens: 16384 },
+              { id: "overridden", context_length: 1000000, max_context_length: 200000 },
+              { id: "unknown" },
+              { id: "nonsense", context_length: "lots" },
+            ],
+          }),
+        ),
+    );
+
+    expect(await adapter.listModels("openai")).toEqual([
+      { id: "known", contextTokens: 128000, maxOutputTokens: 16384 },
+      { id: "overridden", contextTokens: 200000 },
+      { id: "unknown" },
+      { id: "nonsense" },
+    ]);
   });
 
   it("lists models", async () => {
@@ -804,6 +827,64 @@ describe("error mapping", () => {
       });
     });
   }
+
+  /**
+   * The one refusal Setun recovers from on its own, read from what each
+   * provider says through CPA — and never from a status alone (§10).
+   */
+  const overflows: { status: number; body: string }[] = [
+    {
+      status: 400,
+      body: '{"error":{"message":"This model\'s maximum context length is 128000 tokens. However, your messages resulted in 131212 tokens.","code":"context_length_exceeded"}}',
+    },
+    {
+      status: 400,
+      body: '{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 210432 tokens > 200000 maximum"}}',
+    },
+    {
+      status: 400,
+      body: '{"error":{"message":"The input token count (1100021) exceeds the maximum number of tokens allowed (1048576)."}}',
+    },
+    { status: 400, body: "Input is too long for requested model." },
+    { status: 413, body: "Request Entity Too Large" },
+  ];
+
+  for (const { status, body } of overflows) {
+    it(`reads a ${status} saying "${body.slice(0, 40)}…" as a context overflow`, async () => {
+      const { adapter } = adapterOver(() => new Response(body, { status }));
+
+      await expect(collect(adapter.streamChat("openai", request))).rejects.toMatchObject({
+        code: "context-overflow",
+      });
+    });
+  }
+
+  it("never reads a rate limit or a bad request as an overflow", () => {
+    // OpenAI's tokens-per-minute limit says "Request too large … tokens".
+    expect(
+      isContextOverflow(
+        429,
+        "Request too large for gpt-x in organization: Limit 30000, Requested 52000 tokens",
+      ),
+    ).toBe(false);
+    expect(isContextOverflow(400, '{"error":{"message":"The model `gpt-x` does not exist"}}')).toBe(
+      false,
+    );
+    expect(isContextOverflow(400, "max_tokens: Input should be a valid integer")).toBe(false);
+    expect(isContextOverflow(401, "maximum context length")).toBe(false);
+  });
+
+  it("reads an overflow reported inside a Responses stream", async () => {
+    const { adapter } = responsesAdapter([
+      responseEvent("response.failed", {
+        response: { error: { message: "Your input exceeds the context window of this model." } },
+      }),
+    ]);
+
+    await expect(collect(adapter.streamChat("openai", request))).rejects.toMatchObject({
+      code: "context-overflow",
+    });
+  });
 
   it("maps a transport failure to unavailable", async () => {
     const { adapter } = adapterOver(() => {

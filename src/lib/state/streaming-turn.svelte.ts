@@ -112,6 +112,8 @@ export class StreamingTurn {
    * so anything watching for a turn to end sees each one.
    */
   finished = $state<TurnFinished | null>(null);
+  /** True while the server summarises a long conversation before answering (§10). */
+  compacting = $state(false);
   #streaming = $state(false);
   /** Injectable, so the elapsed figures are testable without waiting (§22). */
   readonly #now: () => number;
@@ -139,7 +141,7 @@ export class StreamingTurn {
    * reasons, because the answer has not begun.
    */
   get hasVisibleOutput(): boolean {
-    return this.parts.some((part) => part.type !== "thinking");
+    return this.parts.some((part) => part.type !== "thinking" && part.type !== "context-compacted");
   }
 
   /** The prose so far, for the plain-text render while the turn streams (§20). */
@@ -174,6 +176,7 @@ export class StreamingTurn {
     this.budgetWarning = null;
     this.continuePrompt = null;
     this.finished = null;
+    this.compacting = false;
     this.startedAt = this.#now();
     this.thinkingStartedAt = null;
     this.thinkingSettledAt = null;
@@ -313,6 +316,18 @@ export class StreamingTurn {
         };
         break;
 
+      case "compacting":
+        this.compacting = true;
+        break;
+
+      case "context-compacted":
+        this.compacting = false;
+        // At the head of the message, where the persisted one has it.
+        if (!this.parts.some((part) => part.type === "context-compacted")) {
+          this.parts = [{ type: "context-compacted", mode: event.mode }, ...this.parts];
+        }
+        break;
+
       case "image-generated":
         this.#settleThinking();
         this.parts = [
@@ -327,6 +342,7 @@ export class StreamingTurn {
 
       case "done":
         this.#streaming = false;
+        this.compacting = false;
         this.permission = null;
         this.elicitation = null;
         this.continuePrompt = null;

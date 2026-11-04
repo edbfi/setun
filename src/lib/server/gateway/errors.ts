@@ -15,8 +15,17 @@ export type GatewayFailureCode =
   | "unavailable"
   /** The listener key was rejected — an operator misconfiguration, not a student problem. */
   | "unauthorised"
-  /** The upstream declined this request specifically (bad model id, oversized context). */
-  | "rejected";
+  /** The upstream declined this request specifically (bad model id, malformed request). */
+  | "rejected"
+  /**
+   * The request did not fit the model's context window (§10).
+   *
+   * Told apart from `rejected` because it is the one refusal Setun can recover
+   * from on its own: shorten what it sends and ask again. Recognised by what the
+   * provider *says*, never by status alone — a 400 is just as often a bad model
+   * id, and a 429 tokens-per-minute limit reads "request too large" too.
+   */
+  | "context-overflow";
 
 export class GatewayError extends Error {
   readonly code: GatewayFailureCode;
@@ -54,9 +63,47 @@ export class GatewayError extends Error {
  */
 export { redactCredentials, redactHeaders } from "../logging";
 
-/** Map an upstream HTTP status onto a failure code. */
-export function failureCodeForStatus(status: number): GatewayFailureCode {
+/**
+ * What providers say when a request outgrows the context window.
+ *
+ * Every provider behind CPA phrases it differently, and CPA passes their bodies
+ * through: OpenAI's `context_length_exceeded` code and "maximum context length",
+ * Anthropic's "prompt is too long", Gemini's "input token count … exceeds",
+ * and the variants local and compatibility servers write. Narrow phrases only:
+ * a pattern that also matched a bad-request or rate-limit message would send a
+ * broken request round the compaction loop instead of to the operator log.
+ */
+const CONTEXT_OVERFLOW =
+  /context_length_exceeded|model_context_window_exceeded|maximum context length|context (?:length|window) (?:exceeded|is exceeded)|exceeds? (?:the )?(?:model'?s? )?(?:maximum )?context|prompt is too long|input is too long|input (?:token count|tokens?) .{0,40}exceed|too many (?:input )?tokens|reduce the length of the (?:messages|input|prompt)/i;
+
+/**
+ * Whether a refusal says the request outgrew the model's context (§10).
+ *
+ * 401 and 403 are credentials and 429 is a rate limit — OpenAI's
+ * tokens-per-minute message reads "Request too large … tokens" — so none of
+ * them is ever an overflow, whatever the text. 413 is "payload too large",
+ * which for a chat request is the same thing said by a proxy.
+ */
+export function isContextOverflow(status: number | undefined, detail: string): boolean {
+  if (status === 401 || status === 403 || status === 429) return false;
+  if (status === 413) return true;
+  return CONTEXT_OVERFLOW.test(detail);
+}
+
+/** Map an upstream HTTP status, and the body it came with, onto a failure code. */
+export function failureCodeForStatus(status: number, detail = ""): GatewayFailureCode {
   if (status === 401 || status === 403) return "unauthorised";
+  if (status >= 400 && status < 500 && isContextOverflow(status, detail)) return "context-overflow";
   if (status === 400 || status === 404 || status === 413 || status === 422) return "rejected";
   return "unavailable";
+}
+
+/**
+ * The code for a failure a stream reported mid-flight, with no status.
+ *
+ * The Responses transport and Anthropic's both report a refused request as an
+ * `error` event inside a 200 stream, so the overflow has to be read there too.
+ */
+export function streamFailureCode(message: string): GatewayFailureCode {
+  return isContextOverflow(undefined, message) ? "context-overflow" : "unavailable";
 }

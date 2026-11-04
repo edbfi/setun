@@ -86,7 +86,7 @@ export class GatewayClient {
         .catch(() => "");
 
       throw new GatewayError(
-        failureCodeForStatus(response.status),
+        failureCodeForStatus(response.status, detail),
         `status ${response.status}: ${detail}`,
         response.status,
       );

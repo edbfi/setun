@@ -28,7 +28,14 @@ export type TurnEndReason =
   | "student-allowance-exhausted"
   | "classroom-cap-exhausted"
   /** The server restarted mid-turn; resume shows a cut-short notice (§10). */
-  | "interrupted";
+  | "interrupted"
+  /**
+   * The request did not fit the model's context even after compacting (§10).
+   *
+   * The next turn compacts further on its own, so the conversation is never
+   * stuck; the notice says what happened and what the pupil can do.
+   */
+  | "context-full";
 
 export interface TextDeltaEvent {
   readonly type: "text-delta";
@@ -203,6 +210,27 @@ export interface DoneEvent {
   readonly reason: TurnEndReason;
 }
 
+/**
+ * The start of the conversation is being summarised before the answer (§10).
+ *
+ * A stage of its own because it can take as long as an answer, and a turn that
+ * says nothing for that long looks frozen (§20).
+ */
+export interface CompactingEvent {
+  readonly type: "compacting";
+}
+
+/**
+ * Earlier messages were summarised, or left out, to fit the model's context.
+ *
+ * Kept on the message so the pupil can see, then and after a reload, why the
+ * model may not recall something said long ago (§10).
+ */
+export interface ContextCompactedEvent {
+  readonly type: "context-compacted";
+  readonly mode: "summarised" | "omitted";
+}
+
 export type GatewayEvent =
   | TextDeltaEvent
   | ThinkingDeltaEvent
@@ -215,6 +243,8 @@ export type GatewayEvent =
   | ContinueRequestEvent
   | UsageEventPayload
   | ErrorEvent
+  | CompactingEvent
+  | ContextCompactedEvent
   | DoneEvent;
 
 export type GatewayEventType = GatewayEvent["type"];

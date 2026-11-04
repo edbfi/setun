@@ -80,6 +80,7 @@ const check = "flex items-center gap-2 text-sm text-foreground";
     <ul class="flex flex-col divide-y divide-border border-y border-border">
       {#each data.aliases as alias (alias.id)}
         {@const refusal = rowMessage(alias.id)}
+        {@const window = data.contextWindows[alias.id]}
         <li class="flex flex-col gap-2 py-3">
           {#if refusal}
             <p role="alert" class="text-xs text-destructive">{refusal}</p>
@@ -134,6 +135,19 @@ const check = "flex items-center gap-2 text-sm text-foreground";
               >
             </label>
 
+            <label class="flex flex-col gap-1">
+              <span class="text-xs text-muted-foreground">
+                {m.educator_alias_context_window_label()}
+              </span>
+              <input
+                name="contextWindowTokens"
+                inputmode="numeric"
+                value={alias.contextWindowTokens ?? ""}
+                placeholder={m.educator_alias_context_window_placeholder()}
+                class={field}
+              >
+            </label>
+
             <div class="flex items-end gap-2">
               <button
                 type="submit"
@@ -170,6 +184,28 @@ const check = "flex items-center gap-2 text-sm text-foreground";
               </label>
             </div>
           </form>
+
+          {#if window}
+            <!--
+              What the conversation will be fitted to, and on whose word (§10).
+              "Assumed" is the one an educator should act on: the gateway does
+              not know this model, and Setun is guessing small.
+            -->
+            <p class="text-xs text-muted-foreground" data-context-window={window.source}>
+              {window.source === "alias"
+                ? m.educator_alias_context_window_set({ tokens: window.tokens.toLocaleString() })
+                : window.source === "gateway"
+                  ? m.educator_alias_context_window_gateway({
+                      tokens: window.tokens.toLocaleString(),
+                    })
+                  : m.educator_alias_context_window_assumed({
+                      tokens: window.tokens.toLocaleString(),
+                    })}
+              {#if window.learned}
+                {m.educator_alias_context_window_learned()}
+              {/if}
+            </p>
+          {/if}
 
           <div class="flex items-center gap-3">
             <span
@@ -218,6 +254,24 @@ const check = "flex items-center gap-2 text-sm text-foreground";
           <option value="openai">openai</option>
           <option value="anthropic">anthropic</option>
         </select>
+      </label>
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-sm font-medium text-foreground">
+          {m.educator_alias_context_window_label()}
+        </span>
+        <input
+          name="contextWindowTokens"
+          type="number"
+          inputmode="numeric"
+          min="1024"
+          step="1"
+          bind:value={$form.contextWindowTokens}
+          placeholder={m.educator_alias_context_window_placeholder()}
+          class={field}
+        >
+        <span class="text-xs text-muted-foreground">{m.educator_alias_context_window_help()}</span>
+        <FieldError message={$errors.contextWindowTokens} />
       </label>
 
       <div class="flex flex-wrap gap-x-5 gap-y-1.5">

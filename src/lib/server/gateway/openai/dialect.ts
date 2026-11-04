@@ -11,7 +11,7 @@ import type {
   GeneratedImageBytes,
   ImageRequest,
 } from "../dialect";
-import { GatewayError } from "../errors";
+import { GatewayError, streamFailureCode } from "../errors";
 import type { FinishReason, GatewayEvent } from "../events";
 import { promptTextOf } from "../messages";
 import { resolveUsage } from "../usage";
@@ -299,10 +299,9 @@ export class OpenAiDialect implements GatewayDialectAdapter {
           }
           case "response.failed":
           case "error": {
-            throw new GatewayError(
-              "unavailable",
-              payload.response?.error?.message ?? payload.error?.message ?? "upstream stream error",
-            );
+            const message =
+              payload.response?.error?.message ?? payload.error?.message ?? "upstream stream error";
+            throw new GatewayError(streamFailureCode(message), message);
           }
           default:
             break;
@@ -445,11 +444,29 @@ export class OpenAiDialect implements GatewayDialectAdapter {
 
   async listModels(signal?: AbortSignal): Promise<GatewayModel[]> {
     const response = await this.#client.get("/v1/models", { signal });
-    const payload = (await response.json()) as { data?: { id?: string }[] };
+    const payload = (await response.json()) as {
+      data?: {
+        id?: string;
+        context_length?: unknown;
+        max_context_length?: unknown;
+        max_completion_tokens?: unknown;
+      }[];
+    };
 
     return (payload.data ?? [])
-      .filter((entry): entry is { id: string } => typeof entry.id === "string")
-      .map((entry) => ({ id: entry.id }));
+      .filter((entry): entry is typeof entry & { id: string } => typeof entry.id === "string")
+      .map((entry) => {
+        // The operator's override wins over the registry's figure, as it does
+        // inside CPA itself.
+        const context =
+          positiveInteger(entry.max_context_length) ?? positiveInteger(entry.context_length);
+        const output = positiveInteger(entry.max_completion_tokens);
+        return {
+          id: entry.id,
+          ...(context ? { contextTokens: context } : {}),
+          ...(output ? { maxOutputTokens: output } : {}),
+        };
+      });
   }
 
   /**
@@ -627,4 +644,9 @@ function decodeBase64(value: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
   return bytes;
+}
+
+/** A limit the gateway reported, or undefined for anything that is not one. */
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }

@@ -27,6 +27,7 @@ const DATA: AliasData = {
   supportsImageGeneration: false,
   inputPricePerMillion: null,
   outputPricePerMillion: null,
+  contextWindowTokens: null,
   isUtility: true,
 };
 

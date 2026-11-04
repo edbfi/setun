@@ -10,6 +10,7 @@ export * from "./classroom";
 export * from "./classroom-mcp-tool";
 export * from "./classroom-model-alias";
 export * from "./classroom-skill";
+export * from "./context-summary";
 export * from "./conversation";
 export * from "./educator";
 export * from "./generated-image";

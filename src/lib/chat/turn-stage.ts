@@ -35,7 +35,9 @@ export type TurnStage =
   /** Between steps: a tool came back, an image landed, and the model goes on. */
   | { readonly kind: "working" }
   /** A permission, a question or a checkpoint is waiting on the pupil. */
-  | { readonly kind: "waiting" };
+  | { readonly kind: "waiting" }
+  /** The start of a long conversation is being summarised before the answer (§10). */
+  | { readonly kind: "compacting" };
 
 export interface TurnStageInput {
   readonly parts: readonly MessagePart[];
@@ -43,12 +45,22 @@ export interface TurnStageInput {
   readonly lastSegments?: readonly StreamingSegment[];
   /** Whether a permission, an elicitation or a checkpoint is open. */
   readonly waiting: boolean;
+  /** Whether the server is summarising the conversation before the answer. */
+  readonly compacting?: boolean;
 }
 
-export function turnStage({ parts, lastSegments = [], waiting }: TurnStageInput): TurnStage {
+export function turnStage({
+  parts,
+  lastSegments = [],
+  waiting,
+  compacting = false,
+}: TurnStageInput): TurnStage {
   if (waiting) return { kind: "waiting" };
+  if (compacting) return { kind: "compacting" };
 
-  const last = parts.at(-1);
+  // The compaction marker is about the context, not the answer: a turn holding
+  // only that has not started answering yet.
+  const last = parts.findLast((part) => part.type !== "context-compacted");
   if (!last) return { kind: "starting" };
 
   // A tool still out wins over whatever came after its call: the loop is
@@ -101,6 +113,8 @@ export function stageLabel(stage: Exclude<TurnStage, { kind: "starting" }>): str
       return m.chat_stage_working();
     case "waiting":
       return m.chat_stage_waiting();
+    case "compacting":
+      return m.chat_stage_compacting();
   }
 }
 
