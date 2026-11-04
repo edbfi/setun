@@ -74,6 +74,8 @@ export interface PendingContinue {
 /** A turn that reached its `done` event: how long it took, and why it ended. */
 export interface TurnFinished {
   readonly turnId: string | null;
+  /** The conversation it answered, so "Done" is shown there and nowhere else. */
+  readonly conversationId: string | null;
   readonly elapsedMs: number;
   /** `stop` is the model's own end; anything else cut the answer short. */
   readonly reason: string;
@@ -90,6 +92,16 @@ export class StreamingTurn {
   /** Each reasoning part has its own interval, including reasoning after a tool result. */
   thinkingTimings = $state<Record<number, { startedAt: number; settledAt: number | null }>>({});
   turnId = $state<string | null>(null);
+  /**
+   * The conversation this turn answers in (§10).
+   *
+   * One turn is in flight per pupil across all their conversations, and it keeps
+   * running when the pupil opens another one. Without this the live answer was
+   * drawn into whichever conversation was on screen — so "New conversation"
+   * during a long answer seemed to go nowhere. Null when it is not known, which
+   * shows the turn wherever the pupil is, as before.
+   */
+  conversationId = $state<string | null>(null);
   /** Last sequence number applied — the cursor a resume continues from (§10). */
   lastSeq = $state(-1);
   notice = $state<TurnNotice>(null);
@@ -166,8 +178,9 @@ export class StreamingTurn {
     if (this.budgetWarning) this.budgetWarning = { ...this.budgetWarning, acknowledged: true };
   }
 
-  begin(turnId: string): void {
+  begin(turnId: string, conversationId: string | null = null): void {
     this.turnId = turnId;
+    this.conversationId = conversationId;
     this.parts = [];
     this.lastSeq = -1;
     this.notice = null;
@@ -185,8 +198,9 @@ export class StreamingTurn {
   }
 
   /** Resume an existing turn, keeping any text already rendered. */
-  resume(turnId: string, afterSeq: number): void {
+  resume(turnId: string, afterSeq: number, conversationId: string | null = null): void {
     this.turnId = turnId;
+    this.conversationId = conversationId ?? this.conversationId;
     this.lastSeq = afterSeq;
     this.notice = null;
     this.startedAt ??= this.#now();
@@ -354,6 +368,7 @@ export class StreamingTurn {
         this.notice = event.reason === "stop" ? null : event.reason;
         this.finished = {
           turnId: this.turnId,
+          conversationId: this.conversationId,
           elapsedMs: this.startedAt === null ? 0 : Math.max(0, this.#now() - this.startedAt),
           reason: event.reason,
         };
@@ -376,6 +391,7 @@ export class StreamingTurn {
   clear(): void {
     this.parts = [];
     this.turnId = null;
+    this.conversationId = null;
     this.lastSeq = -1;
     this.startedAt = null;
     this.thinkingStartedAt = null;
