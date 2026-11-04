@@ -20,8 +20,9 @@ export type TurnStatus = (typeof TURN_STATUSES)[number];
  * it necessary: every event is buffered to the database as it streams so resume
  * replays from one source of truth, a restart marks in-flight turns interrupted
  * at boot, and the limit on answers in flight — one per conversation, the
- * classroom's `maxConcurrentTurns` per pupil — needs somewhere to be true. Deriving that from message rows
- * cannot express a turn that produced no message yet.
+ * classroom's `maxConcurrentTurns` per pupil — needs somewhere to be true.
+ * Deriving that from message rows cannot express a turn that produced no
+ * message yet.
  */
 export const turn = sqliteTable(
   "turn",
