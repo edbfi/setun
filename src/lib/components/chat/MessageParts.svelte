@@ -2,12 +2,13 @@
 import {
   type ArtifactSegment,
   artifactMessageSegments,
+  groupStreamingWrites,
   pairArtifactRefs,
   type StreamingSegment,
-  streamingMessageSegments,
 } from "$lib/artifacts/segments";
 import { toolLabel } from "$lib/chat/tool-labels";
 import { turnNoticeText } from "$lib/chat/turn-notices";
+import { streamingPartSegments } from "$lib/chat/turn-stage";
 import * as m from "$lib/paraglide/messages";
 import type { MessagePart } from "$lib/server/db/schema";
 import type { MessageArtifactRef } from "$lib/state/conversation.svelte";
@@ -52,7 +53,14 @@ interface Props {
    * has no ref for it — but the thing it names still exists, and its card can
    * still open it.
    */
-  resolveArtifact?: (key: string) => string | null;
+  resolveArtifact?: (key: string) => { readonly id: string; readonly title: string | null } | null;
+  /**
+   * The streaming scan, when the caller already made it (§20).
+   *
+   * The live message needs the same scan to name its current stage, and one
+   * scan per delta is the budget — so it scans once and hands the result down.
+   */
+  streamingSegments?: ReadonlyMap<number, StreamingSegment[]>;
   /**
    * Whether the model's reasoning is rendered at all (§20).
    *
@@ -81,6 +89,7 @@ let {
   activeArtifactId = null,
   onopenartifact,
   resolveArtifact,
+  streamingSegments,
   showThinking = true,
   thinkingStartedAt = null,
   thinkingSettledAt = null,
@@ -132,22 +141,8 @@ const pairs = $derived.by(() => {
  * is where the refs exist.
  */
 const streamingByPart = $derived.by(() => {
-  const byIndex = new Map<number, StreamingSegment[]>();
-  if (!streaming || plain) return byIndex;
-
-  const texts: string[] = [];
-  const indexes: number[] = [];
-  parts.forEach((part, index) => {
-    if (part.type !== "text") return;
-    texts.push(part.text);
-    indexes.push(index);
-  });
-
-  streamingMessageSegments(texts).forEach((segments, at) => {
-    byIndex.set(indexes[at], segments);
-  });
-
-  return byIndex;
+  if (!streaming || plain) return new Map<number, StreamingSegment[]>();
+  return streamingSegments ?? streamingPartSegments(parts);
 });
 
 const results = $derived(
@@ -173,33 +168,19 @@ const failed = $derived(
         card. There are no refs yet, so nothing here opens anything — the real
         cards arrive with the settled message (§13, §20).
       -->
-      {#each streamingByPart.get(index) ?? [] as segment, at (at)}
+      {#each groupStreamingWrites(streamingByPart.get(index) ?? []) as segment, at (at)}
         {#if segment.kind === "text"}
           <p class="whitespace-pre-wrap break-words">{segment.text}</p>
-        {:else if segment.kind === "artifact"}
+        {:else}
           <!--
-            Every artifact file is a stub, runnable or not: a revision that
-            re-emits only a stylesheet is still a write of the artifact, and its
-            CSS is no more prose than a page's markup is (§13).
+            One card per write, its files as rows. Every artifact file is in it,
+            runnable or not: a revision that re-emits only a stylesheet is still
+            a write of the artifact, and its CSS is no more prose than a page's
+            markup is (§13).
           -->
           <ArtifactStubCard
-            language={segment.artifact.language}
-            fileKind={segment.artifact.kind}
-            artifactKey={segment.artifact.key}
-            title={segment.artifact.title}
-            path={segment.artifact.path}
-            deleted={segment.artifact.deleted}
-          />
-        {:else}
-          <ArtifactStubCard
-            language={segment.language}
-            fileKind={segment.fileKind}
-            artifactKey={segment.key}
-            title={segment.title}
-            lines={segment.lines}
-            path={segment.path}
-            deleted={segment.deleted}
-            pending
+            write={segment}
+            knownTitle={segment.key ? (resolveArtifact?.(segment.key)?.title ?? null) : null}
           />
         {/if}
       {/each}
@@ -223,18 +204,20 @@ const failed = $derived(
               artifact={ref}
               active={ref.artifactId === activeArtifactId}
               onopen={onopenartifact}
+              files={segment.files}
+              deletes={segment.deletes}
             />
           {:else}
             {@const named = segment.artifact.key
               ? (resolveArtifact?.(segment.artifact.key) ?? null)
               : null}
             <ArtifactContainedCard
-              fence={segment.artifact}
+              fence={{ ...segment.artifact, title: segment.artifact.title ?? named?.title ?? null }}
               raw={segment.raw}
               files={segment.files}
               reason={named ? "existing" : "unsaved"}
-              artifactId={named}
-              active={named !== null && named === activeArtifactId}
+              artifactId={named?.id ?? null}
+              active={named !== null && named.id === activeArtifactId}
               onopen={onopenartifact}
             />
           {/if}

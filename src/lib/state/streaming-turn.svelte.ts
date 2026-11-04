@@ -71,6 +71,14 @@ export interface PendingContinue {
   readonly limitTokens: number;
 }
 
+/** A turn that reached its `done` event: how long it took, and why it ended. */
+export interface TurnFinished {
+  readonly turnId: string | null;
+  readonly elapsedMs: number;
+  /** `stop` is the model's own end; anything else cut the answer short. */
+  readonly reason: string;
+}
+
 export class StreamingTurn {
   /** The turn so far, in the order it happened. Plain text while streaming (§20). */
   parts = $state<MessagePart[]>([]);
@@ -95,6 +103,15 @@ export class StreamingTurn {
    */
   budgetWarning = $state<BudgetWarning | null>(null);
   continuePrompt = $state<PendingContinue | null>(null);
+  /**
+   * How the last turn ended, for the "done" stage and the done cue (§20).
+   *
+   * Kept across `clear()` like the budget banner: the live message is replaced
+   * by the persisted one the moment the turn ends, and "Done · 23 s" belongs
+   * under that one. Cleared when the next turn begins. A fresh object per turn,
+   * so anything watching for a turn to end sees each one.
+   */
+  finished = $state<TurnFinished | null>(null);
   #streaming = $state(false);
   /** Injectable, so the elapsed figures are testable without waiting (§22). */
   readonly #now: () => number;
@@ -156,6 +173,7 @@ export class StreamingTurn {
     this.elicitation = null;
     this.budgetWarning = null;
     this.continuePrompt = null;
+    this.finished = null;
     this.startedAt = this.#now();
     this.thinkingStartedAt = null;
     this.thinkingSettledAt = null;
@@ -318,6 +336,11 @@ export class StreamingTurn {
         // stops at a clean boundary and keeps the partial answer on screen — a
         // friendly notice, never an error (§10).
         this.notice = event.reason === "stop" ? null : event.reason;
+        this.finished = {
+          turnId: this.turnId,
+          elapsedMs: this.startedAt === null ? 0 : Math.max(0, this.#now() - this.startedAt),
+          reason: event.reason,
+        };
         break;
 
       default:

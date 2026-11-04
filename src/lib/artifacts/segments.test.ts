@@ -3,6 +3,7 @@ import {
   artifactMessageSegments,
   artifactSegmentCount,
   artifactSegments,
+  groupStreamingWrites,
   pairArtifactRefs,
   streamingMessageSegments,
   streamingSegments,
@@ -640,5 +641,57 @@ describe("pairArtifactRefs", () => {
 
   it("pairs nothing when there are no refs at all", () => {
     expect(pairArtifactRefs(cards("```html id=a\n<p/>\n```"), [])).toEqual([null]);
+  });
+});
+
+describe("groupStreamingWrites", () => {
+  it("folds one id's fences into one write, its files as rows", () => {
+    const text = [
+      "Her er projektet:",
+      '```tsx id=tidslinje path=src/App.tsx title="Tidslinje" entry',
+      "export default function App() {}",
+      "```",
+      "```ts id=tidslinje path=src/old.ts delete",
+      "```",
+      "```css id=tidslinje path=src/styles.css",
+      "p {",
+    ].join("\n");
+
+    expect(groupStreamingWrites(streamingSegments(text))).toEqual([
+      { kind: "text", text: "Her er projektet:" },
+      {
+        kind: "write",
+        key: "tidslinje",
+        title: "Tidslinje",
+        language: "tsx",
+        fileKind: "tsx",
+        writing: true,
+        files: [
+          { path: "src/App.tsx", fileKind: "tsx", state: "written", deleted: false, lines: 1 },
+          { path: "src/old.ts", fileKind: "ts", state: "written", deleted: true, lines: 0 },
+          { path: "src/styles.css", fileKind: "css", state: "writing", deleted: false, lines: 1 },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps prose between two fences as a boundary between writes", () => {
+    const text = [
+      "```html id=a\n<p/>\n```",
+      "Og stilen:",
+      "```css id=a path=styles.css\np {}\n```",
+    ].join("\n");
+
+    expect(groupStreamingWrites(streamingSegments(text)).map((item) => item.kind)).toEqual([
+      "write",
+      "text",
+      "write",
+    ]);
+  });
+
+  it("never merges key-less blocks or different ids", () => {
+    const text =
+      "```html\n<p>1</p>\n```\n```html\n<p>2</p>\n```\n```svg id=a\n<svg/>\n```\n```svg id=b\n<svg/>\n```";
+    expect(groupStreamingWrites(streamingSegments(text))).toHaveLength(4);
   });
 });

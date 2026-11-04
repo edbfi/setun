@@ -39,6 +39,8 @@ export type ArtifactSegment =
       readonly raw: string;
       /** Every path this write states, so the card can say how many files (§13). */
       readonly files: readonly string[];
+      /** The paths of `files` this write removes rather than writes. */
+      readonly deletes: readonly string[];
     }
   /**
    * An artifact fence the message ends inside (§13, §20).
@@ -91,6 +93,7 @@ export function artifactMessageSegments(texts: readonly string[]): ArtifactSegme
         .map((block) => lines.slice(block.line, block.endLine + 1).join("\n"))
         .join("\n"),
       files: write.blocks.flatMap((block) => (block.path ? [block.path] : [])),
+      deletes: write.deletes,
     });
   });
 
@@ -495,4 +498,103 @@ export function pairArtifactRefs<Ref extends { readonly key: string; readonly la
     cursor = at + 1;
     return refs[at];
   });
+}
+
+/** One file of a write still streaming, as its card lists it (§13, §20). */
+export interface StreamingFile {
+  readonly path: string | null;
+  readonly fileKind: ProjectFileKind;
+  readonly state: "writing" | "written";
+  readonly deleted: boolean;
+  /** Lines so far, or the whole file's once it is written. */
+  readonly lines: number;
+}
+
+/**
+ * What the streaming transcript shows: prose, and writes (§13, §20).
+ *
+ * A model writing a project emits several fences in a row under one id, and
+ * those are one revision of one thing — which is how the settled transcript
+ * already shows them, as one card. Streamed as one stub per fence, the same
+ * write was three cards that collapsed into one the moment the turn settled.
+ */
+export type StreamingDisplay =
+  | { readonly kind: "text"; readonly text: string }
+  | {
+      readonly kind: "write";
+      readonly key: string | null;
+      readonly title: string | null;
+      /** The first runnable language the write states, or null for files only. */
+      readonly language: ArtifactLanguage | null;
+      readonly fileKind: ProjectFileKind;
+      readonly files: readonly StreamingFile[];
+      /** True while the write's last file is still arriving. */
+      readonly writing: boolean;
+    };
+
+/**
+ * Fold a part's streaming segments into writes.
+ *
+ * Adjacent artifact segments under the same id are one write; prose between
+ * two fences ends one, exactly as it ends a card on the settled side. A
+ * key-less block is always its own write. Cheap by construction: one pass over
+ * segments the scan already produced, counting newlines rather than splitting.
+ */
+export function groupStreamingWrites(segments: readonly StreamingSegment[]): StreamingDisplay[] {
+  const out: StreamingDisplay[] = [];
+
+  for (const segment of segments) {
+    if (segment.kind === "text") {
+      out.push(segment);
+      continue;
+    }
+
+    const fence =
+      segment.kind === "artifact"
+        ? segment.artifact
+        : {
+            language: segment.language,
+            kind: segment.fileKind,
+            key: segment.key,
+            title: segment.title,
+            path: segment.path,
+            deleted: segment.deleted,
+          };
+    const file: StreamingFile = {
+      path: fence.path,
+      fileKind: fence.kind,
+      state: segment.kind === "pending" ? "writing" : "written",
+      deleted: fence.deleted,
+      lines:
+        segment.kind === "pending"
+          ? segment.lines
+          : segment.artifact.source.length === 0
+            ? 0
+            : countNewlines(segment.artifact.source) + 1,
+    };
+
+    const previous = out.at(-1);
+    if (previous?.kind === "write" && fence.key !== null && previous.key === fence.key) {
+      out[out.length - 1] = {
+        ...previous,
+        title: previous.title ?? fence.title,
+        language: previous.language ?? fence.language,
+        files: [...previous.files, file],
+        writing: file.state === "writing",
+      };
+      continue;
+    }
+
+    out.push({
+      kind: "write",
+      key: fence.key,
+      title: fence.title,
+      language: fence.language,
+      fileKind: fence.kind,
+      files: [file],
+      writing: file.state === "writing",
+    });
+  }
+
+  return out;
 }

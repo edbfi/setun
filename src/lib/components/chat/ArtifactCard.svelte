@@ -2,6 +2,7 @@
 import ArtifactTrit from "$lib/components/artifacts/ArtifactTrit.svelte";
 import * as m from "$lib/paraglide/messages";
 import type { MessageArtifactRef } from "$lib/state/conversation.svelte";
+import ArtifactFileRows, { type FileRow } from "./ArtifactFileRows.svelte";
 
 /**
  * An artifact where its block was written (PRD §13, §20).
@@ -25,9 +26,22 @@ interface Props {
   /** True while this is the artifact the build surface is showing. */
   active?: boolean;
   onopen?: (artifactId: string) => void;
+  /**
+   * The paths this message's write named, in the order written (§13).
+   *
+   * The same rows the write showed while it streamed, so the unit a pupil
+   * watched arrive is the unit they open. Empty for a single-file page.
+   */
+  files?: readonly string[];
+  /** The paths of `files` the write removed. */
+  deletes?: readonly string[];
 }
 
-let { artifact, active = false, onopen }: Props = $props();
+let { artifact, active = false, onopen, files: written = [], deletes = [] }: Props = $props();
+
+const rows = $derived<FileRow[]>(
+  written.map((path) => ({ path, state: deletes.includes(path) ? "deleted" : "written" })),
+);
 
 const title = $derived(artifact.title ?? m.artifact_untitled({ language: artifact.language }));
 
@@ -40,6 +54,8 @@ const files = $derived(
 
 const changes = $derived(
   [
+    // What this write did to the artifact as a whole: made it, or changed it.
+    artifact.revision <= 1 ? m.artifact_write_created() : m.artifact_write_updated(),
     (artifact.added ?? 0) > 0 ? m.artifact_history_added({ count: artifact.added ?? 0 }) : "",
     (artifact.modified ?? 0) > 0
       ? m.artifact_history_modified({ count: artifact.modified ?? 0 })
@@ -57,7 +73,9 @@ const changes = $derived(
   aria-current={active ? "true" : undefined}
   data-artifact-card={artifact.artifactId}
   class={[
-    "group/card my-2 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left",
+    "group/card my-2 flex w-full gap-3 rounded-xl border px-3 py-2.5 text-left",
+    // With file rows the card grows downward; the trit and Open stay on the title.
+    rows.length > 0 ? "items-start" : "items-center",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200",
     active
@@ -73,12 +91,13 @@ const changes = $derived(
       {m.artifact_id_label()}={artifact.key}
       · {artifact.language} · v{artifact.revision}{files}
     </span>
-    {#if changes}
-      <!--
-        What this revision *did*, which is what makes a project legible: a
-        message that changed one file of five should read as one change (§13).
-      -->
-      <span class="block truncate text-xs text-muted-foreground">{changes}</span>
+    <!--
+      What this revision *did*, which is what makes a project legible: a
+      message that changed one file of five should read as one change (§13).
+    -->
+    <span class="block truncate text-xs text-muted-foreground">{changes}</span>
+    {#if rows.length > 0}
+      <ArtifactFileRows files={rows} inline />
     {/if}
   </span>
 

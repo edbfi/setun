@@ -35,7 +35,7 @@ interface Props {
   /** Which artifact the build surface is showing, so its card can say so (§13). */
   activeArtifactId?: string | null;
   /** The conversation's artifact a fence's id names, for a write with no revision of its own (§13). */
-  resolveArtifact?: (key: string) => string | null;
+  resolveArtifact?: (key: string) => { readonly id: string; readonly title: string | null } | null;
   /** Whether the model's reasoning is rendered, once policy and preference agree (§20). */
   showThinking?: boolean;
 }
