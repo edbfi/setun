@@ -266,6 +266,26 @@ describe("MessageParts artifact cards", () => {
  * A part that is not rendered is skipped, not deleted: the summary stays on the
  * message, and turning the switch back on shows it again.
  */
+describe("MessageParts — compaction", () => {
+  it("marks where earlier messages were summarised for the assistant", async () => {
+    render(MessageParts, {
+      parts: [
+        { type: "context-compacted", mode: "summarised" },
+        { type: "text", text: "Svaret." },
+      ],
+    });
+
+    await expect.element(page.getByText(m.chat_context_summarised())).toBeVisible();
+    await expect.element(page.getByText("Svaret.")).toBeVisible();
+  });
+
+  it("says when the conversation was too long even so", async () => {
+    render(MessageParts, { parts: [{ type: "turn-notice", notice: "context-full" }] });
+
+    await expect.element(page.getByText(m.chat_notice_context_full())).toBeVisible();
+  });
+});
+
 describe("MessageParts — thinking", () => {
   const parts = [
     { type: "thinking" as const, text: "Overvejer opgaven" },

@@ -21,6 +21,7 @@ const NOTICES: Record<TurnNotice, () => string> = {
   "student-allowance-exhausted": m.chat_notice_student_allowance_exhausted,
   "classroom-cap-exhausted": m.chat_notice_classroom_cap_exhausted,
   unanswered: m.chat_notice_unanswered,
+  "context-full": m.chat_notice_context_full,
 };
 
 export function turnNoticeText(notice: TurnNotice): string {

@@ -3,8 +3,13 @@ import { fail, setError, superValidate } from "sveltekit-superforms";
 import { valibot } from "sveltekit-superforms/adapters";
 import * as v from "valibot";
 import * as m from "$lib/paraglide/messages";
+import {
+  forgetAlias,
+  invalidateModelListing,
+  resolveContextWindow,
+} from "$lib/server/agent/context-window";
 import { requireEducatorPage } from "$lib/server/auth/guards";
-import { getDb } from "$lib/server/boot";
+import { getDb, getGatewayAdapter } from "$lib/server/boot";
 import { AliasSchema } from "$lib/server/classroom/schemas";
 import { isForeignKeyViolation, isUniqueViolation } from "$lib/server/db/constraints";
 import {
@@ -40,10 +45,23 @@ const adapter = valibot(AliasSchema);
 
 const AliasIdSchema = v.object({ aliasId: v.pipe(v.string(), v.uuid()) });
 
-export const load: PageServerLoad = async () => ({
-  form: await superValidate(adapter),
-  aliases: listAliases(getDb()),
-});
+export const load: PageServerLoad = async () => {
+  const aliases = listAliases(getDb());
+  // What each alias's model can read, and where that figure came from, so an
+  // educator can see when Setun is only assuming (§9, §10). One gateway listing
+  // serves every row, and an unreachable gateway reads as "assumed".
+  const windows = await Promise.all(
+    aliases.map(
+      async (alias) => [alias.id, await resolveContextWindow(getGatewayAdapter(), alias)] as const,
+    ),
+  );
+
+  return {
+    form: await superValidate(adapter),
+    aliases,
+    contextWindows: Object.fromEntries(windows),
+  };
+};
 
 /** Parse the alias id a row's form carries, refusing anything else (§5). */
 async function aliasIdFrom(request: Request): Promise<string | null> {
@@ -62,6 +80,8 @@ export const actions: Actions = {
     // `model_alias.name` is unique, and reusing a name is an ordinary mistake
     // rather than a fault: without this it escaped as an unhandled constraint
     // error, so the educator got a 500 and the page showed nothing at all.
+    // A model added to CPA a moment ago should be looked up afresh.
+    invalidateModelListing();
     try {
       const alias = createAlias(getDb(), { ...form.data, isUtility: false });
       if (form.data.isUtility) designateUtilityAlias(getDb(), alias.id);
@@ -93,7 +113,9 @@ export const actions: Actions = {
       });
     }
 
+    invalidateModelListing();
     try {
+      forgetAlias(id.output.aliasId);
       updateAlias(getDb(), {
         aliasId: id.output.aliasId,
         values: { ...form.data, isUtility: false },

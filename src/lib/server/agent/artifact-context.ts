@@ -96,6 +96,11 @@ export interface ArtifactContext {
   readonly state: readonly ArtifactStateLine[];
   /** Current sources absent from the active path, to travel with the note. */
   readonly carried: readonly CarriedSource[];
+  /**
+   * How much carried source this turn may send, when the model's context sets a
+   * tighter bound than `CARRIED_MAX_CHARS` (§10).
+   */
+  readonly carriedMaxChars?: number;
 }
 
 export const EMPTY_ARTIFACT_CONTEXT: ArtifactContext = {
@@ -276,7 +281,10 @@ export const CARRIED_MAX_CHARS = 200_000;
  * `fenceInfo` writes — so what it reads is a block it can copy the identity off
  * rather than one it has to translate.
  */
-export function formatCarriedSources(carried: readonly CarriedSource[]): string | null {
+export function formatCarriedSources(
+  carried: readonly CarriedSource[],
+  maxChars = CARRIED_MAX_CHARS,
+): string | null {
   if (carried.length === 0) return null;
 
   const blocks: string[] = [];
@@ -290,7 +298,7 @@ export function formatCarriedSources(carried: readonly CarriedSource[]): string 
     // one it was not shown, where a model shown nothing rewrites the lot.
     const head = `The current version of id=${item.key} (${item.language})${title}, revision ${item.revision}, holds ${item.allPaths.join(", ")}. Some of it does not appear above.`;
 
-    if (used + total > CARRIED_MAX_CHARS) {
+    if (used + total > maxChars) {
       blocks.push(`[${head} Sources omitted for length.]`);
       continue;
     }

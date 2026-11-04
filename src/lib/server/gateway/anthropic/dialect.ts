@@ -10,7 +10,7 @@ import type {
   GeneratedImageBytes,
   ImageRequest,
 } from "../dialect";
-import { GatewayError } from "../errors";
+import { GatewayError, refusedUnprocessed, streamFailureCode } from "../errors";
 import type { FinishReason, GatewayEvent } from "../events";
 import { promptTextOf } from "../messages";
 import { resolveUsage } from "../usage";
@@ -52,7 +52,7 @@ interface MessageStreamEvent {
  * to older models. An opaque gateway alias has no known capability, so it gets
  * the conservative default; a caller can still supply an explicit ceiling.
  */
-function defaultMaxTokens(model: string): number {
+export function defaultMaxTokens(model: string): number {
   if (/^claude-(?:3-7-|(?:opus|sonnet|haiku)-4(?:-|$)|4-)/i.test(model)) return 32_000;
   if (/^claude-3-5-/i.test(model)) return 8_192;
   return 4_096;
@@ -186,10 +186,8 @@ export class AnthropicDialect implements GatewayDialectAdapter {
             break;
           }
           case "error": {
-            throw new GatewayError(
-              "unavailable",
-              payload.error?.message ?? "upstream stream error",
-            );
+            const message = payload.error?.message ?? "upstream stream error";
+            throw new GatewayError(streamFailureCode(message), message);
           }
           default:
             break;
@@ -201,6 +199,7 @@ export class AnthropicDialect implements GatewayDialectAdapter {
       // which decides how the turn ended. This dialect reports its input tokens
       // in `message_start`, so an early cancellation usually keeps the real
       // figure rather than an estimate.
+      if (refusedUnprocessed(cause, completion, inputTokens)) throw cause;
       yield resolveUsage({
         reported: { inputTokens, outputTokens },
         promptText: promptTextOf(request.messages),

@@ -285,6 +285,23 @@ const failed = $derived(
         })}
       </span>
     </span>
+  {:else if part.type === "context-compacted"}
+    <!--
+      Where the model's view of the conversation stopped being the whole of it
+      (§10). Faint, and above the answer it applies to: the messages are all
+      still here for the pupil, but the model no longer reads the start of them
+      word for word, and this is why it may not recall something said long ago.
+    -->
+    <p
+      class="mb-2 flex items-center gap-2 text-xs text-muted-foreground"
+      data-context-compacted={part.mode}
+    >
+      <span class="h-px flex-1 bg-border" aria-hidden="true"></span>
+      <span class="shrink-0">
+        {part.mode === "summarised" ? m.chat_context_summarised() : m.chat_context_omitted()}
+      </span>
+      <span class="h-px flex-1 bg-border" aria-hidden="true"></span>
+    </p>
   {:else if part.type === "turn-notice"}
     <!--
       Why the answer stops here: Stop pressed, a per-turn cap reached, a question

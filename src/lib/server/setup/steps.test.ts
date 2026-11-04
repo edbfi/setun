@@ -41,6 +41,7 @@ const ALIAS = {
   supportsImageGeneration: false,
   inputPricePerMillion: null,
   outputPricePerMillion: null,
+  contextWindowTokens: null,
   isUtility: false,
 };
 

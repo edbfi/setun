@@ -30,6 +30,14 @@ export const modelAlias = sqliteTable("model_alias", {
    */
   inputPricePerMillion: real(),
   outputPricePerMillion: real(),
+  /**
+   * The model's context window in tokens, when the operator states it (§10).
+   *
+   * Null means "ask the gateway": CPA reports a window for the models it knows,
+   * and Setun falls back to a conservative default for the ones it does not.
+   * Set it where CPA reports nothing, or reports more than the account allows.
+   */
+  contextWindowTokens: integer(),
   /** Internal work (title generation) runs on the utility alias (§10). */
   isUtility: integer({ mode: "boolean" }).notNull().default(false),
   createdAt: createdAt(),

@@ -79,6 +79,17 @@ export interface GeneratedImageBytes {
 /** One entry of the gateway's model listing, used for educator-panel health (§9). */
 export interface GatewayModel {
   readonly id: string;
+  /**
+   * The context window the gateway reports for this model, in tokens (§9, §10).
+   *
+   * CPA lists `max_context_length` (an operator override in its own config)
+   * and `context_length` (its registry's figure) on the OpenAI-format listing,
+   * and omits both for models it knows nothing about — so absent is common, and
+   * means "unknown", never "unlimited".
+   */
+  readonly contextTokens?: number;
+  /** The output ceiling the gateway reports, when it reports one. */
+  readonly maxOutputTokens?: number;
 }
 
 export interface GatewayDialectAdapter {

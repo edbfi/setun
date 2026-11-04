@@ -280,4 +280,22 @@ describe("StreamingTurn — thinking", () => {
     expect(turn.thinkingStartedAt).toBeNull();
     expect(turn.thinkingSettledAt).toBeNull();
   });
+
+  it("shows the compaction stage, then the marker at the head of the answer", () => {
+    const turn = new StreamingTurn();
+    turn.begin("turn-1");
+
+    turn.apply({ type: "compacting" }, 0);
+    expect(turn.compacting).toBe(true);
+    expect(turn.hasVisibleOutput).toBe(false);
+
+    turn.apply({ type: "context-compacted", mode: "summarised" }, 1);
+    turn.apply({ type: "text-delta", text: "Svar" }, 2);
+
+    expect(turn.compacting).toBe(false);
+    expect(turn.parts).toEqual([
+      { type: "context-compacted", mode: "summarised" },
+      { type: "text", text: "Svar" },
+    ]);
+  });
 });

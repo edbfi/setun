@@ -18,7 +18,7 @@ describe("doneCue", () => {
   });
 
   it("does neither when no answer was delivered", () => {
-    for (const reason of ["aborted", "error", "interrupted"]) {
+    for (const reason of ["aborted", "error", "interrupted", "context-full"]) {
       expect(doneCue(reason, { soundOn: true, hidden: true })).toEqual({
         chime: false,
         badge: false,

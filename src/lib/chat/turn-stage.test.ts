@@ -97,6 +97,19 @@ describe("turnStage", () => {
     expect(turnStage({ parts: [declined], waiting: false })).toEqual({ kind: "working" });
   });
 
+  it("says the conversation is being made room for while it is summarised", () => {
+    expect(turnStage({ parts: [], waiting: false, compacting: true })).toEqual({
+      kind: "compacting",
+    });
+    expect(stageLabel({ kind: "compacting" })).toBe(m.chat_stage_compacting());
+  });
+
+  it("is still starting when the only part is the compaction marker", () => {
+    expect(
+      turnStage({ parts: [{ type: "context-compacted", mode: "summarised" }], waiting: false }),
+    ).toEqual({ kind: "starting" });
+  });
+
   it("is waiting on the pupil whenever a question is open", () => {
     expect(turnStage({ parts: [call("a")], waiting: true })).toEqual({ kind: "waiting" });
   });

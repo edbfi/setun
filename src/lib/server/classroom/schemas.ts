@@ -109,6 +109,22 @@ const optionalPrice = v.nullable(
 );
 
 /**
+ * A model's context window in tokens, or null for "ask the gateway" (§9, §10).
+ *
+ * Whole tokens, and at least a small model's worth: a typo of "128" for
+ * "128000" would otherwise compact every conversation down to nothing.
+ */
+const optionalContextWindow = v.nullable(
+  v.pipe(
+    v.number(m.validation_context_window_invalid()),
+    v.check((value) => Number.isInteger(value), m.validation_context_window_invalid()),
+    v.minValue(1_024, m.validation_context_window_invalid()),
+    v.maxValue(10_000_000, m.validation_context_window_invalid()),
+  ),
+  null,
+);
+
+/**
  * An IANA zone, checked against the platform's own database.
  *
  * A typo here would make every schedule in the classroom resolve against a zone
@@ -408,6 +424,7 @@ export const AliasSchema = v.object({
   supportsImageGeneration: flag,
   inputPricePerMillion: optionalPrice,
   outputPricePerMillion: optionalPrice,
+  contextWindowTokens: optionalContextWindow,
   isUtility: flag,
 });
 

@@ -22,6 +22,12 @@ import {
   type PerTurnCap,
   TurnBudget,
 } from "./budgets";
+import {
+  CHARS_PER_ESTIMATED_TOKEN,
+  rawRequestTokens,
+  recordCalibration,
+  requestTokens,
+} from "./context-window";
 import type { InteractionAnswer, TurnInteractionRegistry } from "./interactions";
 import {
   DECLINED_RESULT,
@@ -98,6 +104,19 @@ export interface RunTurnInput {
   readonly consumed?: DailyConsumption;
   readonly dailyBudget?: DailyBudgetLease;
   readonly tooling?: TurnTooling;
+  /**
+   * How much the model can read, once the runner has planned the context (§10).
+   *
+   * Bounds what a long multi-step turn adds as it goes — tool results pile up
+   * between steps — and names the alias whose size estimates each step's
+   * reported usage calibrates. Absent, the loop sends what it has, as before.
+   */
+  readonly contextBudget?: {
+    readonly inputTokens: number;
+    readonly aliasId: string;
+    /** The output ceiling the plan reserved, sent so the provider sees the same. */
+    readonly maxOutputTokens?: number;
+  };
   /** Aborting the turn cancels the upstream request and any running tool (§10). */
   readonly signal?: AbortSignal;
   /** Injectable clock, so the wall-clock cap is testable without waiting. */
@@ -233,7 +252,10 @@ export function assembleContext(
   ];
 
   const note = artifacts
-    ? [formatArtifactState(artifacts.state), formatCarriedSources(artifacts.carried)]
+    ? [
+        formatArtifactState(artifacts.state),
+        formatCarriedSources(artifacts.carried, artifacts.carriedMaxChars),
+      ]
         .filter((part): part is string => part !== null)
         .join("\n\n")
     : "";
@@ -305,9 +327,17 @@ export async function* runTurn(input: RunTurnInput): AsyncGenerator<GatewayEvent
   const definitions = input.tooling?.tools.definitions() ?? [];
   /** Numbers the checkpoints, so a second one is a question of its own. */
   let checkpoints = 0;
+  /** Where this turn's own additions begin: everything before is the planned context. */
+  const planned = messages.length;
 
   try {
     while (true) {
+      // A long turn grows between steps. Before each later step, the oldest of
+      // this turn's tool results give way first, so the step still fits (§10).
+      if (input.contextBudget && messages.length > planned) {
+        fitTurnGrowth(messages, planned, definitions, input.contextBudget);
+      }
+
       const step = yield* runStep({
         input,
         messages,
@@ -411,6 +441,10 @@ export async function* runTurn(input: RunTurnInput): AsyncGenerator<GatewayEvent
     // already decided, and a budget stop is not a failure.
     if (isAbort(cause, input.signal)) {
       reason = "aborted";
+    } else if (cause instanceof GatewayError && cause.code === "context-overflow") {
+      // Not an error to show: the runner compacts harder and asks again, and
+      // when it cannot, the notice says what happened in the pupil's words.
+      reason = "context-full";
     } else {
       reason = "error";
       yield {
@@ -516,6 +550,9 @@ async function* runStep(args: {
       model: input.model,
       messages,
       ...(args.definitions.length > 0 ? { tools: args.definitions } : {}),
+      ...(input.contextBudget?.maxOutputTokens
+        ? { maxOutputTokens: input.contextBudget.maxOutputTokens }
+        : {}),
       signal: args.signal,
     })) {
       reachedUpstream = true;
@@ -531,6 +568,15 @@ async function* runStep(args: {
         stepTokens = promptTokens + estimate;
       }
       if (event.type === "usage") {
+        // The provider's own count of what it was sent: what keeps the size
+        // estimate honest for whatever model is behind the alias today (§10).
+        if (!event.estimated && input.contextBudget) {
+          recordCalibration(
+            input.contextBudget.aliasId,
+            rawRequestTokens(messages, args.definitions),
+            event.inputTokens,
+          );
+        }
         sawUsage = true;
         finishReason = event.finishReason;
         stepTokens = event.inputTokens + event.outputTokens;
@@ -576,8 +622,12 @@ async function* runStep(args: {
      *
      * A budget stop breaks out normally and settles below; only this path was
      * losing the figure.
+     *
+     * A request refused for length produced nothing and was not processed, so
+     * it is not charged as if it had been — the retry that follows will be.
      */
-    if (!sawUsage && reachedUpstream) {
+    const refused = cause instanceof GatewayError && cause.code === "context-overflow";
+    if (!sawUsage && reachedUpstream && !(refused && text + reasoning === "")) {
       const usage = resolveUsage({ promptText, completionText: text + reasoning });
       budget.settleStepTokens(usage.inputTokens + usage.outputTokens);
       input.dailyBudget?.settle(usage.inputTokens + usage.outputTokens);
@@ -641,6 +691,7 @@ async function* executeCalls(args: {
         call,
         "That tool is not available. Continue without it.",
         true,
+        args.input.contextBudget,
       );
       continue;
     }
@@ -718,22 +769,119 @@ async function* executeCalls(args: {
       yield { type: "image-generated", imageId: execution.imageId, prompt: execution.prompt ?? "" };
     }
 
-    yield* emitResult(args.messages, call, execution.text, execution.isError);
+    yield* emitResult(
+      args.messages,
+      call,
+      execution.text,
+      execution.isError,
+      args.input.contextBudget,
+    );
   }
 
   return null;
 }
 
-/** Yield the result event and append the matching upstream message. */
+/**
+ * Yield the result event and append the matching upstream message.
+ *
+ * The pupil and the transcript get the whole result. The model gets at most a
+ * share of its context: one tool returning a whole web page must not be the
+ * reason the next step cannot be sent (§10).
+ */
 function* emitResult(
   messages: GatewayMessage[],
   call: GatewayToolCall,
   text: string,
   isError: boolean,
+  context?: RunTurnInput["contextBudget"],
 ): Generator<GatewayEvent> {
   yield { type: "tool-result", toolCallId: call.id, result: text, isError };
-  messages.push({ role: "tool", toolCallId: call.id, content: text });
+
+  const limit = context
+    ? Math.max(4_000, Math.floor(context.inputTokens * 0.2 * CHARS_PER_ESTIMATED_TOKEN))
+    : Number.POSITIVE_INFINITY;
+  const sent =
+    text.length > limit
+      ? `${text.slice(0, limit)}\n[… ${text.length - limit} more characters left out to fit the model's context]`
+      : text;
+  messages.push({ role: "tool", toolCallId: call.id, content: sent });
 }
+
+/**
+ * Make room for the next step by shortening this turn's oldest tool results.
+ *
+ * Only what this turn added — the planned context is already the size the
+ * runner chose — and never the latest batch, which the next step is about to
+ * read. A result keeps its place beside its call; only its text gives way.
+ */
+export function fitTurnGrowth(
+  messages: GatewayMessage[],
+  planned: number,
+  definitions: ReturnType<ToolSet["definitions"]>,
+  context: NonNullable<RunTurnInput["contextBudget"]>,
+): void {
+  const fits = () => requestTokens(context.aliasId, messages, definitions) <= context.inputTokens;
+  const latestBatch = messages.findLastIndex(
+    (message) => message.role === "assistant" && (message.toolCalls?.length ?? 0) > 0,
+  );
+
+  // Older results first: the next step is about the latest ones.
+  for (let at = planned; at < latestBatch; at++) {
+    if (fits()) return;
+
+    const message = messages[at];
+    if (message.role !== "tool" || typeof message.content !== "string") continue;
+    if (message.content.startsWith(SHORTENED)) continue;
+
+    // The whole result's length, not what is left of it after an earlier cap.
+    const capped = CAPPED.exec(message.content);
+    const length = capped ? capped.index + Number(capped[1]) : message.content.length;
+    messages[at] = { ...message, content: `${SHORTENED} (${length} characters)]` };
+  }
+
+  /**
+   * Then the latest batch, which shares one allowance: each result is capped on
+   * its own as it arrives, and several capped results can still not fit
+   * together. The longest is halved — cut from its original text, so the count
+   * of what was left out stays true — until the step fits or every result is
+   * down to a floor that still says something. Past that the provider decides,
+   * and an overflow ends the turn with the notice rather than a guess.
+   */
+  const latest: { at: number; original: string; keep: number; earlier: number }[] = [];
+  for (let at = Math.max(planned, latestBatch + 1); at < messages.length; at++) {
+    const message = messages[at];
+    if (message.role !== "tool" || typeof message.content !== "string") continue;
+    // A result capped as it arrived carries its marker; the count goes on from it.
+    const capped = CAPPED.exec(message.content);
+    const original = capped ? message.content.slice(0, capped.index) : message.content;
+    latest.push({ at, original, keep: original.length, earlier: Number(capped?.[1] ?? 0) });
+  }
+
+  while (!fits()) {
+    const longest = latest
+      .filter((result) => result.keep > LATEST_FLOOR)
+      .reduce<(typeof latest)[number] | null>(
+        (best, result) => (best === null || result.keep > best.keep ? result : best),
+        null,
+      );
+    if (!longest) return;
+
+    longest.keep = Math.max(LATEST_FLOOR, Math.floor(longest.keep / 2));
+    const left = longest.original.length - longest.keep + longest.earlier;
+    messages[longest.at] = {
+      ...messages[longest.at],
+      content: `${longest.original.slice(0, longest.keep)}\n[… ${left} more characters left out to fit the model's context]`,
+    };
+  }
+}
+
+/** The least of a latest tool result the model is still shown. */
+const LATEST_FLOOR = 1_500;
+
+/** The marker `emitResult` leaves on a result it capped, and its count. */
+const CAPPED = /\n\[… (\d+) more characters left out to fit the model's context\]$/;
+
+const SHORTENED = "[Earlier tool result left out to fit the model's context";
 
 /** Apply the classroom's permission mode, asking the student when it says to (§11). */
 async function* decide(args: {
