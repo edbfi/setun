@@ -3,6 +3,7 @@
 // Wind3 reset is deliberately not imported on top of it.
 import "virtual:uno.css";
 import "../app.css";
+import { provideDoneSound } from "$lib/state/done-sound.svelte";
 import { provideTheme } from "$lib/state/theme.svelte";
 import { provideThinking } from "$lib/state/thinking.svelte";
 
@@ -32,6 +33,11 @@ $effect(() => theme.apply());
 const thinking = provideThinking();
 
 $effect(() => thinking.start());
+
+/** Whether this device chimes when an answer is done (§20): a device setting, beside these. */
+const doneSound = provideDoneSound();
+
+$effect(() => doneSound.start());
 </script>
 
 {@render children()}

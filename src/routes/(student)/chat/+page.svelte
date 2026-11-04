@@ -5,6 +5,7 @@ import { enhance } from "$app/forms";
 import { goto, invalidateAll, replaceState } from "$app/navigation";
 import { page } from "$app/state";
 import type { BuildStatus } from "$lib/artifacts/types";
+import { playDoneChime, primeDoneChime } from "$lib/chat/done-chime";
 import { readEventStream } from "$lib/chat/sse-client";
 import { effectiveThinking, thinkingChoiceAvailable } from "$lib/chat/thinking-visibility";
 import { fitVisualViewport } from "$lib/chat/viewport";
@@ -29,7 +30,9 @@ import {
   ConversationState,
   textOf,
 } from "$lib/state/conversation.svelte";
+import { effectiveDoneSound, getDoneSound } from "$lib/state/done-sound.svelte";
 import { attachmentRefusalMessage, imageRefusalMessage, refusalMessage } from "$lib/state/refusals";
+import type { TurnFinished } from "$lib/state/streaming-turn.svelte";
 import { getThinking } from "$lib/state/thinking.svelte";
 import { type SplitAxis, watchSplitAxis } from "$lib/workspace/axis";
 import type { PageProps } from "./$types";
@@ -64,6 +67,37 @@ const artifacts = new ArtifactWorkspace();
  */
 const thinking = getThinking();
 const showThinking = $derived(effectiveThinking(data.thinkingVisibility, thinking.preference));
+
+/**
+ * The cue that an answer is done (§20).
+ *
+ * A soft chime where the classroom's default and this device's switch agree it
+ * is on, and a ✓ in the tab title while the tab is in the background — so a
+ * pupil who went to read something else can see the answer has landed. Nothing
+ * for an answer the pupil stopped themselves: they know.
+ */
+const doneSound = getDoneSound();
+const soundOn = $derived(effectiveDoneSound(data.doneSound, doneSound.preference));
+let unseenDone = $state(false);
+let cued: TurnFinished | null = null;
+
+$effect(() => {
+  const finished = conversation.turn.finished;
+  if (!finished || finished === cued) return;
+  cued = finished;
+  if (finished.reason === "aborted") return;
+
+  if (untrack(() => soundOn)) playDoneChime();
+  if (document.hidden) unseenDone = true;
+});
+
+$effect(() => {
+  const seen = () => {
+    if (!document.hidden) unseenDone = false;
+  };
+  document.addEventListener("visibilitychange", seen);
+  return () => document.removeEventListener("visibilitychange", seen);
+});
 
 /** The conversation's artifact an id names, for cards with no revision of their own (§13). */
 function resolveArtifact(key: string): { id: string; title: string | null } | null {
@@ -312,6 +346,8 @@ async function mintConversation(): Promise<string | null> {
 
 async function send(): Promise<void> {
   refusal = null;
+  // Inside the click, where the browser allows sound to be started (§20).
+  if (soundOn) primeDoneChime();
   const conversationId = await ensureConversation();
   if (!conversationId) return;
 
@@ -615,7 +651,9 @@ async function abort(): Promise<void> {
 }
 </script>
 
-<svelte:head><title>{m.chat_title()} · {m.app_name()}</title></svelte:head>
+<svelte:head>
+  <title>{unseenDone ? "✓ " : ""}{m.chat_title()} · {m.app_name()}</title>
+</svelte:head>
 
 <ConversationDrawer
   conversations={data.conversations}
@@ -624,6 +662,7 @@ async function abort(): Promise<void> {
   onclose={() => (drawerOpen = false)}
   ondelete={deleteConversation}
   thinkingChoice={thinkingChoiceAvailable(data.thinkingVisibility)}
+  doneSound={data.doneSound}
 >
   {#snippet actions()}
     <!--

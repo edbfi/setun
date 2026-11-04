@@ -194,6 +194,8 @@ export const load: PageServerLoad = ({ locals, url }) => {
      * by any route whatever this value says (§21).
      */
     thinkingVisibility: classroom?.thinkingVisibility ?? "student",
+    /** Whether an answer finishing chimes, unless this device says otherwise (§20). */
+    doneSound: classroom?.doneSound ?? "on",
     // Uploads the pupil made before this reload; the composer shows them again.
     pendingAttachments: active
       ? listPendingAttachments(db, { studentId: student.id, conversationId: active.id }).map(

@@ -102,6 +102,8 @@ describe("applyMigrations", () => {
     // A classroom that predates the thinking policy leaves the choice to the
     // pupil rather than deciding for them (§20).
     expect(upgraded?.thinkingVisibility).toBe("student");
+    // And one that predates the done sound keeps the default (§20).
+    expect(upgraded?.doneSound).toBe("on");
   });
 
   it("adds the artifact identity columns to rows that predate them", () => {

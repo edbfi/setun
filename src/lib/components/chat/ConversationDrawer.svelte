@@ -2,9 +2,11 @@
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import X from "@lucide/svelte/icons/x";
 import type { Snippet } from "svelte";
+import DoneSoundControl from "$lib/components/ui/DoneSoundControl.svelte";
 import ThemeControl from "$lib/components/ui/ThemeControl.svelte";
 import ThinkingControl from "$lib/components/ui/ThinkingControl.svelte";
 import * as m from "$lib/paraglide/messages";
+import type { DoneSound } from "$lib/server/db/schema";
 
 /**
  * The conversation list, as an overlay (PRD §18, §20).
@@ -59,6 +61,8 @@ interface Props {
    * not offered at all rather than shown as a setting that changes nothing.
    */
   thinkingChoice?: boolean;
+  /** The classroom's default for the done sound; the switch overrides it on this device (§20). */
+  doneSound?: DoneSound;
 }
 
 let {
@@ -70,6 +74,7 @@ let {
   actions,
   footer,
   thinkingChoice = false,
+  doneSound = "on",
 }: Props = $props();
 
 /**
@@ -219,6 +224,7 @@ const link =
         -->
         <ThinkingControl />
       {/if}
+      <DoneSoundControl classroomDefault={doneSound} />
       <ThemeControl />
     </div>
   </aside>
