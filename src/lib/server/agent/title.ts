@@ -2,7 +2,7 @@ import type { AppDatabase } from "../db/client";
 import { setConversationTitle } from "../db/queries/conversations";
 import { getUtilityAlias } from "../db/queries/model-aliases";
 import { classroomDailyConsumption, recordUsageEvent } from "../db/queries/usage";
-import type { Classroom } from "../db/schema";
+import type { Classroom, ModelAlias } from "../db/schema";
 import type { GatewayAdapter } from "../gateway/adapter";
 import { budgetDayRange, budgetsOf, mayRunUtilityWork } from "./budgets";
 
@@ -15,6 +15,12 @@ import { budgetDayRange, budgetsOf, mayRunUtilityWork } from "./budgets";
  * Utility work counts toward the per-classroom daily cap but never a student's
  * personal allowance, so its usage event records a null student — and when that
  * cap is exhausted the work is skipped and the fallback used (§10).
+ *
+ * The first message is the pupil's words, so it may only go where the
+ * conversation already sends them under the same terms: a conversation on a
+ * model with a data processing agreement is titled by the utility alias only
+ * when that alias has one too, and otherwise by the conversation's own model
+ * (§9, §16).
  */
 
 const MAX_TITLE_LENGTH = 60;
@@ -51,6 +57,29 @@ function tidy(raw: string): string {
   return cleaned.length > MAX_TITLE_LENGTH ? fallbackTitle(cleaned) : cleaned;
 }
 
+type TitleAlias = Pick<
+  ModelAlias,
+  "id" | "dialect" | "gatewayModelId" | "available" | "dataProtection"
+>;
+
+/**
+ * The model that may title a conversation, or null for the fallback.
+ *
+ * The utility alias, unless it would take a protected conversation's words
+ * somewhere without an agreement; then the conversation's own model, which
+ * already reads them.
+ */
+export function titlingAlias(
+  utility: TitleAlias | undefined,
+  conversation: TitleAlias,
+): TitleAlias | null {
+  if (utility?.available && (utility.dataProtection || !conversation.dataProtection)) {
+    return utility;
+  }
+  if (!utility?.available) return null;
+  return conversation.available ? conversation : null;
+}
+
 /**
  * Generate and store a title, falling back on any failure.
  *
@@ -63,13 +92,15 @@ export async function generateConversationTitle(input: {
   conversationId: string;
   studentId: string;
   classroom: Classroom;
+  /** The conversation's own model: its terms bound where the first message may go. */
+  conversationAlias: TitleAlias;
   firstMessage: string;
   now?: Date;
 }): Promise<string> {
   const { db, classroom } = input;
   const now = input.now ?? new Date();
   const fallback = fallbackTitle(input.firstMessage);
-  const utility = getUtilityAlias(db);
+  const titler = titlingAlias(getUtilityAlias(db), input.conversationAlias);
 
   // "When the classroom cap is exhausted, utility work is skipped and its
   // fallback used" (§10) — a title is never worth the last of a class's day.
@@ -81,7 +112,7 @@ export async function generateConversationTitle(input: {
   });
   const affordable = mayRunUtilityWork(budgetsOf(classroom), { classroomTokens });
 
-  if (!utility?.available || !affordable) {
+  if (!titler || !affordable) {
     setConversationTitle(db, {
       conversationId: input.conversationId,
       studentId: input.studentId,
@@ -92,8 +123,8 @@ export async function generateConversationTitle(input: {
 
   let generated = "";
   try {
-    for await (const event of input.adapter.streamChat(utility.dialect, {
-      model: utility.gatewayModelId,
+    for await (const event of input.adapter.streamChat(titler.dialect, {
+      model: titler.gatewayModelId,
       messages: [
         { role: "system", content: TITLE_INSTRUCTION },
         { role: "user", content: input.firstMessage.slice(0, 2_000) },
@@ -105,7 +136,7 @@ export async function generateConversationTitle(input: {
         recordUsageEvent(db, {
           classroomId: classroom.id,
           studentId: null,
-          modelAliasId: utility.id,
+          modelAliasId: titler.id,
           inputTokens: event.inputTokens,
           outputTokens: event.outputTokens,
           estimated: event.estimated,

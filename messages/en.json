@@ -246,6 +246,7 @@
   "educator_alias_output_price_label": "Output price, USD per million tokens",
   "educator_alias_save_failed": "That change could not be saved.",
   "educator_alias_utility_label": "Use for internal work such as titles",
+  "educator_alias_utility_protection_note": "Conversations on models with a data processing agreement are titled by their own model, so the pupil's words stay under that agreement.",
   "educator_aliases_title": "Models",
   "educator_allowlist_allow": "Allow",
   "educator_allowlist_disallow": "Remove",

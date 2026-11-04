@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { AppDatabase } from "../db/client";
 import { createConversation, getOwnedConversation } from "../db/queries/conversations";
-import { createAlias } from "../db/queries/model-aliases";
+import { createAlias, updateAlias } from "../db/queries/model-aliases";
 import { recordUsageEvent } from "../db/queries/usage";
 import { createTestDatabase, seedTestFixtures } from "../db/testing";
 import { GatewayAdapter } from "../gateway/adapter";
 import { streamingResponse, stubFetch } from "../gateway/testing";
-import { fallbackTitle, generateConversationTitle } from "./title";
+import { fallbackTitle, generateConversationTitle, titlingAlias } from "./title";
 
 /**
  * Conversation titles and their fallback (plan 1.7, PRD §10).
@@ -36,23 +36,38 @@ function titleStream(text: string) {
   ]);
 }
 
-function withUtilityAlias() {
+function withUtilityAlias(dataProtection = false) {
   return createAlias(db, {
     name: "Utility",
     gatewayModelId: "small-model",
     dialect: "openai",
     isUtility: true,
+    dataProtection,
   });
 }
 
-function generate(adapter: GatewayAdapter, firstMessage: string, conversationId: string) {
+function generate(
+  adapter: GatewayAdapter,
+  firstMessage: string,
+  conversationId: string,
+  conversationAlias = fixtures.alias,
+) {
   return generateConversationTitle({
     db,
     adapter,
     conversationId,
     studentId: fixtures.student.id,
     classroom: fixtures.classroom,
+    conversationAlias,
     firstMessage,
+  });
+}
+
+/** The model each title request named. */
+function recordingAdapter(models: string[]) {
+  return adapterOver((call) => {
+    models.push((call.body as { model: string }).model);
+    return titleStream("Loops i Python");
   });
 }
 
@@ -180,6 +195,78 @@ describe("generateConversationTitle", () => {
         conversation.id,
       ),
     ).toBe("Forklar loops");
+  });
+});
+
+describe("titles respect the conversation's data protection (§9, §16)", () => {
+  const alias = (over: { dataProtection: boolean; available?: boolean }) => ({
+    id: "a",
+    dialect: "openai" as const,
+    gatewayModelId: "m",
+    available: true,
+    ...over,
+  });
+
+  it("uses the utility alias when it is at least as protected", () => {
+    const utility = alias({ dataProtection: true });
+    expect(titlingAlias(utility, alias({ dataProtection: true }))).toBe(utility);
+    expect(titlingAlias(utility, alias({ dataProtection: false }))).toBe(utility);
+
+    const open = alias({ dataProtection: false });
+    expect(titlingAlias(open, alias({ dataProtection: false }))).toBe(open);
+  });
+
+  it("titles a protected conversation on its own model when the utility alias is not", () => {
+    const own = alias({ dataProtection: true });
+    expect(titlingAlias(alias({ dataProtection: false }), own)).toBe(own);
+  });
+
+  it("falls back to truncation when no internal work is configured, or the own model is off", () => {
+    expect(titlingAlias(undefined, alias({ dataProtection: true }))).toBeNull();
+    expect(
+      titlingAlias(
+        alias({ dataProtection: false, available: false }),
+        alias({ dataProtection: false }),
+      ),
+    ).toBeNull();
+    expect(
+      titlingAlias(
+        alias({ dataProtection: false }),
+        alias({ dataProtection: true, available: false }),
+      ),
+    ).toBeNull();
+  });
+
+  it("never sends a protected conversation's first message to an unprotected utility model", async () => {
+    withUtilityAlias(false);
+    const own = updateAlias(db, { aliasId: fixtures.alias.id, values: { dataProtection: true } });
+    if (!own) throw new Error("alias missing");
+    const conversation = newConversation();
+    const models: string[] = [];
+
+    const title = await generate(recordingAdapter(models), "Forklar loops", conversation.id, own);
+
+    expect(title).toBe("Loops i Python");
+    expect(models).toEqual([own.gatewayModelId]);
+
+    // Still the classroom's cost, never the pupil's, booked to the model used.
+    const rows = db.$client.query("SELECT studentId, modelAliasId FROM usage_event").all() as {
+      studentId: string | null;
+      modelAliasId: string;
+    }[];
+    expect(rows).toEqual([{ studentId: null, modelAliasId: own.id }]);
+  });
+
+  it("keeps using a protected utility model for a protected conversation", async () => {
+    const utility = withUtilityAlias(true);
+    const own = updateAlias(db, { aliasId: fixtures.alias.id, values: { dataProtection: true } });
+    if (!own) throw new Error("alias missing");
+    const conversation = newConversation();
+    const models: string[] = [];
+
+    await generate(recordingAdapter(models), "Forklar loops", conversation.id, own);
+
+    expect(models).toEqual([utility.gatewayModelId]);
   });
 });
 

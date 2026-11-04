@@ -246,6 +246,7 @@
   "educator_alias_output_price_label": "Pris for output, USD pr. million tokens",
   "educator_alias_save_failed": "Ændringen kunne ikke gemmes.",
   "educator_alias_utility_label": "Brug til internt arbejde som titler",
+  "educator_alias_utility_protection_note": "Samtaler på modeller med en databehandleraftale får titel af deres egen model, så elevens ord forbliver under aftalen.",
   "educator_aliases_title": "Modeller",
   "educator_allowlist_allow": "Tillad",
   "educator_allowlist_disallow": "Fjern",

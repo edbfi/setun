@@ -211,6 +211,17 @@ const check = "flex items-center gap-2 text-sm text-foreground";
             </p>
           {/if}
 
+          {#if alias.isUtility && !alias.dataProtection}
+            <!--
+              A title is made from the pupil's first message, so a conversation
+              under a data processing agreement is titled by its own model
+              instead of this one (§9, §16).
+            -->
+            <p class="text-xs text-muted-foreground" data-utility-protection-note>
+              {m.educator_alias_utility_protection_note()}
+            </p>
+          {/if}
+
           <div class="flex items-center gap-3">
             <span
               class="rounded-full px-2 py-0.5 text-[0.6875rem] font-medium"
