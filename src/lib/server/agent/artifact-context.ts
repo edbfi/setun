@@ -427,10 +427,24 @@ export function elideSupersededArtifacts(
         ? (currentAt.get(fileKey(ref.artifactId, ref.path)) ?? -1) > at
         : (artifactAt.get(ref.artifactId) ?? -1) > at;
 
-    // The ref that decides this source's fate: the block's own artifact, if its
-    // current version is further down the path.
-    const superseded = (source: string, identity: BlockIdentity): ArtifactSourceRef | null =>
-      placeBlock(index.get(source) ?? [], identity).find(movedOn) ?? null;
+    /**
+     * The ref that decides this source's fate: the block's own artifact, if its
+     * current version is further down the path.
+     *
+     * A text that *is* the current file is judged by the current rule alone. The
+     * same text is also held by every older revision that left the file
+     * unchanged, and those refs are not current — so asking "did any ref move
+     * on?" found an old revision, saw the artifact change somewhere later, and
+     * elided the only copy of a file no later write had touched. A project the
+     * model revises one file at a time, as it is told to, lost every file it
+     * left alone: "I can see the filenames, but not their contents" (§13).
+     */
+    const superseded = (source: string, identity: BlockIdentity): ArtifactSourceRef | null => {
+      const refs = placeBlock(index.get(source) ?? [], identity);
+      const current = refs.find((ref) => ref.isCurrent);
+      if (current) return movedOn(current) ? current : null;
+      return refs.find(movedOn) ?? null;
+    };
 
     let changed = false;
     const parts = message.parts.map((part): MessagePart => {

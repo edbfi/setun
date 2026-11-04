@@ -607,11 +607,60 @@ describe("projects in the model's context", () => {
     const first = elided[0].parts[0];
     const text = first.type === "text" ? first.text : "";
 
-    // The entry is untouched — it is still the current copy of that file.
-    expect(text).toContain("app");
+    // The entry is untouched — it is still the current copy of that file. The
+    // whole fence, not the word: "app" is also inside "appears", which is what
+    // the placeholder replacing it says.
+    expect(text).toContain('```tsx id=tid path=src/App.tsx title="Tidslinje" entry\napp\n```');
     // The stylesheet the model has since rewritten is gone.
     expect(text).not.toContain("\ncss\n");
     expect(text).toContain("superseded");
+  });
+
+  it("keeps the only copy of a file no later write touched (the driving game)", () => {
+    // Reported from a classroom: "I can see the filenames in the project overview,
+    // but not their contents." The model revised one file of a project, as it is
+    // told to, and the file it left alone lost its only copy: the old revision's
+    // ref for that same text said the artifact had moved on, and the elision took
+    // it — while the path still counted the file as present, so nothing carried it.
+    const game = [
+      '```html id=bil path=index.html title="Bilspil" entry',
+      '<canvas></canvas><script type="module" src="src/drivePhysics.js"></script>',
+      "```",
+      "```js id=bil path=src/drivePhysics.js",
+      "export function step(car) { car.x += car.speed; }",
+      "```",
+    ].join("\n");
+    const faster =
+      '```html id=bil path=index.html entry\n<canvas id="fast"></canvas><script type="module" src="src/drivePhysics.js"></script>\n```';
+    const louder = "```css id=bil path=src/styles.css\nbody { background: black }\n```";
+
+    assistantTurn(game);
+    assistantTurn(faster);
+    assistantTurn(louder);
+
+    const onPath = path(
+      user("lav et bilspil"),
+      assistant(game),
+      user("hurtigere"),
+      assistant(faster),
+      user("mørk baggrund"),
+      assistant(louder),
+    );
+    const built = context(...onPath);
+    const elided = elideSupersededArtifacts(onPath, built.index);
+    const sent = elided
+      .flatMap((message) => message.parts)
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .join("\n");
+
+    // The physics file's only copy is still there…
+    expect(sent).toContain("export function step(car) { car.x += car.speed; }");
+    // …because nothing carries it otherwise.
+    expect(built.carried).toEqual([]);
+    // So is the current page, which the stylesheet-only revision left alone.
+    expect(sent).toContain('<canvas id="fast"></canvas>');
+    // The page's first version did move on, and goes.
+    expect(sent).not.toContain("<canvas></canvas>");
   });
 
   it("carries only the files the path lacks, under a header naming them all", () => {
