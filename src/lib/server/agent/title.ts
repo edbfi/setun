@@ -73,10 +73,8 @@ export function titlingAlias(
   utility: TitleAlias | undefined,
   conversation: TitleAlias,
 ): TitleAlias | null {
-  if (utility?.available && (utility.dataProtection || !conversation.dataProtection)) {
-    return utility;
-  }
   if (!utility?.available) return null;
+  if (utility.dataProtection || !conversation.dataProtection) return utility;
   return conversation.available ? conversation : null;
 }
 

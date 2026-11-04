@@ -217,7 +217,7 @@ const check = "flex items-center gap-2 text-sm text-foreground";
               under a data processing agreement is titled by its own model
               instead of this one (§9, §16).
             -->
-            <p class="text-xs text-muted-foreground" data-utility-protection-note>
+            <p class="text-xs text-muted-foreground">
               {m.educator_alias_utility_protection_note()}
             </p>
           {/if}
