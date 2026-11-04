@@ -70,40 +70,81 @@ export function artifactLanguage(tag: string | null | undefined): ArtifactLangua
   return isArtifactLanguage(normalised) ? normalised : null;
 }
 
+/**
+ * What a fence's opening line says it is, before any of its body is known.
+ *
+ * The one rule for "is this fence an artifact file", shared by the recorder, the
+ * settled transcript and the streaming scan. They used to answer it apart, and
+ * the streaming scan knew only the five runnable tags — so a revision that
+ * re-emitted one stylesheet under `css id=… path=…` was a card once it settled
+ * and a screenful of CSS in the chat while it arrived.
+ *
+ * Null for a fence that stays an ordinary code block.
+ */
+export interface ArtifactFence {
+  readonly language: ArtifactLanguage | null;
+  readonly kind: ProjectFileKind;
+  readonly key: string | null;
+  readonly title: string | null;
+  readonly path: string | null;
+  readonly deleted: boolean;
+  readonly entry: boolean;
+}
+
+export function artifactFence(
+  tag: string | null | undefined,
+  attributes: Readonly<Record<string, string>>,
+): ArtifactFence | null {
+  const kind = kindOf(`x.${(tag ?? "").trim().toLowerCase()}`);
+  if (!kind) return null;
+
+  const language = artifactLanguage(tag);
+  const key = normaliseArtifactKey(attributes.id);
+  // A path is only meaningful against an artifact, so it is read only where
+  // one is named. An invalid path is treated as absent, never guessed at.
+  const path = key ? normaliseProjectPath(attributes.path) : null;
+  const deleted = "delete" in attributes;
+
+  // A tag that is not runnable is a project file, and a project file needs
+  // both halves of its address before it belongs to anything.
+  if (!language && !(key && path)) return null;
+  // A deletion names a file of a project, so it needs the same address.
+  if (deleted && !(key && path)) return null;
+
+  return {
+    language,
+    kind,
+    key,
+    title: attributes.title?.trim() || null,
+    path,
+    deleted,
+    entry: "entry" in attributes,
+  };
+}
+
+/**
+ * Whether a closed fence with this body is an artifact write.
+ *
+ * An empty block is a fence the model opened and closed with nothing in it —
+ * except for a deletion, which is exactly the block that has no body.
+ */
+export function hasArtifactBody(fence: ArtifactFence, source: string): boolean {
+  return fence.deleted || source.trim().length > 0;
+}
+
 /** Every artifact block in a piece of model prose, in the order it was written. */
 export function detectArtifacts(markdown: string): DetectedArtifact[] {
   const found: DetectedArtifact[] = [];
 
   for (const block of fencedBlocks(markdown)) {
-    const kind = kindOf(`x.${(block.language ?? "").trim().toLowerCase()}`);
-    if (!kind) continue;
-
-    const language = artifactLanguage(block.language);
-    const key = normaliseArtifactKey(block.attributes.id);
-    // A path is only meaningful against an artifact, so it is read only where
-    // one is named. An invalid path is treated as absent, never guessed at.
-    const path = key ? normaliseProjectPath(block.attributes.path) : null;
-    const deleted = "delete" in block.attributes;
-
-    // A tag that is not runnable is a project file, and a project file needs
-    // both halves of its address before it belongs to anything.
-    if (!language && !(key && path)) continue;
-
-    // An empty block is a fence the model opened and closed with nothing in it —
-    // except for a deletion, which is exactly the block that has no body.
-    if ((deleted && !(key && path)) || (!deleted && !block.source.trim())) continue;
+    const fence = artifactFence(block.language, block.attributes);
+    if (!fence || !hasArtifactBody(fence, block.source)) continue;
 
     found.push({
-      language,
-      kind,
+      ...fence,
       source: block.source,
       line: block.line,
       endLine: block.endLine,
-      key,
-      title: block.attributes.title?.trim() || null,
-      path,
-      deleted,
-      entry: "entry" in block.attributes,
     });
   }
 

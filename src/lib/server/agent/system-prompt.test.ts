@@ -124,6 +124,12 @@ describe("the artifact layer", () => {
     expect(ARTIFACT_INSTRUCTIONS).toContain("with the delete flag");
   });
 
+  it("asks for a longer fence around a file that holds a fence of its own", () => {
+    // A README's own ``` line closes a three-backtick block early, and the rest
+    // of the file lands in the chat as prose (§13).
+    expect(ARTIFACT_INSTRUCTIONS).toContain("open and close its block with four (````)");
+  });
+
   it("bounds what an artifact may import", () => {
     expect(ARTIFACT_INSTRUCTIONS).toContain("Imports are relative paths inside the project");
     expect(ARTIFACT_INSTRUCTIONS).toContain("Importable: react, react-dom/client");

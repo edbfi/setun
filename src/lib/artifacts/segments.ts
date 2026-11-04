@@ -1,12 +1,12 @@
 import {
-  artifactLanguage,
+  type ArtifactFence,
+  artifactFence,
   type DetectedArtifact,
   detectArtifacts,
   groupProjectWrites,
 } from "./detect";
 import { CARRIED, type OpenFence, type ScannedFences, scanFences } from "./fences";
-import { normaliseArtifactKey } from "./identity";
-import { normaliseProjectPath } from "./project";
+import type { ProjectFileKind } from "./project";
 import type { ArtifactLanguage } from "./types";
 
 /**
@@ -39,6 +39,21 @@ export type ArtifactSegment =
       readonly raw: string;
       /** Every path this write states, so the card can say how many files (§13). */
       readonly files: readonly string[];
+    }
+  /**
+   * An artifact fence the message ends inside (§13, §20).
+   *
+   * A turn stopped mid-file — Stop pressed, a cap reached, a dropped connection
+   * — leaves a fence with no closing line. It is not an artifact, and the server
+   * records nothing for it; but rendered as markdown it is a code block running
+   * to the end of the message, which is the wall of code the cards replace. So it
+   * is its own segment, and the transcript keeps it collapsed.
+   */
+  | {
+      readonly kind: "unclosed";
+      readonly fence: ArtifactFence;
+      /** The block as written, opening line included, for the collapsed view. */
+      readonly raw: string;
     };
 
 /**
@@ -56,8 +71,14 @@ export function artifactSegments(markdown: string, firstIndex = 0): ArtifactSegm
 /** Group across the same joined text as the recorder, keeping each part's prose in place. */
 export function artifactMessageSegments(texts: readonly string[]): ArtifactSegment[][] {
   const markdown = texts.join("\n");
-  const lines = markdown.split("\n");
+  const scanned = scanFences(markdown);
+  const lines = scanned.lines;
   const detected = detectArtifacts(markdown);
+  const tailFence = scanned.open
+    ? artifactFence(scanned.open.language, scanned.open.attributes)
+    : null;
+  /** Where the unclosed artifact fence begins; nothing from here on is prose. */
+  const tail = tailFence && scanned.open ? scanned.open.line : lines.length;
   const writes = groupProjectWrites(detected);
   const cards = new Map<number, Extract<ArtifactSegment, { kind: "artifact" }>>();
   writes.forEach((write, index) => {
@@ -75,7 +96,8 @@ export function artifactMessageSegments(texts: readonly string[]): ArtifactSegme
 
   let start = 0;
   return texts.map((text) => {
-    const end = start + text.split("\n").length;
+    const partEnd = start + text.split("\n").length;
+    const end = Math.min(partEnd, tail);
     const segments: ArtifactSegment[] = [];
     let at = start;
     const prose = (from: number, to: number) => {
@@ -93,7 +115,10 @@ export function artifactMessageSegments(texts: readonly string[]): ArtifactSegme
       at = Math.min(end, block.endLine + 1);
     }
     prose(at, end);
-    start = end;
+    if (tailFence && tail >= start && tail < partEnd) {
+      segments.push({ kind: "unclosed", fence: tailFence, raw: lines.slice(tail).join("\n") });
+    }
+    start = partEnd;
     return segments;
   });
 }
@@ -119,7 +144,15 @@ export type StreamingSegment =
   /** The fence the message ends inside: a title and a language, and no source yet. */
   | {
       readonly kind: "pending";
-      readonly language: ArtifactLanguage;
+      /**
+       * The runnable language, or null for a file that is only imported — a
+       * stylesheet or a data module, which a revision re-emits on its own (§13).
+       */
+      readonly language: ArtifactLanguage | null;
+      /** The fence tag, runnable or not, so a stub can say what kind of file it is. */
+      readonly fileKind: ProjectFileKind;
+      /** The `delete` flag: this file is being removed rather than written. */
+      readonly deleted: boolean;
       readonly key: string | null;
       readonly title: string | null;
       /**
@@ -232,8 +265,11 @@ export function streamingMessageSegments(texts: readonly string[]): StreamingSeg
       // Joined with nothing: each piece is the exact substring of its part, and
       // `StreamingTurn` concatenates deltas rather than adding a line between
       // them — a boundary that fell mid-line is one line again here.
-      if (bodied) nameStub(scans[stub.at], stub.open, [...stub.source, piece].join(""));
-      else unbuildStub(scans[stub.at], texts[stub.at], stub.open);
+      // A deletion is the one write that has no body, and still a write.
+      const deleting = artifactFence(stub.open.language, stub.open.attributes)?.deleted;
+      if (bodied || deleting) {
+        nameStub(scans[stub.at], stub.open, [...stub.source, piece].join(""));
+      } else unbuildStub(scans[stub.at], texts[stub.at], stub.open);
       stub = null;
     } else if (stub) {
       // Still open, so the whole of this part is inside it.
@@ -253,7 +289,7 @@ export function streamingMessageSegments(texts: readonly string[]): StreamingSeg
 
     // A fence opened here and is still open: this part owns its stub, if the
     // fence is one the transcript shows a stub for at all.
-    if (!artifactLanguage(open.language)) {
+    if (!artifactFence(open.language, open.attributes)) {
       stub = null;
       return;
     }
@@ -292,23 +328,12 @@ function growStub(segments: StreamingSegment[], lines: number): void {
  */
 function nameStub(segments: StreamingSegment[], open: OpenFence, source: string): void {
   const at = segments.findIndex((segment) => segment.kind === "pending");
-  const language = artifactLanguage(open.language);
-  if (at === -1 || !language) return;
+  const fence = artifactFence(open.language, open.attributes);
+  if (at === -1 || !fence) return;
 
   segments[at] = {
     kind: "artifact",
-    artifact: {
-      language,
-      kind: language,
-      source,
-      line: open.line,
-      endLine: CARRIED,
-      key: normaliseArtifactKey(open.attributes.id),
-      title: open.attributes.title?.trim() || null,
-      path: null,
-      deleted: false,
-      entry: false,
-    },
+    artifact: { ...fence, source, line: open.line, endLine: CARRIED },
   };
 }
 
@@ -347,23 +372,23 @@ function segmentsOf(
   carriedIn: { readonly bodied: boolean } | null,
 ): StreamingSegment[] {
   const { blocks, open, lines } = scanned;
-  const pendingLanguage = open ? artifactLanguage(open.language) : null;
+  const pending = open ? artifactFence(open.language, open.attributes) : null;
 
   // A fence that is open but not an artifact — a bare ``` or a js block — is
   // ordinary prose and stays in the paragraph, exactly as it does today.
-  const end = pendingLanguage && open ? Math.max(open.line, 0) : lines.length;
+  const end = pending && open ? Math.max(open.line, 0) : lines.length;
 
   const segments: StreamingSegment[] = [];
   let at = 0;
 
   for (const block of blocks) {
-    const language = artifactLanguage(block.language);
+    const fence = artifactFence(block.language, block.attributes);
     const carried = block.line === CARRIED;
     // An empty body is not an artifact, here as on the settled path — but a
     // carried block's body is spread over the parts it crossed, so what this
     // scan holds of it says nothing about whether there is one.
-    const empty = carried ? !carriedIn?.bodied : !block.source.trim();
-    if (!language || empty) continue;
+    const empty = fence?.deleted ? false : carried ? !carriedIn?.bodied : !block.source.trim();
+    if (!fence || empty) continue;
 
     const before = lines.slice(at, Math.max(block.line, 0)).join("\n");
     if (before.trim()) segments.push({ kind: "text", text: before });
@@ -373,36 +398,34 @@ function segmentsOf(
 
     segments.push({
       kind: "artifact",
-      artifact: {
-        language,
-        kind: language,
-        source: block.source,
-        line: block.line,
-        endLine: block.endLine,
-        key: normaliseArtifactKey(block.attributes.id),
-        title: block.attributes.title?.trim() || null,
-        path: null,
-        deleted: false,
-        entry: false,
-      },
+      artifact: { ...fence, source: block.source, line: block.line, endLine: block.endLine },
     });
   }
 
   const after = lines.slice(at, end).join("\n");
   if (after.trim()) segments.push({ kind: "text", text: after });
 
-  if (pendingLanguage && open && !(carriedIn && open.line === CARRIED)) {
-    segments.push({
-      kind: "pending",
-      language: pendingLanguage,
-      key: normaliseArtifactKey(open.attributes.id),
-      title: open.attributes.title?.trim() || null,
-      lines: bodyLines(lines.slice(open.line + 1)),
-      path: normaliseProjectPath(open.attributes.path),
-    });
+  if (pending && open && !(carriedIn && open.line === CARRIED)) {
+    segments.push(pendingSegment(pending, bodyLines(lines.slice(open.line + 1))));
   }
 
   return segments;
+}
+
+function pendingSegment(
+  fence: ArtifactFence,
+  lines: number,
+): Extract<StreamingSegment, { kind: "pending" }> {
+  return {
+    kind: "pending",
+    language: fence.language,
+    fileKind: fence.kind,
+    deleted: fence.deleted,
+    key: fence.key,
+    title: fence.title,
+    lines,
+    path: fence.path,
+  };
 }
 
 /** How many artifacts a piece of prose holds — the running count between parts. */
@@ -411,4 +434,65 @@ export function artifactSegmentCount(markdown: string): number {
   // revision, and counting them separately would put the transcript's cards out
   // of step with what the server stored (§13).
   return groupProjectWrites(detectArtifacts(markdown)).length;
+}
+
+/**
+ * Which recorded revision each card of a settled message stands for (§13).
+ *
+ * The refs come from the database and the cards from the text, and the two
+ * usually line up one for one. When they do not — an identical re-emission
+ * appends no revision, a write over the caps records nothing — the transcript
+ * used to give up on the whole message and render every fence as written, so
+ * one restated stylesheet put the whole page's code in the chat.
+ *
+ * So the pairing is per card: by position when the two agree throughout, and
+ * otherwise by the id the fence wrote. A card nothing pairs with gets null, and
+ * the transcript keeps that one contained rather than naming a revision the
+ * database does not have.
+ *
+ * Returned in card-index order.
+ */
+export function pairArtifactRefs<Ref extends { readonly key: string; readonly language: string }>(
+  cards: readonly Extract<ArtifactSegment, { kind: "artifact" }>[],
+  refs: readonly Ref[],
+): (Ref | null)[] {
+  const ordered = [...cards].sort((a, b) => a.index - b.index);
+
+  const positional =
+    refs.length === ordered.length &&
+    ordered.every((card) => {
+      const ref = refs[card.index];
+      // A write whose first fence is a plain file — a revision that changed only
+      // the stylesheet — states no language of its own, so the ref's tag stands.
+      return (
+        ref !== undefined && (!card.artifact.language || ref.language === card.artifact.language)
+      );
+    });
+  if (positional) return ordered.map((card) => refs[card.index]);
+
+  const used = new Set<number>();
+  const written = new Set(
+    ordered.flatMap((card) => (card.artifact.key ? [card.artifact.key] : [])),
+  );
+  let cursor = 0;
+
+  return ordered.map((card) => {
+    const { key, language } = card.artifact;
+    const at = key
+      ? refs.findIndex((ref, index) => !used.has(index) && ref.key === key)
+      : // A key-less block's ref carries a derived key, so it is found by order
+        // and language among the refs no written id claims.
+        refs.findIndex(
+          (ref, index) =>
+            index >= cursor &&
+            !used.has(index) &&
+            !written.has(ref.key) &&
+            ref.language === language,
+        );
+    if (at === -1) return null;
+
+    used.add(at);
+    cursor = at + 1;
+    return refs[at];
+  });
 }

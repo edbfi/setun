@@ -2,6 +2,7 @@
 import {
   type ArtifactSegment,
   artifactMessageSegments,
+  pairArtifactRefs,
   type StreamingSegment,
   streamingMessageSegments,
 } from "$lib/artifacts/segments";
@@ -11,6 +12,7 @@ import * as m from "$lib/paraglide/messages";
 import type { MessagePart } from "$lib/server/db/schema";
 import type { MessageArtifactRef } from "$lib/state/conversation.svelte";
 import ArtifactCard from "./ArtifactCard.svelte";
+import ArtifactContainedCard from "./ArtifactContainedCard.svelte";
 import ArtifactStubCard from "./ArtifactStubCard.svelte";
 import MarkdownMessage from "./MarkdownMessage.svelte";
 import ThinkingBlock from "./ThinkingBlock.svelte";
@@ -44,6 +46,14 @@ interface Props {
   activeArtifactId?: string | null;
   onopenartifact?: (artifactId: string) => void;
   /**
+   * The conversation's artifact a fence's id names, when there is one (§13).
+   *
+   * A write that restated a file unchanged records no revision, so this message
+   * has no ref for it — but the thing it names still exists, and its card can
+   * still open it.
+   */
+  resolveArtifact?: (key: string) => string | null;
+  /**
    * Whether the model's reasoning is rendered at all (§20).
    *
    * The classroom's policy and the pupil's own switch, already resolved. A part
@@ -70,6 +80,7 @@ let {
   artifacts,
   activeArtifactId = null,
   onopenartifact,
+  resolveArtifact,
   showThinking = true,
   thinkingStartedAt = null,
   thinkingSettledAt = null,
@@ -95,25 +106,20 @@ const settledByPart = $derived.by(() => {
 });
 
 /**
- * Whether the cards can be trusted to name what the blocks are.
+ * Which recorded revision each card stands for, by card index (§13).
  *
- * The refs come from the database and the blocks from the text, and the two are
- * produced by the same `detectArtifacts` — but a message edited on the server, a
- * deleted artifact, or an identical re-emission that appended no revision can
- * leave them out of step. When the count or the languages disagree the fence is
- * rendered as it was written, which is the old behaviour and never wrong.
+ * The refs come from the database and the blocks from the text. They usually
+ * agree, but an identical re-emission appends no revision and a write over the
+ * caps records nothing — and a card with no ref used to send the *whole*
+ * message back to raw fences, which is how restating one stylesheet put a page
+ * of code in the chat. Paired per card now; a card with no ref stays a card.
  */
-const aligned = $derived.by(() => {
-  const refs = artifacts ?? [];
+const pairs = $derived.by(() => {
   const cards = [...settledByPart.values()].flat().filter((segment) => segment.kind === "artifact");
-  if (refs.length === 0 || refs.length !== cards.length) return false;
-  return cards.every((segment) => {
-    // A write whose first fence is a plain file — a revision that changed only
-    // the stylesheet — states no language of its own, so there is nothing to
-    // compare and the ref's own tag stands (§13).
-    if (segment.artifact.language === null) return refs[segment.index] !== undefined;
-    return refs[segment.index]?.language === segment.artifact.language;
-  });
+  const paired = pairArtifactRefs(cards, artifacts ?? []);
+  return new Map(
+    [...cards].sort((a, b) => a.index - b.index).map((card, at) => [card.index, paired[at]]),
+  );
 });
 
 /**
@@ -172,47 +178,66 @@ const failed = $derived(
           <p class="whitespace-pre-wrap break-words">{segment.text}</p>
         {:else if segment.kind === "artifact"}
           <!--
-            A write whose first fence is a plain file — a revision that touched
-            only the stylesheet — has no language to show a trit for, so it stays
-            in the prose rather than becoming a card that names nothing (§13).
+            Every artifact file is a stub, runnable or not: a revision that
+            re-emits only a stylesheet is still a write of the artifact, and its
+            CSS is no more prose than a page's markup is (§13).
           -->
-          {#if segment.artifact.language}
-            <ArtifactStubCard
-              language={segment.artifact.language}
-              artifactKey={segment.artifact.key}
-              title={segment.artifact.title}
-            />
-          {/if}
+          <ArtifactStubCard
+            language={segment.artifact.language}
+            fileKind={segment.artifact.kind}
+            artifactKey={segment.artifact.key}
+            title={segment.artifact.title}
+            path={segment.artifact.path}
+            deleted={segment.artifact.deleted}
+          />
         {:else}
           <ArtifactStubCard
             language={segment.language}
+            fileKind={segment.fileKind}
             artifactKey={segment.key}
             title={segment.title}
             lines={segment.lines}
             path={segment.path}
+            deleted={segment.deleted}
             pending
           />
         {/if}
       {/each}
-    {:else if !aligned}
-      <MarkdownMessage text={part.text} />
     {:else}
       <!--
         The artifacts pulled out of the prose and shown as cards; everything
         between them is ordinary markdown, and `renderMarkdown` stays the only
-        producer of `{@html}` in the transcript (§5).
+        producer of `{@html}` in the transcript (§5). A block with no recorded
+        revision, or one the turn never finished, is still a card — contained,
+        with its source a click away — and never a wall of code (§13, §20).
       -->
       {#each settledByPart.get(index) ?? [] as segment, at (at)}
         {#if segment.kind === "text"}
           <MarkdownMessage text={segment.text} />
-        {:else if artifacts?.[segment.index]}
-          <ArtifactCard
-            artifact={artifacts[segment.index]}
-            active={artifacts[segment.index].artifactId === activeArtifactId}
-            onopen={onopenartifact}
-          />
+        {:else if segment.kind === "unclosed"}
+          <ArtifactContainedCard fence={segment.fence} raw={segment.raw} reason="incomplete" />
         {:else}
-          <MarkdownMessage text={segment.raw} />
+          {@const ref = pairs.get(segment.index) ?? null}
+          {#if ref}
+            <ArtifactCard
+              artifact={ref}
+              active={ref.artifactId === activeArtifactId}
+              onopen={onopenartifact}
+            />
+          {:else}
+            {@const named = segment.artifact.key
+              ? (resolveArtifact?.(segment.artifact.key) ?? null)
+              : null}
+            <ArtifactContainedCard
+              fence={segment.artifact}
+              raw={segment.raw}
+              files={segment.files}
+              reason={named ? "existing" : "unsaved"}
+              artifactId={named}
+              active={named !== null && named === activeArtifactId}
+              onopen={onopenartifact}
+            />
+          {/if}
         {/if}
       {/each}
     {/if}
