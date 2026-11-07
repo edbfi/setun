@@ -3,6 +3,7 @@ import { enhance } from "$app/forms";
 import { effectiveLanguage } from "$lib/artifacts/identity";
 import ArtifactFrame from "$lib/components/artifacts/ArtifactFrame.svelte";
 import * as m from "$lib/paraglide/messages";
+import { getLocale } from "$lib/paraglide/runtime";
 import type { PageProps } from "./$types";
 
 /**
@@ -18,6 +19,9 @@ let { data, form }: PageProps = $props();
 
 let selectedId = $state<string | null>(null);
 const selected = $derived(data.artifacts.find((item) => item.id === selectedId) ?? null);
+
+/** The document list's dates, in the pupil's language. */
+const day = $derived(new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium" }));
 
 const empty = $derived(
   data.artifacts.length === 0 && data.images.length === 0 && data.documents.length === 0,
@@ -159,6 +163,10 @@ const empty = $derived(
                     {document.format === "csv"
                       ? m.chat_document_format_csv()
                       : m.chat_document_format_docx()}
+                    ·
+                    <time datetime={document.createdAt}>
+                      {day.format(new Date(document.createdAt))}
+                    </time>
                   </span>
                 </span>
 

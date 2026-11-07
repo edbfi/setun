@@ -34,7 +34,8 @@ export function privateFileHeaders(input: {
   };
 }
 
-const UNSAFE = /[\p{Cc}/\\]/gu;
+/** Control characters, lone surrogates (which `encodeURIComponent` throws on) and path separators. */
+const UNSAFE = /[\p{Cc}\p{Cs}/\\]/gu;
 const EXTENSION = /(\.[A-Za-z0-9]{1,8})$/;
 
 /**

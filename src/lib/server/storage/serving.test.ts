@@ -65,6 +65,16 @@ describe("privateFileHeaders", () => {
     );
   });
 
+  test("drops a lone surrogate instead of throwing, and keeps a whole pair", () => {
+    // An upload name cut by UTF-16 length can end in half a character.
+    expect(disposition("ab\uD835.txt")).toBe(
+      "inline; filename=\"ab.txt\"; filename*=UTF-8''ab.txt",
+    );
+    expect(disposition("\u{1D49C}.txt")).toBe(
+      "inline; filename=\"document.txt\"; filename*=UTF-8''%F0%9D%92%9C.txt",
+    );
+  });
+
   test("encodes the characters RFC 8187 reserves beyond encodeURIComponent", () => {
     expect(disposition("it's (a) *test*.txt")).toBe(
       "inline; filename=\"its a test.txt\"; filename*=UTF-8''it%27s%20%28a%29%20%2Atest%2A.txt",

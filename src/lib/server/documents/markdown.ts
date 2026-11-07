@@ -276,7 +276,11 @@ function decodeEntities(text: string): string {
         body[1] === "x" || body[1] === "X"
           ? Number.parseInt(body.slice(2), 16)
           : Number.parseInt(body.slice(1), 10);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+      // A surrogate on its own is not a character; it stays as written.
+      return Number.isFinite(code) &&
+        code > 0 &&
+        code <= 0x10ffff &&
+        (code < 0xd800 || code > 0xdfff)
         ? String.fromCodePoint(code)
         : whole;
     }

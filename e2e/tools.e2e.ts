@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, type Page, test } from "@playwright/test";
 import * as m from "../src/lib/paraglide/messages";
-import { APP_ORIGIN, E2E_DATABASE_PATH, E2E_PEPPER } from "../playwright.config";
+import { APP_ORIGIN, E2E_DATABASE_PATH, E2E_PEPPER, E2E_STORAGE_PATH } from "../playwright.config";
 import { clearLoginWindow } from "./support/login-window";
 
 /**
@@ -148,6 +148,45 @@ test("a text attachment is accepted, stored, and served only to its owner (§10,
 
   // And it is still there for its owner after the failed attempts.
   expect((await ownerPage.request.get(`/api/attachments/${record.id}`)).status()).toBe(200);
+
+  await ownerContext.close();
+  await intruderContext.close();
+});
+
+test("a generated document downloads only for its owner, as an attachment", async ({
+  browser,
+  request,
+}) => {
+  const [owner, intruder] = await Promise.all([provisionStudent(), provisionStudent()]);
+  const { stdout } = await run("bun", ["run", "e2e/support/seed-document.ts"], {
+    env: { ...env, SETUN_STORAGE_PATH: E2E_STORAGE_PATH, SETUN_E2E_STUDENT_LABEL: owner.label },
+  });
+  const document: { id: string } = JSON.parse(stdout.trim());
+
+  const ownerContext = await browser.newContext();
+  const ownerPage = await ownerContext.newPage();
+  await signIn(ownerPage, owner.code);
+
+  // Saved, never rendered on Setun's origin, under the same restrictive headers
+  // as every private file (§14, §21).
+  const own = await ownerPage.request.get(`/api/documents/${document.id}`);
+  expect(own.status()).toBe(200);
+  expect(own.headers()["content-type"]).toBe("text/csv; charset=utf-8");
+  expect(own.headers()["content-disposition"]).toBe(
+    "attachment; filename=\"Blade og farver.csv\"; filename*=UTF-8''Blade%20og%20farver.csv",
+  );
+  expect(own.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(own.headers()["cross-origin-resource-policy"]).toBe("same-origin");
+  expect(await own.text()).toContain("Eg,Grøn");
+
+  // Absent, not forbidden, for anyone else (§21, §22).
+  const intruderContext = await browser.newContext();
+  const intruderPage = await intruderContext.newPage();
+  await signIn(intruderPage, intruder.code);
+  expect((await intruderPage.request.get(`/api/documents/${document.id}`)).status()).toBe(404);
+
+  // And refused outright without a session.
+  expect((await request.get(`/api/documents/${document.id}`)).status()).toBe(401);
 
   await ownerContext.close();
   await intruderContext.close();
