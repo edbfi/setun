@@ -23,6 +23,10 @@ describe("renderCsv", () => {
     );
   });
 
+  test("turns a <br> in a cell into a space rather than gluing the words", () => {
+    expect(csvOf("| A |\n|---|\n| a<br>b |\n| c<br />d |")).toBe("\uFEFFA\r\na b\r\nc d\r\n");
+  });
+
   test("flattens inline styling to plain text", () => {
     expect(csvOf("| A |\n|---|\n| **bold** `code` a\\|b |")).toBe("\uFEFFA\r\nbold code a|b\r\n");
   });
@@ -52,11 +56,13 @@ describe("neutraliseFormula", () => {
     ["@SUM(A1)"],
     ["-1+cmd"],
     ["+cmd"],
+    ["-3 kg"],
+    ["--"],
   ])("prefixes %p", (cell) => {
     expect(neutraliseFormula(cell)).toBe(`'${cell}`);
   });
 
-  test.each([["-5"], ["-5,2"], ["+3.25"], ["42"], ["hello"], ["e-mail"], [""]])(
+  test.each([["-5"], ["-5,2"], ["+3.25"], ["-5%"], ["42"], ["-"], ["hello"], ["e-mail"], [""]])(
     "leaves %p alone",
     (cell) => {
       expect(neutraliseFormula(cell)).toBe(cell);

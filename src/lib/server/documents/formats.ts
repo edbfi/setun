@@ -37,14 +37,18 @@ const FILENAME_MAX_CHARS = 80;
 /**
  * The name a downloaded document is saved under.
  *
- * Letters (any script), digits, spaces, underscores and hyphens from the title,
+ * Letters (any script, with their combining marks), digits, spaces, underscores
+ * and hyphens from the title,
  * whitespace collapsed, at most 80 characters, then the server's extension.
  * `privateFileHeaders` cleans it again on its way into the header; this is the
  * name a pupil sees.
  */
 export function documentFilename(title: string, format: DocumentFormat): string {
+  // Composed first, and combining marks kept, so a decomposed `å` or an
+  // Arabic or Devanagari vowel sign does not split the word it belongs to.
   const cleaned = title
-    .replace(/[^\p{L}\p{N} _-]/gu, " ")
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{M}\p{N} _-]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
   // By code point, so a letter outside the BMP is never cut in half.

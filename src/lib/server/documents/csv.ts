@@ -10,15 +10,17 @@ import { type Block, plainText } from "./markdown";
  * included, is checked on its final flattened text, before quoting: one that
  * begins — after any leading whitespace or control characters — with a formula
  * character, ASCII or full-width, or that begins with a tab, carriage return or
- * line feed, is prefixed with `'`. A plain number is left alone so that `-5`
- * and `-5,2` stay numbers. This is a mitigation, not a guarantee: spreadsheet
+ * line feed, is prefixed with `'`. A plain number, optionally a percentage, is
+ * left alone so that `-5`, `-5,2` and `-5%` stay numbers, and so is a lone `-`,
+ * the placeholder tables use for an empty cell. A number with a unit (`-3 kg`)
+ * is still prefixed: the rule stays narrow on purpose. This is a mitigation, not a guarantee: spreadsheet
  * applications differ, and a file saved and reopened elsewhere may lose the
  * prefix.
  */
 
 const FORMULA_START = /^[\s\p{Cc}]*[=+\-@＝＋－＠]/u;
 const CONTROL_START = /^[\t\r\n]/;
-const PLAIN_NUMBER = /^[+-]?\d+([.,]\d+)?$/;
+const PLAIN_NUMBER = /^[+-]?\d+([.,]\d+)?%?$/;
 const NEEDS_QUOTES = /[",\r\n]/;
 
 export type CsvResult =
@@ -40,7 +42,7 @@ export function renderCsv(blocks: readonly Block[]): CsvResult {
 
 /** Exported for its tests: the rule is the part worth checking case by case. */
 export function neutraliseFormula(cell: string): string {
-  if (PLAIN_NUMBER.test(cell)) return cell;
+  if (cell === "-" || PLAIN_NUMBER.test(cell)) return cell;
   if (CONTROL_START.test(cell) || FORMULA_START.test(cell)) return `'${cell}`;
   return cell;
 }

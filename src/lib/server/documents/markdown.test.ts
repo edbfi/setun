@@ -54,6 +54,13 @@ describe("parseDocument", () => {
     expect(paragraph.runs).toContainEqual({ text: "e", code: true });
   });
 
+  test("keeps a <br> as a line break and drops every other tag", () => {
+    const [paragraph] = blocks("one<br>two <b>three</b>");
+    if (paragraph?.type !== "paragraph") throw new Error("expected a paragraph");
+    expect(paragraph.runs.filter((run) => run.lineBreak)).toHaveLength(1);
+    expect(plainText(paragraph.runs)).toBe("one two three");
+  });
+
   test("drops raw HTML and images", () => {
     expect(texts("<b>bold</b> and ![alt](https://x.dk/y.png) text")).toEqual(["bold and  text"]);
     expect(parseDocument("<div>only html</div>")).toEqual({ ok: false, reason: "empty" });

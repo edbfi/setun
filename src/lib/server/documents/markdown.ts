@@ -211,8 +211,15 @@ function inline(tokens: readonly Token[], style: Style = {}): Run[] {
         }
         break;
       }
+      case "html":
+        // A `<br>` is how a model breaks a line inside a table cell, which GFM
+        // cannot hold a newline in. Every other tag is dropped.
+        if (/^<br\s*\/?>$/i.test((token as Tokens.HTML).text.trim())) {
+          runs.push({ text: "", lineBreak: true });
+        }
+        break;
       default:
-        // `image`, `html`, `checkbox` outside a list item: dropped.
+        // `image`, `checkbox` outside a list item: dropped.
         break;
     }
   }
