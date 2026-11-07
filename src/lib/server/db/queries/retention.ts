@@ -1,6 +1,14 @@
 import { and, eq, inArray, isNotNull, lt, or } from "drizzle-orm";
 import type { AppDatabase } from "../client";
-import { artifact, attachment, conversation, generatedImage, session, student } from "../schema";
+import {
+  artifact,
+  attachment,
+  conversation,
+  generatedDocument,
+  generatedImage,
+  session,
+  student,
+} from "../schema";
 import { removeConversationFromIndex } from "./search";
 
 /**
@@ -114,7 +122,11 @@ export function deleteConversations(
 export function expiredCreations(
   db: AppDatabase,
   input: { classroomId: string; before: Date },
-): { artifactIds: string[]; images: { id: string; storagePath: string }[] } {
+): {
+  artifactIds: string[];
+  images: { id: string; storagePath: string }[];
+  documents: { id: string; storagePath: string }[];
+} {
   const artifactIds = db
     .select({ id: artifact.id })
     .from(artifact)
@@ -132,7 +144,19 @@ export function expiredCreations(
     )
     .all();
 
-  return { artifactIds, images };
+  const documents = db
+    .select({ id: generatedDocument.id, storagePath: generatedDocument.storagePath })
+    .from(generatedDocument)
+    .innerJoin(student, eq(student.id, generatedDocument.studentId))
+    .where(
+      and(
+        eq(student.classroomId, input.classroomId),
+        lt(generatedDocument.createdAt, input.before),
+      ),
+    )
+    .all();
+
+  return { artifactIds, images, documents };
 }
 
 export function deleteArtifacts(db: AppDatabase, artifactIds: readonly string[]): number {
@@ -155,7 +179,17 @@ export function deleteGeneratedImages(db: AppDatabase, imageIds: readonly string
     .all().length;
 }
 
-/** Every stored file belonging to one pupil — attachments and generated images (§16, §21). */
+export function deleteGeneratedDocuments(db: AppDatabase, documentIds: readonly string[]): number {
+  if (documentIds.length === 0) return 0;
+
+  return db
+    .delete(generatedDocument)
+    .where(inArray(generatedDocument.id, [...documentIds]))
+    .returning({ id: generatedDocument.id })
+    .all().length;
+}
+
+/** Every stored file belonging to one pupil — attachments, generated images and documents (§16, §21). */
 export function studentFiles(db: AppDatabase, studentId: string): DoomedFile[] {
   return [
     ...db
@@ -167,6 +201,11 @@ export function studentFiles(db: AppDatabase, studentId: string): DoomedFile[] {
       .select({ storagePath: generatedImage.storagePath })
       .from(generatedImage)
       .where(eq(generatedImage.studentId, studentId))
+      .all(),
+    ...db
+      .select({ storagePath: generatedDocument.storagePath })
+      .from(generatedDocument)
+      .where(eq(generatedDocument.studentId, studentId))
       .all(),
   ];
 }

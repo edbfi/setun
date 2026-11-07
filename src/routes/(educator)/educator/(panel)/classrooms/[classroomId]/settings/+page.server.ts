@@ -182,6 +182,7 @@ export const load: PageServerLoad = async ({ params }) => {
         attachmentTextMaxBytes: classroom.attachmentTextMaxBytes,
         attachmentMaxPerMessage: classroom.attachmentMaxPerMessage,
         imageTokenEquivalent: classroom.imageTokenEquivalent,
+        documentsEnabled: classroom.documentsEnabled,
       },
       toolPolicyAdapter,
       { id: "tool-policy" },
@@ -294,7 +295,7 @@ export const actions: Actions = {
     return { form };
   },
 
-  /** Tools, skills, attachments and image generation, in one block (§11, §12, §15). */
+  /** Tools, skills, attachments, image generation and documents, in one block (§11, §12, §15). */
   saveToolPolicy: async ({ request, params, locals }) => {
     requireEducatorPage(locals);
     const classroom = classroomFor(params.classroomId);

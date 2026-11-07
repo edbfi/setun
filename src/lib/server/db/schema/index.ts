@@ -13,6 +13,7 @@ export * from "./classroom-skill";
 export * from "./context-summary";
 export * from "./conversation";
 export * from "./educator";
+export * from "./generated-document";
 export * from "./generated-image";
 export * from "./instance";
 export * from "./login-attempt";

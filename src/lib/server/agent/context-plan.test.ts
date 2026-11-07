@@ -372,7 +372,95 @@ describe("trimBefore", () => {
   });
 });
 
+describe("trimBefore, for a document call", () => {
+  const body = `# Arbejdsark\n\n${"Opgave. ".repeat(2_500)}`;
+
+  function documentExchange(markdown: string): PathMessage[] {
+    return [
+      msg("a1", "assistant", "Her er arket.", [
+        {
+          type: "tool-call",
+          toolCallId: "call-doc",
+          toolName: "create_document",
+          serverLabel: null,
+          arguments: { format: "docx", title: "Arbejdsark", markdown },
+          decision: "auto",
+        },
+        { type: "tool-result", toolCallId: "call-doc", result: "Created.", isError: false },
+        { type: "generated-document", documentId: "d1", title: "Arbejdsark", format: "docx" },
+      ]),
+      msg("u2", "user", "Tak"),
+    ];
+  }
+
+  function callOf(path: readonly PathMessage[]) {
+    const call = path[0]?.parts.find((part) => part.type === "tool-call");
+    if (call?.type !== "tool-call") throw new Error("expected the call");
+    return call;
+  }
+
+  it("names the body instead of resending it, keeping the call valid", () => {
+    const path = documentExchange(body);
+    const trimmed = trimBefore(path, 1);
+    const call = callOf(trimmed);
+
+    expect(call.toolCallId).toBe("call-doc");
+    expect(call.arguments).toEqual({
+      format: "docx",
+      title: "Arbejdsark",
+      markdown: `[document body left out, ${body.length} characters]`,
+    });
+    // Its result stays beside it, which a provider requires.
+    expect(trimmed[0]?.parts.some((part) => part.type === "tool-result")).toBe(true);
+    // The stored message is untouched; trimming is recomputed every turn.
+    expect(callOf(path).arguments).toEqual({ format: "docx", title: "Arbejdsark", markdown: body });
+  });
+
+  it("gives the same result when run twice", () => {
+    const once = trimBefore(documentExchange(body), 1);
+    const twice = trimBefore(once, 1);
+    expect(twice).toEqual(once);
+    expect(callOf(twice).arguments).toMatchObject({
+      markdown: `[document body left out, ${body.length} characters]`,
+    });
+  });
+
+  it("leaves a short body alone rather than lengthening it", () => {
+    const path = documentExchange("Kort.");
+    expect(trimBefore(path, 1)[0]).toBe(path[0]);
+  });
+
+  it("leaves another tool's arguments alone", () => {
+    const path: PathMessage[] = [
+      msg("a1", "assistant", "x", [
+        {
+          type: "tool-call",
+          toolCallId: "c",
+          toolName: "docs__search",
+          serverLabel: "Docs",
+          arguments: { markdown: body },
+          decision: "auto",
+        },
+      ]),
+      msg("u2", "user", "y"),
+    ];
+    expect(trimBefore(path, 1)[0]).toBe(path[0]);
+  });
+});
+
 describe("renderTranscript", () => {
+  it("names a document it wrote", () => {
+    const text = renderTranscript(
+      [
+        msg("a1", "assistant", "Her.", [
+          { type: "generated-document", documentId: "d1", title: "Arbejdsark", format: "csv" },
+        ]),
+      ],
+      10_000,
+    );
+    expect(text).toContain('[created a document: "Arbejdsark" (csv)]');
+  });
+
   it("names what an artifact block wrote rather than repeating its code", () => {
     const text = renderTranscript(
       [

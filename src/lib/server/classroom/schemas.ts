@@ -292,6 +292,8 @@ export const ToolPolicySchema = v.object({
   attachmentMaxPerMessage: whole(1, 20),
   /** Appendix A: 10k tokens per generated image (§15). */
   imageTokenEquivalent: whole(1, 1_000_000),
+  /** Whether the model may write docx and csv files for pupils. */
+  documentsEnabled: flag,
 });
 
 /** Parsed by hand from one row of the tool allowlist (§11). */

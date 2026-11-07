@@ -783,6 +783,15 @@ async function* executeCalls(args: {
       yield { type: "image-generated", imageId: execution.imageId, prompt: execution.prompt ?? "" };
     }
 
+    if (execution.document && !execution.isError) {
+      yield {
+        type: "document-created",
+        documentId: execution.document.id,
+        title: execution.document.title,
+        format: execution.document.format,
+      };
+    }
+
     yield* emitResult(
       args.messages,
       call,

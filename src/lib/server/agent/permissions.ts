@@ -30,7 +30,9 @@ export type ToolKind =
    */
   | "skill-load"
   /** The internal image generator, which the modes *do* apply to (§15). */
-  | "generate-image";
+  | "generate-image"
+  /** The internal document writer; the modes apply to it as to images. */
+  | "create-document";
 
 export interface PermissionSubject {
   readonly kind: ToolKind;

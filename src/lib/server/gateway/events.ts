@@ -1,4 +1,5 @@
 import type { PerTurnCap } from "../agent/budgets";
+import type { DocumentFormat } from "../documents/formats";
 
 /**
  * The normalised internal event stream (PRD §9, §10).
@@ -133,6 +134,19 @@ export interface ImageGeneratedEvent {
 }
 
 /**
+ * A document the model wrote and Setun stored.
+ *
+ * Carries the identifier and what the card shows; the bytes are fetched from an
+ * owner-scoped route, never handed over inline.
+ */
+export interface DocumentCreatedEvent {
+  readonly type: "document-created";
+  readonly documentId: string;
+  readonly title: string;
+  readonly format: DocumentFormat;
+}
+
+/**
  * Why the provider stopped generating (§10).
  *
  * Normalised from `finish_reason` / `stop_reason` / an incomplete Responses
@@ -239,6 +253,7 @@ export type GatewayEvent =
   | ElicitationRequestEvent
   | ToolResultEvent
   | ImageGeneratedEvent
+  | DocumentCreatedEvent
   | BudgetWarningEvent
   | ContinueRequestEvent
   | UsageEventPayload
