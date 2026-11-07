@@ -138,10 +138,26 @@ function walkList(list: Tokens.List, depth: number, state: WalkState): void {
   const clamped = Math.min(depth, 2) as ListDepth;
 
   for (const item of list.items) {
-    const runs: Run[] = [];
-    const rest: Token[] = [];
-
+    // In source order: text gathers into the item until a nested block comes,
+    // which is written in its place. Text after it continues as a paragraph,
+    // so nothing in the item moves.
+    let runs: Run[] = [];
     let hasContent = false;
+    let itemWritten = false;
+
+    const flush = () => {
+      if (hasText(runs)) {
+        state.blocks.push(
+          itemWritten
+            ? { type: "paragraph", runs }
+            : { type: "list-item", ordered: list.ordered, depth: clamped, listId, runs },
+        );
+        itemWritten = true;
+      }
+      runs = [];
+      hasContent = false;
+    };
+
     for (const child of item.tokens) {
       if (child.type === "checkbox") {
         runs.push({ text: (child as Tokens.Checkbox).checked ? "☑ " : "☐ " });
@@ -151,19 +167,15 @@ function walkList(list: Tokens.List, depth: number, state: WalkState): void {
         const children = (child as Tokens.Text | Tokens.Paragraph).tokens;
         runs.push(...(children ? inline(children) : textRuns((child as Tokens.Text).text)));
         hasContent = true;
-      } else {
-        rest.push(child);
+      } else if (child.type === "list") {
+        flush();
+        walkList(child as Tokens.List, depth + 1, state);
+      } else if (child.type !== "space") {
+        flush();
+        walkBlocks([child], state);
       }
     }
-
-    if (hasText(runs)) {
-      state.blocks.push({ type: "list-item", ordered: list.ordered, depth: clamped, listId, runs });
-    }
-
-    for (const child of rest) {
-      if (child.type === "list") walkList(child as Tokens.List, depth + 1, state);
-      else walkBlocks([child], state);
-    }
+    flush();
   }
 }
 

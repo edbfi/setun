@@ -218,7 +218,7 @@
   "creations_delete_failed": "Det kunne ikke slettes. Prøv igen.",
   "creations_deleted": "Slettet.",
   "creations_documents_heading": "Dokumenter du har lavet",
-  "creations_empty_body": "Alt hvad du bygger, og alle billeder du laver, bliver her, indtil du sletter dem.",
+  "creations_empty_body": "Alt hvad du bygger, alle billeder du laver, og alle dokumenter du får, bliver her, indtil du sletter dem.",
   "creations_empty_heading": "Der er ikke noget her endnu",
   "creations_image_alt": "Genereret billede: {prompt}",
   "creations_images_heading": "Billeder du har lavet",

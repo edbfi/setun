@@ -91,6 +91,16 @@ describe("parseDocument", () => {
     ]);
   });
 
+  test("keeps a list item's contents in source order around a nested block", () => {
+    expect(texts("- Before\n\n  ```\n  middle\n  ```\n\n  After\n- next")).toEqual([
+      "Before",
+      "middle",
+      "After",
+      "next",
+    ]);
+    expect(texts("- a\n  - b\n- c")).toEqual(["a", "b", "c"]);
+  });
+
   test("gives each list its own numbering", () => {
     const items = blocks("1. one\n2. two\n\ntext\n\n1. again").filter(
       (block) => block.type === "list-item",

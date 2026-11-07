@@ -29,10 +29,17 @@ const ORDERED = "setun-ordered";
 const CODE_FONT = "Courier New";
 
 /**
- * Characters XML 1.0 does not allow. One stray form feed is enough for Word to
- * refuse the whole file, and the library escapes only `&`, `<` and `>`.
+ * Characters a Word file must not contain.
+ *
+ * XML 1.0 allows only tab, line feed, carriage return and U+0020–U+D7FF,
+ * U+E000–U+FFFD and U+10000 upward, so the non-characters U+FFFE and U+FFFF
+ * and any lone surrogate are out as well as the C0 controls. One stray form
+ * feed is enough for Word to refuse the whole file, and the library escapes
+ * only `&`, `<` and `>`. Other control characters (DEL, C1) are dropped too:
+ * XML tolerates them, but nothing a pupil reads needs them.
  */
 const CONTROL = /\p{Cc}/gu;
+const NOT_XML = /[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu;
 
 export async function renderDocx(blocks: readonly Block[]): Promise<Uint8Array> {
   const document = new Document({
@@ -137,9 +144,11 @@ function runs(source: readonly Run[], italic = false, bold = false): TextRun[] {
   );
 }
 
-/** Control characters out, except the tab and line ends XML allows. */
+/** Everything XML forbids out, and control characters other than tab and line ends. */
 function clean(text: string): string {
-  return text.replace(CONTROL, (character) =>
-    character === "\t" || character === "\n" || character === "\r" ? character : "",
-  );
+  return text
+    .replace(CONTROL, (character) =>
+      character === "\t" || character === "\n" || character === "\r" ? character : "",
+    )
+    .replace(NOT_XML, "");
 }

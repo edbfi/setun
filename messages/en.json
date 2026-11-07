@@ -218,7 +218,7 @@
   "creations_delete_failed": "That could not be deleted. Try again.",
   "creations_deleted": "Deleted.",
   "creations_documents_heading": "Documents you made",
-  "creations_empty_body": "Everything you build and every picture you make is kept here until you delete it.",
+  "creations_empty_body": "Everything you build, every picture you make and every document you get is kept here until you delete it.",
   "creations_empty_heading": "Nothing here yet",
   "creations_image_alt": "Generated picture: {prompt}",
   "creations_images_heading": "Pictures you made",

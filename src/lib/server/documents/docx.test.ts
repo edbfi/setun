@@ -80,4 +80,11 @@ describe("renderDocx", () => {
     expect(document).toContain("Hejverden!");
     expect(document).not.toMatch(/\p{Cc}/u);
   });
+
+  test("strips the non-characters and lone surrogates XML forbids", async () => {
+    const document = (await filesOf("a\uFFFEb &#xFFFF; c\uD800d"))["word/document.xml"] ?? "";
+    expect(document).toContain("ab  cd");
+    // Anything outside the XML 1.0 character ranges, anywhere in the part.
+    expect(document).not.toMatch(/[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u);
+  });
 });
