@@ -6,6 +6,7 @@ import { resolveClassroomStatus } from "$lib/server/classroom/status";
 import { listStudentArtifacts } from "$lib/server/db/queries/artifacts";
 import { getClassroom } from "$lib/server/db/queries/classrooms";
 import { listConversations } from "$lib/server/db/queries/conversations";
+import { listStudentDocuments } from "$lib/server/db/queries/documents";
 import { listStudentImages } from "$lib/server/db/queries/images";
 import { listStudentSkills } from "$lib/server/db/queries/skills";
 import {
@@ -75,6 +76,7 @@ export const load: PageServerLoad = ({ locals }) => {
     creations: {
       artifacts: listStudentArtifacts(db, student.id).length,
       images: listStudentImages(db, student.id).length,
+      documents: listStudentDocuments(db, student.id).length,
     },
     skills: listStudentSkills(db, student.id).map((skill) => ({
       id: skill.id,

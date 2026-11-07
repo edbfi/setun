@@ -6,6 +6,7 @@ import {
   attachmentFilesFor,
   deleteArtifacts,
   deleteConversations,
+  deleteGeneratedDocuments,
   deleteGeneratedImages,
   expiredConversationIds,
   expiredCreations,
@@ -38,6 +39,7 @@ export interface RetentionOutcome {
   readonly conversations: number;
   readonly artifacts: number;
   readonly images: number;
+  readonly documents: number;
   readonly files: number;
 }
 
@@ -81,6 +83,7 @@ export async function runRetention(
   let conversations = 0;
   let artifacts = 0;
   let images = 0;
+  let documents = 0;
   let removedFiles = 0;
 
   for (const classroom of listClassrooms(db)) {
@@ -122,13 +125,22 @@ export async function runRetention(
       removed.push(image.id);
     }
     images += deleteGeneratedImages(db, removed);
+
+    // Documents as images: bytes first, and only the rows whose bytes went.
+    const removedDocuments: string[] = [];
+    for (const document of creations.documents) {
+      if (!(await files.remove(document.storagePath))) continue;
+      removedFiles += 1;
+      removedDocuments.push(document.id);
+    }
+    documents += deleteGeneratedDocuments(db, removedDocuments);
   }
 
   // Cascades from educator deletions can orphan blobs even without an expired
   // creation (or any remaining classroom). Shared, still-referenced blobs stay.
   pruneOrphanBlobs(db);
 
-  return { conversations, artifacts, images, files: removedFiles };
+  return { conversations, artifacts, images, documents, files: removedFiles };
 }
 
 /** The scheduler's view of the pass above. Counts only — no identifiers, no content (§16). */
@@ -139,7 +151,7 @@ export function retentionJob(db: AppDatabase, files: FileStore): ScheduledJob {
     runAtStart: true,
     async run(now) {
       const outcome = await runRetention(db, files, now);
-      if (outcome.conversations + outcome.artifacts + outcome.images > 0) {
+      if (outcome.conversations + outcome.artifacts + outcome.images + outcome.documents > 0) {
         log.info("retention pass", outcome);
       }
     },

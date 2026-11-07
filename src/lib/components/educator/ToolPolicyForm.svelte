@@ -190,6 +190,19 @@ const field = "rounded-md border border-input bg-background px-3 py-2 text-sm te
       <FieldError message={$errors.imageTokenEquivalent} />
     </label>
 
+    <label class="flex items-start gap-2">
+      <input
+        type="checkbox"
+        name="documentsEnabled"
+        bind:checked={$form.documentsEnabled}
+        class="mt-0.5 size-4"
+      >
+      <span class="flex flex-col gap-0.5">
+        <span class="text-sm text-foreground">{m.educator_documents_enabled_label()}</span>
+        <span class="text-xs text-muted-foreground">{m.educator_documents_enabled_help()}</span>
+      </span>
+    </label>
+
     <button
       type="submit"
       disabled={$submitting}

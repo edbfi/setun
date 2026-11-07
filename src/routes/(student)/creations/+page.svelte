@@ -3,23 +3,29 @@ import { enhance } from "$app/forms";
 import { effectiveLanguage } from "$lib/artifacts/identity";
 import ArtifactFrame from "$lib/components/artifacts/ArtifactFrame.svelte";
 import * as m from "$lib/paraglide/messages";
+import { getLocale } from "$lib/paraglide/runtime";
 import type { PageProps } from "./$types";
 
 /**
  * The student's portfolio (PRD §13, §16, §18).
  *
  * "Every edit is versioned, which yields undo, a diff view… and a creations
- * gallery." Artifacts and generated images together, kept until the student or
+ * gallery." Artifacts, generated images and documents together, kept until the student or
  * their educator deletes them — which is why this route reads by owner and never
  * by conversation.
  */
 
-let { data }: PageProps = $props();
+let { data, form }: PageProps = $props();
 
 let selectedId = $state<string | null>(null);
 const selected = $derived(data.artifacts.find((item) => item.id === selectedId) ?? null);
 
-const empty = $derived(data.artifacts.length === 0 && data.images.length === 0);
+/** The document list's dates, in the pupil's language. */
+const day = $derived(new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium" }));
+
+const empty = $derived(
+  data.artifacts.length === 0 && data.images.length === 0 && data.documents.length === 0,
+);
 </script>
 
 <svelte:head><title>{m.creations_title()} · {m.app_name()}</title></svelte:head>
@@ -125,6 +131,56 @@ const empty = $derived(data.artifacts.length === 0 && data.images.length === 0);
 
                 <form method="POST" action="?/deleteImage" use:enhance>
                   <input type="hidden" name="id" value={image.id}>
+                  <button
+                    type="submit"
+                    class="rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    {m.artifact_delete()}
+                  </button>
+                </form>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      {#if data.documents.length > 0}
+        <section class="flex flex-col gap-2">
+          <h2 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            {m.creations_documents_heading()}
+          </h2>
+
+          {#if form && "deleteFailed" in form}
+            <p class="text-xs text-destructive" role="alert">{m.creations_delete_failed()}</p>
+          {/if}
+
+          <ul class="flex flex-col gap-2">
+            {#each data.documents as document (document.id)}
+              <li class="flex items-center gap-3 rounded-md border border-border p-2.5">
+                <span class="flex min-w-0 flex-1 flex-col">
+                  <span class="truncate text-sm font-medium text-foreground">{document.title}</span>
+                  <span class="text-xs text-muted-foreground">
+                    {document.format === "csv"
+                      ? m.chat_document_format_csv()
+                      : m.chat_document_format_docx()}
+                    ·
+                    <time datetime={document.createdAt}>
+                      {day.format(new Date(document.createdAt))}
+                    </time>
+                  </span>
+                </span>
+
+                <!-- Owner-scoped and served as an attachment, never opened inline. -->
+                <a
+                  href="/api/documents/{document.id}"
+                  download
+                  class="rounded-md border border-input px-2 py-1 text-xs text-foreground hover:bg-secondary"
+                >
+                  {m.chat_document_download()}
+                </a>
+
+                <form method="POST" action="?/deleteDocument" use:enhance>
+                  <input type="hidden" name="id" value={document.id}>
                   <button
                     type="submit"
                     class="rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:text-destructive"

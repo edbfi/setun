@@ -1,4 +1,5 @@
 <script lang="ts">
+import { CREATE_DOCUMENT_TOOL_NAME } from "$lib/chat/tool-labels";
 import * as m from "$lib/paraglide/messages";
 import type { PendingPermission } from "$lib/state/streaming-turn.svelte";
 import ToolAttribution from "./ToolAttribution.svelte";
@@ -11,7 +12,8 @@ import ToolAttribution from "./ToolAttribution.svelte";
  * scroll away from is a prompt they can reason about.
  *
  * The arguments are shown, not summarised — a pupil approving a tool call should
- * be approving something specific. They are rendered as text, never as markup:
+ * be approving something specific. (One exception, a document, is explained at
+ * `documentSummary`.) They are rendered as text, never as markup:
  * the model wrote them, and a model's output is untrusted (§11, §21).
  *
  * Declining is not a destructive action and is not styled as one: §11 makes it
@@ -24,10 +26,38 @@ interface Props {
 
 let { permission, onrespond }: Props = $props();
 
+/** How much of a document's body the prompt shows. */
+const DOCUMENT_PREVIEW_CHARS = 500;
+
+/**
+ * A document call, summarised.
+ *
+ * The one deliberate exception to "shown, not summarised": a document's body
+ * can run to twenty thousand characters, and a pupil cannot approve a wall of
+ * escaped JSON. The format and title are what they decide about; the opening
+ * of the body shows what it is. Anything malformed falls back to the raw
+ * arguments, because the decision is taken before they are validated.
+ */
+function documentSummary(args: unknown): string | null {
+  if (typeof args !== "object" || args === null) return null;
+  const { format, title, markdown } = args as Record<string, unknown>;
+  if (typeof format !== "string" || typeof title !== "string" || typeof markdown !== "string") {
+    return null;
+  }
+  const opening =
+    markdown.length > DOCUMENT_PREVIEW_CHARS
+      ? `${markdown.slice(0, DOCUMENT_PREVIEW_CHARS)}…`
+      : markdown;
+  return `${title} (${format})\n\n${opening}`;
+}
+
 const detail = $derived(
-  permission.arguments && Object.keys(permission.arguments as object).length > 0
-    ? JSON.stringify(permission.arguments, null, 1)
-    : null,
+  (permission.toolName === CREATE_DOCUMENT_TOOL_NAME
+    ? documentSummary(permission.arguments)
+    : null) ??
+    (permission.arguments && Object.keys(permission.arguments as object).length > 0
+      ? JSON.stringify(permission.arguments, null, 1)
+      : null),
 );
 </script>
 

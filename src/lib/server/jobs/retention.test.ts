@@ -6,8 +6,10 @@ import { appendSnapshot, createArtifact, snapshotOf } from "../db/queries/artifa
 import { recordAttachmentWithinLimit } from "../db/queries/attachments";
 import { deleteClassroom, updateClassroomSettings } from "../db/queries/classrooms";
 import { createConversation } from "../db/queries/conversations";
+import { recordGeneratedDocument } from "../db/queries/documents";
 import { recordGeneratedImage } from "../db/queries/images";
 import { appendMessage } from "../db/queries/messages";
+import { studentFiles } from "../db/queries/retention";
 import { searchConversations } from "../db/queries/search";
 import { createSessionRow } from "../db/queries/sessions";
 import { deleteStudent } from "../db/queries/students";
@@ -315,6 +317,111 @@ describe("runRetention", () => {
     // The row is the only record of where those bytes are, so it stays.
     expect(outcome).toMatchObject({ images: 0, files: 0 });
     expect(db.$client.query("SELECT count(*) as n FROM generated_image").get()).toEqual({ n: 1 });
+  });
+
+  it("expires documents as creations: bytes first, and only when a period is set", async () => {
+    const db = createTestDatabase();
+    const { student, alias, classroom } = seedTestFixtures(db);
+    const root = tempRoot("setun-retention-");
+    const files = new FileStore(root);
+
+    const conversation = createConversation(db, {
+      studentId: student.id,
+      modelAliasId: alias.id,
+    });
+    const stored = await files.write({
+      category: "documents",
+      ownerId: student.id,
+      bytes: new TextEncoder().encode("A\r\n1\r\n"),
+      extension: "csv",
+    });
+    const document = recordGeneratedDocument(db, {
+      studentId: student.id,
+      conversationId: conversation.id,
+      title: "Blade",
+      format: "csv",
+      mediaType: "text/csv",
+      storagePath: stored.storagePath,
+    });
+    backdate(
+      db,
+      "UPDATE generated_document SET createdAt = ? WHERE id = ?",
+      new Date("2024-01-01T10:00:00Z"),
+      document.id,
+    );
+    backdate(
+      db,
+      "UPDATE conversation SET updatedAt = ? WHERE id = ?",
+      new Date("2026-06-01T10:00:00Z"),
+      conversation.id,
+    );
+
+    // The conversation expires; the document is a creation and stays.
+    const kept = await runRetention(db, files, NOW);
+    expect(kept).toMatchObject({ conversations: 1, documents: 0 });
+    expect(await files.read(stored.storagePath)).not.toBeNull();
+    expect(db.$client.query("SELECT conversationId FROM generated_document").get()).toEqual({
+      conversationId: null,
+    });
+
+    updateClassroomSettings(db, {
+      classroomId: classroom.id,
+      settings: { creationRetentionDays: 90 },
+    });
+    expect(await runRetention(db, files, NOW)).toMatchObject({ documents: 1, files: 1 });
+    expect(await files.read(stored.storagePath)).toBeNull();
+    expect(db.$client.query("SELECT count(*) as n FROM generated_document").get()).toEqual({
+      n: 0,
+    });
+  });
+
+  it("keeps a document whose bytes could not be removed", async () => {
+    const db = createTestDatabase();
+    const { student, classroom } = seedTestFixtures(db);
+    updateClassroomSettings(db, {
+      classroomId: classroom.id,
+      settings: { creationRetentionDays: 90 },
+    });
+
+    const root = tempRoot("setun-retention-");
+    const storagePath = `documents/${student.id}/${crypto.randomUUID()}.docx`;
+    mkdirSync(join(root, storagePath), { recursive: true });
+    const document = recordGeneratedDocument(db, {
+      studentId: student.id,
+      title: "T",
+      format: "docx",
+      mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      storagePath,
+    });
+    backdate(
+      db,
+      "UPDATE generated_document SET createdAt = ? WHERE id = ?",
+      new Date("2024-01-01T10:00:00Z"),
+      document.id,
+    );
+
+    expect(await runRetention(db, new FileStore(root), NOW)).toMatchObject({
+      documents: 0,
+      files: 0,
+    });
+    expect(db.$client.query("SELECT count(*) as n FROM generated_document").get()).toEqual({
+      n: 1,
+    });
+  });
+
+  it("counts a pupil's documents among the files their deletion removes", () => {
+    const db = createTestDatabase();
+    const { student } = seedTestFixtures(db);
+    const storagePath = `documents/${student.id}/${crypto.randomUUID()}.csv`;
+    recordGeneratedDocument(db, {
+      studentId: student.id,
+      title: "T",
+      format: "csv",
+      mediaType: "text/csv",
+      storagePath,
+    });
+
+    expect(studentFiles(db, student.id)).toContainEqual({ storagePath });
   });
 });
 

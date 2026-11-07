@@ -1,6 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { AppDatabase } from "../db/client";
 import { allowAlias } from "../db/queries/classroom-aliases";
+import { createConversation } from "../db/queries/conversations";
 import {
   allowTool,
   listAllowedTools,
@@ -19,7 +23,13 @@ import type { McpServerConfig } from "../mcp/config";
 import { resolveSkills } from "../skills/registry";
 import { FileStore } from "../storage/files";
 import { requiresPermission } from "./permissions";
-import { buildToolSet, GENERATE_IMAGE_TOOL, type ToolContext } from "./tools";
+import {
+  buildToolSet,
+  CREATE_DOCUMENT_TOOL,
+  executeTool,
+  GENERATE_IMAGE_TOOL,
+  type ToolContext,
+} from "./tools";
 
 /**
  * The turn's tool set and the permission modes (plan 3.3, 3.4, PRD §11, §12,
@@ -39,7 +49,16 @@ const SERVER_CONFIG: McpServerConfig = {
   parameterHeaderAllowlist: [],
 };
 
-function contextFor(db: AppDatabase, fixtures: ReturnType<typeof seedTestFixtures>): ToolContext {
+/**
+ * Documents are on by default in a real classroom; these tests about the MCP
+ * allowlist assert the exact set, so they leave the document writer out unless
+ * a test asks for it.
+ */
+function contextFor(
+  db: AppDatabase,
+  fixtures: ReturnType<typeof seedTestFixtures>,
+  options: { documents?: boolean; storageRoot?: string } = {},
+): ToolContext {
   return {
     db,
     adapter: new GatewayAdapter({
@@ -47,9 +66,9 @@ function contextFor(db: AppDatabase, fixtures: ReturnType<typeof seedTestFixture
       listenerKey: "k",
       fetch: stubFetch(() => new Response("{}")).fetch,
     }),
-    files: new FileStore("/tmp/setun-test-does-not-exist"),
+    files: new FileStore(options.storageRoot ?? "/tmp/setun-test-does-not-exist"),
     mcp: new McpClient([SERVER_CONFIG]),
-    classroom: fixtures.classroom,
+    classroom: { ...fixtures.classroom, documentsEnabled: options.documents ?? false },
     studentId: fixtures.student.id,
     conversationId: crypto.randomUUID(),
     skills: resolveSkills(db, {
@@ -202,11 +221,18 @@ describe("permission modes (§11)", () => {
   const sensitive = { kind: "mcp" as const, sensitive: true };
   const skillLoad = { kind: "skill-load" as const, sensitive: false };
   const image = { kind: "generate-image" as const, sensitive: false };
+  const document = { kind: "create-document" as const, sensitive: false };
 
   it("strict asks about every tool call", () => {
     expect(requiresPermission("strict", mcp)).toBe(true);
     expect(requiresPermission("strict", sensitive)).toBe(true);
     expect(requiresPermission("strict", image)).toBe(true);
+    expect(requiresPermission("strict", document)).toBe(true);
+  });
+
+  it("treats the document writer as an ordinary tool in standard and open", () => {
+    expect(requiresPermission("standard", document)).toBe(false);
+    expect(requiresPermission("open", document)).toBe(false);
   });
 
   it("standard runs enabled tools and asks only about the sensitive ones", () => {
@@ -223,6 +249,66 @@ describe("permission modes (§11)", () => {
   it("never prompts for the internal skill loader, in any mode (§12)", () => {
     for (const mode of ["strict", "standard", "open"] as const) {
       expect(requiresPermission(mode, skillLoad)).toBe(false);
+    }
+  });
+});
+
+const ROOTS: string[] = [];
+
+afterAll(() => {
+  for (const root of ROOTS) rmSync(root, { recursive: true, force: true });
+});
+
+describe("the document writer", () => {
+  it("is offered while the classroom allows documents, and not otherwise", () => {
+    const db = createTestDatabase();
+    const fixtures = seedTestFixtures(db);
+
+    // A new classroom allows them: the switch defaults to on.
+    expect(fixtures.classroom.documentsEnabled).toBe(true);
+    const offered = buildToolSet(contextFor(db, fixtures, { documents: true }));
+    expect(offered.find(CREATE_DOCUMENT_TOOL)).toMatchObject({
+      kind: "create-document",
+      sensitive: false,
+      serverLabel: null,
+    });
+    expect(buildToolSet(contextFor(db, fixtures)).find(CREATE_DOCUMENT_TOOL)).toBeUndefined();
+  });
+
+  it("returns a document only on success, and never on an error result", async () => {
+    const db = createTestDatabase();
+    const fixtures = seedTestFixtures(db);
+    const storageRoot = mkdtempSync(join(tmpdir(), "setun-tool-documents-"));
+    ROOTS.push(storageRoot);
+    const conversation = createConversation(db, {
+      studentId: fixtures.student.id,
+      modelAliasId: fixtures.alias.id,
+    });
+    const context = {
+      ...contextFor(db, fixtures, { documents: true, storageRoot }),
+      conversationId: conversation.id,
+    };
+    const tool = buildToolSet(context).find(CREATE_DOCUMENT_TOOL);
+    if (!tool) throw new Error("expected the document tool");
+
+    const written = await executeTool({
+      context,
+      tool,
+      arguments: { format: "docx", title: "Fotosyntese", markdown: "# Fotosyntese\n\nTekst" },
+    });
+    expect(written.isError).toBe(false);
+    expect(written.document).toMatchObject({ title: "Fotosyntese", format: "docx" });
+    // The model is told it worked, never where the file lives.
+    expect(written.text).not.toContain("/api/documents");
+
+    for (const args of [
+      { format: "pdf", title: "T", markdown: "Text" },
+      { format: "docx", title: 5, markdown: "Text" },
+      { format: "csv", title: "T", markdown: "no table here" },
+    ]) {
+      const refused = await executeTool({ context, tool, arguments: args });
+      expect(refused.isError).toBe(true);
+      expect(refused.document).toBeUndefined();
     }
   });
 });

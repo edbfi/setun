@@ -15,6 +15,7 @@ import type { MessageArtifactRef } from "$lib/state/conversation.svelte";
 import ArtifactCard from "./ArtifactCard.svelte";
 import ArtifactContainedCard from "./ArtifactContainedCard.svelte";
 import ArtifactStubCard from "./ArtifactStubCard.svelte";
+import DocumentCard from "./DocumentCard.svelte";
 import MarkdownMessage from "./MarkdownMessage.svelte";
 import ThinkingBlock from "./ThinkingBlock.svelte";
 import ToolAttribution from "./ToolAttribution.svelte";
@@ -270,6 +271,9 @@ const failed = $derived(
       loading="lazy"
       class="my-1 max-h-80 w-full rounded-md border border-border object-contain"
     >
+  {:else if part.type === "generated-document"}
+    <!-- Served by Setun, scoped to its owner, as an attachment. -->
+    <DocumentCard documentId={part.documentId} title={part.title} format={part.format} />
   {:else if part.type === "artifact-edit"}
     <!--
       The pupil's own current source, carried to the model on this message (§13).

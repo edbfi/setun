@@ -1,6 +1,14 @@
 import type { AppDatabase } from "../db/client";
 import { listAllowedTools } from "../db/queries/mcp";
 import type { Classroom } from "../db/schema";
+import { createDocument, type DocumentRefusal } from "../documents/create";
+import {
+  CREATE_DOCUMENT_TOOL,
+  DOCUMENT_LIMITS,
+  type DocumentFormat,
+  isDocumentFormat,
+} from "../documents/formats";
+import { TABLE_MAX_COLUMNS, TABLE_MAX_ROWS } from "../documents/markdown";
 import type { GatewayAdapter } from "../gateway/adapter";
 import type { GatewayToolDefinition } from "../gateway/dialect";
 import type { ElicitationFieldSpec } from "../gateway/events";
@@ -33,6 +41,7 @@ import type { ToolKind } from "./permissions";
  */
 
 export const GENERATE_IMAGE_TOOL = "generate_image";
+export { CREATE_DOCUMENT_TOOL };
 
 export interface TurnTool {
   /** The name the model calls. Unique within a turn, and valid for both dialects. */
@@ -59,6 +68,12 @@ export interface ToolExecution {
   /** Present when this call produced an image the student should be shown (§15). */
   readonly imageId?: string;
   readonly prompt?: string;
+  /** Present only when this call wrote a document; an error result never carries one. */
+  readonly document?: {
+    readonly id: string;
+    readonly title: string;
+    readonly format: DocumentFormat;
+  };
 }
 
 export interface ToolContext {
@@ -171,6 +186,40 @@ export function buildToolSet(context: ToolContext): ToolSet {
     });
   }
 
+  // Offered while the classroom allows documents; the switch is read again at
+  // the moment of writing, in `createDocument`.
+  if (context.classroom.documentsEnabled) {
+    tools.push({
+      name: uniqueName(CREATE_DOCUMENT_TOOL, taken),
+      description:
+        "Create a Word document (docx) or a spreadsheet file (csv) the pupil can download. " +
+        "Use it when they ask for a document, worksheet, handout or a table as a file. " +
+        "Write the content as Markdown: headings, paragraphs, lists, quotes, code blocks and tables. " +
+        "A csv must contain exactly one Markdown table. Images, HTML and hyperlinks are not kept.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          format: { type: "string", enum: ["docx", "csv"], description: "The file type." },
+          title: {
+            type: "string",
+            maxLength: DOCUMENT_LIMITS.titleMaxChars,
+            description: "A short title. It names the file the pupil downloads.",
+          },
+          markdown: {
+            type: "string",
+            maxLength: DOCUMENT_LIMITS.markdownMaxChars,
+            description: "The whole document, as Markdown.",
+          },
+        },
+        required: ["format", "title", "markdown"],
+        additionalProperties: false,
+      },
+      kind: "create-document",
+      sensitive: false,
+      serverLabel: null,
+    });
+  }
+
   return new ToolSet(tools);
 }
 
@@ -263,6 +312,44 @@ export async function executeTool(input: {
       };
     }
 
+    case "create-document": {
+      const { format, title, markdown } = input.arguments;
+      if (!isDocumentFormat(format) || typeof title !== "string" || typeof markdown !== "string") {
+        return { text: documentRefusalForModel("invalid"), isError: true };
+      }
+
+      let result: Awaited<ReturnType<typeof createDocument>>;
+      try {
+        result = await createDocument({
+          db: context.db,
+          files: context.files,
+          classroomId: context.classroom.id,
+          studentId: context.studentId,
+          conversationId: context.conversationId,
+          format,
+          title,
+          markdown,
+        });
+      } catch (cause) {
+        // Rendering or storing failed. The tool's problem to report, not the
+        // turn's to die of; no document content reaches the log (§21).
+        log.warn("document creation failed", { cause: describeCause(cause) });
+        return { text: "The document could not be saved. Continue without it.", isError: true };
+      }
+
+      if (!result.ok) return { text: documentRefusalForModel(result.refusal), isError: true };
+
+      const { document } = result;
+      return {
+        text:
+          `Created '${document.title}' (${document.format}, ${formatSize(result.byteLength)}). ` +
+          "The pupil sees a download card in the chat and the document is saved in their Creations. " +
+          "Do not repeat its content; ask whether they would like anything changed.",
+        isError: false,
+        document: { id: document.id, title: document.title, format: document.format },
+      };
+    }
+
     case "mcp": {
       if (!context.mcp || !tool.mcp) {
         return { text: "This tool is not available right now.", isError: true };
@@ -326,4 +413,30 @@ function imageRefusalForModel(
     default:
       return "Image generation is not available in this class. Tell the pupil you cannot make pictures here.";
   }
+}
+
+/** What the model is told when a document was refused. Phrased so it can retry. */
+function documentRefusalForModel(refusal: DocumentRefusal): string {
+  switch (refusal) {
+    case "disabled":
+      return "Documents are switched off in this classroom. Answer in the chat instead.";
+    case "invalid":
+      return (
+        "The call needs format 'docx' or 'csv', a title of at most " +
+        `${DOCUMENT_LIMITS.titleMaxChars} characters and Markdown of at most ` +
+        `${DOCUMENT_LIMITS.markdownMaxChars} characters. Try again with those.`
+      );
+    case "empty":
+      return "Nothing in that Markdown can go into a document. Write text, lists or tables.";
+    case "table-too-large":
+      return `A table may have at most ${TABLE_MAX_ROWS} rows and ${TABLE_MAX_COLUMNS} columns. Split it or shorten it.`;
+    case "needs-one-table":
+      return "A csv must contain exactly one Markdown table. Send just that table.";
+    case "too-large":
+      return "That document is too large to save. Make it shorter.";
+  }
+}
+
+function formatSize(bytes: number): string {
+  return bytes < 1024 ? `${bytes} B` : `${Math.round(bytes / 1024)} KB`;
 }

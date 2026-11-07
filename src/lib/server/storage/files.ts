@@ -15,7 +15,7 @@ import { describeCause, log } from "../logging";
  * points at it — which is itself owner-scoped.
  */
 
-export type StorageCategory = "attachments" | "images";
+export type StorageCategory = "attachments" | "images" | "documents";
 
 /**
  * A stored path, as written to the database.
@@ -24,7 +24,8 @@ export type StorageCategory = "attachments" | "images";
  * a row whose path does not match this shape is refused rather than resolved,
  * so a path that somehow acquired a `..` cannot reach outside the root.
  */
-const STORAGE_PATH = /^(attachments|images)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/;
+const STORAGE_PATH =
+  /^(attachments|images|documents)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/;
 
 export class FileStore {
   readonly #root: string;

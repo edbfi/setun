@@ -1,5 +1,6 @@
 import { detectArtifacts } from "../../artifacts/detect";
 import type { Message, MessagePart } from "../db/schema";
+import { CREATE_DOCUMENT_TOOL } from "../documents/formats";
 
 /**
  * Fitting a long conversation into the model's context window (PRD §10).
@@ -236,6 +237,12 @@ export function trimBefore(path: readonly PathMessage[], keepFrom: number): Path
         changed = true;
         return { type: "text", text: `\n[Attached earlier: ${part.filename}, not resent.]` };
       }
+      if (part.type === "tool-call" && part.toolName === CREATE_DOCUMENT_TOOL) {
+        const trimmed = withoutDocumentBody(part.arguments);
+        if (trimmed === part.arguments) return part;
+        changed = true;
+        return { ...part, arguments: trimmed };
+      }
       return part;
     });
 
@@ -244,6 +251,27 @@ export function trimBefore(path: readonly PathMessage[], keepFrom: number): Path
 }
 
 const TRIMMED_RESULT = "[Tool result left out to fit the model's context";
+
+/**
+ * A document call's arguments with the body left out, or the same object.
+ *
+ * The provider still sees a well-formed call with its format and title, paired
+ * with its result; only the Markdown, which can run to twenty thousand
+ * characters and would otherwise ride along in every later request, is named
+ * instead of sent. A body already left out is kept as it is, so a second pass
+ * does not overwrite the original count with the placeholder's own length.
+ */
+function withoutDocumentBody(args: unknown): unknown {
+  if (typeof args !== "object" || args === null || Array.isArray(args)) return args;
+  const markdown = (args as { markdown?: unknown }).markdown;
+  if (typeof markdown !== "string" || markdown.startsWith(TRIMMED_DOCUMENT)) return args;
+
+  const replacement = `${TRIMMED_DOCUMENT} ${markdown.length} characters]`;
+  if (markdown.length <= replacement.length) return args;
+  return { ...(args as Record<string, unknown>), markdown: replacement };
+}
+
+const TRIMMED_DOCUMENT = "[document body left out,";
 
 /**
  * The path, opened by the summary and any omission note.
@@ -308,6 +336,9 @@ export function renderTranscript(messages: readonly PathMessage[], maxChars: num
           break;
         case "generated-image":
           pieces.push(`[generated an image: ${part.prompt}]`);
+          break;
+        case "generated-document":
+          pieces.push(`[created a document: "${part.title}" (${part.format})]`);
           break;
         case "tool-call":
           pieces.push(`[used the tool ${part.toolName}]`);

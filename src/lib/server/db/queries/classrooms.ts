@@ -77,6 +77,7 @@ export type ClassroomSettingsUpdate = Partial<
     | "attachmentTextMaxBytes"
     | "attachmentMaxPerMessage"
     | "imageTokenEquivalent"
+    | "documentsEnabled"
     | "classroomInstructions"
     | "interfaceLanguage"
     | "costExchangeRate"

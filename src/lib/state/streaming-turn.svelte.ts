@@ -349,6 +349,19 @@ export class StreamingTurn {
         ];
         break;
 
+      case "document-created":
+        this.#settleThinking();
+        this.parts = [
+          ...this.parts,
+          {
+            type: "generated-document",
+            documentId: event.documentId,
+            title: event.title,
+            format: event.format,
+          },
+        ];
+        break;
+
       case "error":
         this.notice = "error";
         break;

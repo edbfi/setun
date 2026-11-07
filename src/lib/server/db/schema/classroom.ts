@@ -190,6 +190,16 @@ export const classroom = sqliteTable("classroom", {
    */
   imageTokenEquivalent: integer().notNull().default(10_000),
 
+  /**
+   * Whether the model may write a document (docx or csv) for a pupil to download.
+   *
+   * On by default: a document is the model's own words in a file, rendered by
+   * Setun from an allowlist, and it costs what writing the words cost. The tool
+   * re-reads this at the moment it runs, so switching it off takes effect even
+   * for a call already waiting on a pupil's approval.
+   */
+  documentsEnabled: integer({ mode: "boolean" }).notNull().default(true),
+
   /** The educator's steering instrument, layered into the system prompt (§10). */
   classroomInstructions: text(),
   interfaceLanguage: text({ enum: INTERFACE_LANGUAGES }).notNull().default("da"),

@@ -1,4 +1,5 @@
 import { type AnySQLiteColumn, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { DocumentFormat } from "../../documents/formats";
 import { conversation } from "./conversation";
 import { createdAt, primaryId } from "./helpers";
 
@@ -94,6 +95,19 @@ export interface GeneratedImagePart {
 }
 
 /**
+ * A document the model wrote, stored as a creation and served only by Setun.
+ *
+ * Carries what the card shows; the bytes are fetched by id from an owner-scoped
+ * route, and the title never goes into the file itself.
+ */
+export interface GeneratedDocumentPart {
+  readonly type: "generated-document";
+  readonly documentId: string;
+  readonly title: string;
+  readonly format: DocumentFormat;
+}
+
+/**
  * A tool the model asked for, with what the permission mode decided (§11, §19).
  *
  * The decision is stored on the call rather than in a parallel list, so a
@@ -172,6 +186,7 @@ export type MessagePart =
   | AttachmentPart
   | ArtifactEditPart
   | GeneratedImagePart
+  | GeneratedDocumentPart
   | ToolCallPart
   | ToolResultPart
   | TurnNoticePart

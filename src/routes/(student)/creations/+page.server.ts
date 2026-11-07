@@ -10,7 +10,9 @@ import {
   listStudentArtifacts,
   pruneOrphanBlobs,
 } from "$lib/server/db/queries/artifacts";
+import { listStudentDocuments } from "$lib/server/db/queries/documents";
 import { deleteOwnedImage, listStudentImages } from "$lib/server/db/queries/images";
+import { removeOwnedDocument } from "$lib/server/documents/remove";
 import type { Actions, PageServerLoad } from "./$types";
 
 /**
@@ -57,6 +59,12 @@ export const load: PageServerLoad = ({ locals }) => {
       prompt: image.prompt,
       createdAt: image.createdAt.toISOString(),
     })),
+    documents: listStudentDocuments(db, student.id).map((document) => ({
+      id: document.id,
+      title: document.title,
+      format: document.format,
+      createdAt: document.createdAt.toISOString(),
+    })),
     sandboxOrigin: getConfig().sandboxOrigin,
   };
 };
@@ -92,6 +100,22 @@ export const actions: Actions = {
       studentId: student.id,
     });
     if (storagePath) await getFileStore().remove(storagePath);
+
+    return { deleted: true };
+  },
+
+  /** Bytes first, then the row; see `removeOwnedDocument`. */
+  deleteDocument: async ({ request, locals }) => {
+    const student = requireStudentPage(locals);
+
+    const parsed = v.safeParse(DeleteSchema, { id: (await request.formData()).get("id") });
+    if (!parsed.success) return fail(400, { invalid: true });
+
+    const outcome = await removeOwnedDocument(getDb(), getFileStore(), {
+      documentId: parsed.output.id,
+      studentId: student.id,
+    });
+    if (outcome === "failed") return fail(500, { deleteFailed: true });
 
     return { deleted: true };
   },

@@ -4,6 +4,7 @@ import type { AppDatabase } from "../db/client";
 import { getClassroom } from "../db/queries/classrooms";
 import { saveContextSummary, summaryForPath } from "../db/queries/context-summaries";
 import { setActiveLeaf } from "../db/queries/conversations";
+import { attachDocumentToMessage } from "../db/queries/documents";
 import { attachImageToMessage } from "../db/queries/images";
 import { appendMessage, recordMessageUsage } from "../db/queries/messages";
 import { finishTurn } from "../db/queries/turns";
@@ -116,6 +117,7 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
 
   const parts: MessagePart[] = [];
   const imageIds: string[] = [];
+  const documentIds: string[] = [];
   const usage: TurnUsage = { inputTokens: 0, outputTokens: 0, estimated: false, toolCalls: 0 };
   let status: "completed" | "aborted" | "failed" = "completed";
   /** Calls the student was asked about, so the result can record what they said (§19). */
@@ -133,7 +135,7 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
 
     /** An event of the turn's own making — the stage, the summary's cost — recorded like any other. */
     const emit = (event: GatewayEvent) => {
-      collect({ event, parts, imageIds, usage, asked });
+      collect({ event, parts, imageIds, documentIds, usage, asked });
       const buffered = buffer.append(event);
       liveTurns.publish({ turnId, buffered });
     };
@@ -218,7 +220,7 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
           break;
         }
 
-        collect({ event, parts, imageIds, usage, asked });
+        collect({ event, parts, imageIds, documentIds, usage, asked });
 
         if (event.type === "done") {
           status = terminalStatusFor(event);
@@ -252,7 +254,7 @@ export async function executeTurn(input: ExecuteTurnInput): Promise<void> {
       });
     }
 
-    persistOutcome({ ...input, parts, imageIds, usage, status });
+    persistOutcome({ ...input, parts, imageIds, documentIds, usage, status });
     logTurn(input, { status, usage, startedAt });
   } catch (cause) {
     // The loop converts failures into events, so reaching here means the
@@ -283,6 +285,7 @@ function collect(args: {
   event: GatewayEvent;
   parts: MessagePart[];
   imageIds: string[];
+  documentIds: string[];
   usage: TurnUsage;
   /** Index in `parts` of each call the student was asked about. */
   asked: Map<string, number>;
@@ -370,6 +373,15 @@ function collect(args: {
       args.imageIds.push(event.imageId);
       parts.push({ type: "generated-image", imageId: event.imageId, prompt: event.prompt });
       break;
+    case "document-created":
+      args.documentIds.push(event.documentId);
+      parts.push({
+        type: "generated-document",
+        documentId: event.documentId,
+        title: event.title,
+        format: event.format,
+      });
+      break;
     case "usage":
       // Summed across steps: a turn that called three tools made four model
       // round trips, and all four were paid for (§10).
@@ -449,6 +461,7 @@ function persistOutcome(
   input: ExecuteTurnInput & {
     parts: MessagePart[];
     imageIds: string[];
+    documentIds: string[];
     usage: TurnUsage;
     status: "completed" | "aborted" | "failed";
   },
@@ -476,6 +489,13 @@ function persistOutcome(
       messageId: assistantMessage.id,
       parts: input.parts,
     });
+
+    // Documents outlive the conversation too, and belong to the message that
+    // wrote them while it exists. Not gated on reported usage: a document that
+    // was written is a creation whatever the gateway said it cost (§16).
+    for (const documentId of input.documentIds) {
+      attachDocumentToMessage(db, { documentId, messageId: assistantMessage.id });
+    }
   }
 
   if (assistantMessage && spent > 0) {

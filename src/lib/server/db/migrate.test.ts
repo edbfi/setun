@@ -106,6 +106,8 @@ describe("applyMigrations", () => {
     expect(upgraded?.doneSound).toBe("on");
     // And two answers at once, one per conversation (§10).
     expect(upgraded?.maxConcurrentTurns).toBe(2);
+    // And one that predates documents gets them, switched on.
+    expect(upgraded?.documentsEnabled).toBe(true);
   });
 
   it("adds the artifact identity columns to rows that predate them", () => {

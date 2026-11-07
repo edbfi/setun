@@ -128,6 +128,7 @@ const action =
       {m.student_creations_count({
         artifacts: data.creations.artifacts,
         images: data.creations.images,
+        documents: data.creations.documents,
       })}
     </p>
     <a href="/creations" class="self-start text-xs text-primary underline underline-offset-2">
