@@ -2,19 +2,22 @@
   <img src="static/setun-mark.svg" alt="Setun logo" width="192" height="192">
 </p>
 
-<h1 align="center">Setun</h1>
+<h1 align="center">setun</h1>
 
 <p align="center">
   <strong>A privacy-first AI learning environment for classrooms</strong>
 </p>
 
 <p align="center">
+  <a href="https://github.com/edbfi/setun/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue?style=flat" alt="AGPL-3.0-only license"></a>
+  <a href="https://github.com/oven-sh/bun" title="Bun source"><img src="https://img.shields.io/badge/Bun-000000?style=flat&amp;logo=bun&amp;logoColor=white" alt="Bun"></a>
+  <a href="https://github.com/sveltejs/kit" title="SvelteKit source"><img src="https://img.shields.io/badge/SvelteKit-FF3E00?style=flat&amp;logo=svelte&amp;logoColor=white" alt="SvelteKit"></a>
+  <a href="https://github.com/microsoft/TypeScript" title="TypeScript source"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&amp;logo=typescript&amp;logoColor=white" alt="TypeScript"></a>
+  <a href="https://sqlite.org/src" title="SQLite source"><img src="https://img.shields.io/badge/SQLite-003B57?style=flat&amp;logo=sqlite&amp;logoColor=white" alt="SQLite"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/edbfi/setun/actions/workflows/ci.yml"><img src="https://github.com/edbfi/setun/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-  <a href="https://github.com/edbfi/setun/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 license"></a>
-  <img src="https://img.shields.io/badge/Bun_1.4+-000000?logo=bun&logoColor=white" alt="Bun 1.4 or newer">
-  <img src="https://img.shields.io/badge/SvelteKit_3-FF3E00?logo=svelte&logoColor=white" alt="SvelteKit 3">
-  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
-  <img src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white" alt="SQLite">
 </p>
 
 ---
