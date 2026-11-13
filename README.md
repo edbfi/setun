@@ -14,10 +14,7 @@
   <a href="https://github.com/sveltejs/kit" title="SvelteKit source"><img src="https://img.shields.io/badge/SvelteKit-FF3E00?style=flat&amp;logo=svelte&amp;logoColor=white" alt="SvelteKit"></a>
   <a href="https://github.com/microsoft/TypeScript" title="TypeScript source"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&amp;logo=typescript&amp;logoColor=white" alt="TypeScript"></a>
   <a href="https://sqlite.org/src" title="SQLite source"><img src="https://img.shields.io/badge/SQLite-003B57?style=flat&amp;logo=sqlite&amp;logoColor=white" alt="SQLite"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/edbfi/setun/actions/workflows/ci.yml"><img src="https://github.com/edbfi/setun/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/edbfi/setun/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/edbfi/setun/ci.yml?branch=main&amp;event=push&amp;label=CI&amp;style=flat" alt="CI"></a>
 </p>
 
 ---
